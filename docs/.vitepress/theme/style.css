@@ -44,6 +44,13 @@
   letter-spacing: -0.01em;
 }
 
+.VPHero .image .image-src[src*="hero-shell.svg"] {
+  max-height: none;
+  width: min(560px, 44vw);
+  max-width: min(560px, 44vw);
+  height: auto;
+}
+
 .VPFeature {
   border: 1px solid var(--vp-c-divider);
   border-radius: 18px;
@@ -166,6 +173,11 @@
 }
 
 @media (max-width: 960px) {
+  .VPHero .image .image-src[src*="hero-shell.svg"] {
+    width: min(392px, 86vw);
+    max-width: min(392px, 86vw);
+  }
+
   .github-stars-link {
     display: none;
   }

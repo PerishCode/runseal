@@ -9,6 +9,9 @@ hero:
   image:
     src: /hero-shell.svg
     alt: envlock shell quick verify
+    class: hero-shell-image
+    width: 720
+    height: 480
   actions:
     - theme: brand
       text: 快速开始
