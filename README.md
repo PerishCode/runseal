@@ -65,6 +65,8 @@ envlock self-update
 ## Validation
 
 ```bash
+bash scripts/version-sync-check.sh
+bash scripts/release-ready.sh
 scripts/converge-check.sh
 bash scripts/release-smoke.sh --version v0.2.1
 ```

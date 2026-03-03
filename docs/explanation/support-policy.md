@@ -2,7 +2,7 @@
 
 Current support target:
 
-- `>= 0.2.1`
+- `>= v0.2.1`
 
 Upgrade guidance:
 
