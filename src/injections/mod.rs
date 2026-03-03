@@ -3,6 +3,7 @@ mod env;
 mod symlink;
 
 use anyhow::{Context, Result, anyhow};
+use std::collections::BTreeMap;
 use tracing::{debug, info};
 
 use crate::app::AppContext;
@@ -84,6 +85,7 @@ fn collect_exports(
     injections: &[RuntimeInjection],
 ) -> Result<Vec<(String, String)>> {
     let mut exports = Vec::new();
+    let mut inherited = BTreeMap::new();
     for injection in injections {
         debug!(
             injection = injection.name(),
@@ -91,13 +93,16 @@ fn collect_exports(
             "running stage"
         );
         let exported = injection
-            .export(app)
+            .export(app, &inherited)
             .with_context(|| format!("{} export failed", injection.name()))?;
         debug!(
             injection = injection.name(),
             export_count = exported.len(),
             "export stage completed"
         );
+        for (key, value) in &exported {
+            inherited.insert(key.clone(), value.clone());
+        }
         exports.extend(exported);
     }
     info!(export_count = exports.len(), "export collection completed");
@@ -173,10 +178,14 @@ impl RuntimeInjection {
         }
     }
 
-    fn export(&self, app: &dyn AppContext) -> Result<Vec<(String, String)>> {
+    fn export(
+        &self,
+        app: &dyn AppContext,
+        inherited: &BTreeMap<String, String>,
+    ) -> Result<Vec<(String, String)>> {
         match self {
             Self::Env(inner) => inner.export(app),
-            Self::Command(inner) => inner.export(app),
+            Self::Command(inner) => inner.export(app, inherited),
             Self::Symlink(inner) => inner.export(),
         }
     }
@@ -306,5 +315,29 @@ mod tests {
         let exports = execute_lifecycle(&app, specs).expect("command lifecycle should pass");
         assert!(exports.contains(&("CMD_A".to_string(), "1".to_string())));
         assert!(exports.contains(&("CMD_B".to_string(), "2".to_string())));
+    }
+
+    #[test]
+    fn command_injection_observes_prior_exports() {
+        let specs = vec![
+            InjectionProfile::Env(crate::profile::EnvProfile {
+                enabled: true,
+                vars: BTreeMap::from([("BASE".to_string(), "seed".to_string())]),
+                ops: Vec::new(),
+            }),
+            InjectionProfile::Command(crate::profile::CommandProfile {
+                enabled: true,
+                program: "bash".to_string(),
+                args: vec![
+                    "-lc".to_string(),
+                    "printf 'export DERIVED=${BASE}-ok\\n'".to_string(),
+                ],
+            }),
+        ];
+
+        let app = TestApp::new();
+        let exports = execute_lifecycle(&app, specs).expect("command should see prior exports");
+        assert!(exports.contains(&("BASE".to_string(), "seed".to_string())));
+        assert!(exports.contains(&("DERIVED".to_string(), "seed-ok".to_string())));
     }
 }

@@ -35,9 +35,15 @@ pub struct RawEnv {
 impl RawEnv {
     pub fn from_process() -> Self {
         Self {
-            home: std::env::var_os("HOME").map(PathBuf::from),
-            envlock_home: std::env::var_os("ENVLOCK_HOME").map(PathBuf::from),
-            envlock_resource_home: std::env::var_os("ENVLOCK_RESOURCE_HOME").map(PathBuf::from),
+            home: std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .filter(non_empty_path),
+            envlock_home: std::env::var_os("ENVLOCK_HOME")
+                .map(PathBuf::from)
+                .filter(non_empty_path),
+            envlock_resource_home: std::env::var_os("ENVLOCK_RESOURCE_HOME")
+                .map(PathBuf::from)
+                .filter(non_empty_path),
         }
     }
 }
@@ -58,9 +64,18 @@ impl RuntimeConfig {
     pub fn from_cli_and_env(cli: CliInput, env: RawEnv) -> Result<Self> {
         let envlock_home = env
             .envlock_home
-            .unwrap_or_else(|| default_envlock_home(env.home.as_ref()));
+            .filter(non_empty_path)
+            .or_else(|| {
+                env.home
+                    .filter(non_empty_path)
+                    .map(|home| home.join(".envlock"))
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!("HOME is not set; pass --profile or set ENVLOCK_HOME")
+            })?;
         let resource_home = env
             .envlock_resource_home
+            .filter(non_empty_path)
             .unwrap_or_else(|| envlock_home.join("resources"));
 
         let profile_path = if let Some(profile) = cli.profile {
@@ -94,11 +109,8 @@ impl RuntimeConfig {
     }
 }
 
-fn default_envlock_home(home: Option<&PathBuf>) -> PathBuf {
-    if let Some(home) = home {
-        return home.join(".envlock");
-    }
-    PathBuf::from("~/.envlock")
+fn non_empty_path(path: &PathBuf) -> bool {
+    !path.as_os_str().is_empty()
 }
 
 #[cfg(test)]
@@ -201,5 +213,43 @@ mod tests {
         )
         .expect_err("missing default profile should fail");
         assert!(err.to_string().contains("profiles/default.json"));
+    }
+
+    #[test]
+    fn missing_home_and_envlock_home_fails() {
+        let err = RuntimeConfig::from_cli_and_env(
+            base_cli(),
+            RawEnv {
+                home: None,
+                envlock_home: None,
+                envlock_resource_home: None,
+            },
+        )
+        .expect_err("missing home should fail");
+        assert!(err.to_string().contains("HOME is not set"));
+    }
+
+    #[test]
+    fn empty_envlock_home_is_treated_as_unset() {
+        let temp = TempDir::new().expect("temp dir should be created");
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(home.join(".envlock/profiles")).expect("profiles dir should exist");
+        std::fs::write(
+            home.join(".envlock/profiles/default.json"),
+            "{\"injections\":[]}",
+        )
+        .expect("default profile should be written");
+
+        let cfg = RuntimeConfig::from_cli_and_env(
+            base_cli(),
+            RawEnv {
+                home: Some(home.clone()),
+                envlock_home: Some(PathBuf::new()),
+                envlock_resource_home: None,
+            },
+        )
+        .expect("config should fall back to HOME/.envlock");
+
+        assert_eq!(cfg.envlock_home, home.join(".envlock"));
     }
 }

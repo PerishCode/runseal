@@ -4,10 +4,19 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 DOC_FILES=(
+  "README.md"
+  "README.zh-CN.md"
   "docs/how-to/install.md"
   "docs/how-to/update-and-uninstall.md"
+  "docs/how-to/common-recipes.md"
+  "docs/how-to/migrate-to-v0.2.md"
+  "docs/reference/quick-reference.md"
   "docs/reference/release.md"
   "docs/explanation/support-policy.md"
+  "docs/zh-CN/how-to/install.md"
+  "docs/zh-CN/how-to/common-recipes.md"
+  "docs/zh-CN/how-to/migrate-to-v0.2.md"
+  "docs/zh-CN/reference/quick-reference.md"
 )
 
 fail() {

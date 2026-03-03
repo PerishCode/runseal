@@ -13,6 +13,8 @@ envlock self-update [--check] [--version <x.y.z|vX.Y.Z>] [-y|--yes]
 - `-p, --profile <path>`：显式指定 profile JSON 路径
 - `--output <shell|json>`：输出模式，默认 `shell`
 - `--strict`：输出结果中出现重复 key 时失败
+- `--log-level <error|warn|info|debug|trace>`：日志级别，默认 `warn`
+- `--log-format <text|json>`：日志格式，默认 `text`
 - `-- <cmd...>`：将注入后的环境只传给子进程，并返回子进程退出码
 
 不传 `--profile` 时，默认查找顺序：

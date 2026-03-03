@@ -10,6 +10,16 @@ pub trait EnvReader: Send + Sync {
 
 pub trait CommandRunner: Send + Sync {
     fn output(&self, program: &str, args: &[String]) -> Result<Output>;
+
+    fn output_with_env(
+        &self,
+        program: &str,
+        args: &[String],
+        env_overrides: &[(String, String)],
+    ) -> Result<Output> {
+        let _ = env_overrides;
+        self.output(program, args)
+    }
 }
 
 pub trait AppContext: Send + Sync {
@@ -32,6 +42,19 @@ impl CommandRunner for ProcessCommandRunner {
     fn output(&self, program: &str, args: &[String]) -> Result<Output> {
         Command::new(program)
             .args(args)
+            .output()
+            .with_context(|| format!("failed to run command: {program}"))
+    }
+
+    fn output_with_env(
+        &self,
+        program: &str,
+        args: &[String],
+        env_overrides: &[(String, String)],
+    ) -> Result<Output> {
+        Command::new(program)
+            .args(args)
+            .envs(env_overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .output()
             .with_context(|| format!("failed to run command: {program}"))
     }

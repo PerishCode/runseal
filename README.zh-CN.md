@@ -53,11 +53,11 @@ envlock self-update
 - 文档站点：https://perishcode.github.io/envlock/
 - 英文 README：[README.md](README.md)
 - 快速开始：[docs/tutorials/quick-start.md](docs/tutorials/quick-start.md)
-- 安装指南：[docs/how-to/install.md](docs/how-to/install.md)
+- 安装指南：[docs/zh-CN/how-to/install.md](docs/zh-CN/how-to/install.md)
 - 快速参考（中文）：[docs/zh-CN/reference/quick-reference.md](docs/zh-CN/reference/quick-reference.md)
 - 常见用法（中文）：[docs/zh-CN/how-to/common-recipes.md](docs/zh-CN/how-to/common-recipes.md)
 - CI 集成（中文）：[docs/zh-CN/how-to/ci-integration.md](docs/zh-CN/how-to/ci-integration.md)
-- CLI 参考：[docs/reference/cli.md](docs/reference/cli.md)
+- CLI 参考（中文）：[docs/zh-CN/reference/cli.md](docs/zh-CN/reference/cli.md)
 - FAQ（中文）：[docs/zh-CN/explanation/faq.md](docs/zh-CN/explanation/faq.md)
 - FAQ（英文）：[docs/explanation/faq.md](docs/explanation/faq.md)
 - 设计说明：[docs/explanation/design-boundaries.md](docs/explanation/design-boundaries.md)
@@ -68,7 +68,7 @@ envlock self-update
 ```bash
 bash scripts/version-sync-check.sh
 bash scripts/release-ready.sh
-scripts/converge-check.sh
+bash scripts/converge-check.sh
 bash scripts/release-smoke.sh --version v0.2.1
 ```
 

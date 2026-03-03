@@ -71,12 +71,26 @@ fn print_outputs(exports: Vec<(String, String)>, as_json: bool, strict: bool) ->
 fn to_env_map(exports: Vec<(String, String)>, strict: bool) -> Result<BTreeMap<String, String>> {
     let mut env = BTreeMap::new();
     for (key, value) in exports {
+        if !is_valid_env_key(&key) {
+            bail!("invalid exported key: {}", key);
+        }
         if strict && env.contains_key(&key) {
             bail!("duplicate exported key detected in strict mode: {}", key);
         }
         env.insert(key, value);
     }
     Ok(env)
+}
+
+fn is_valid_env_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !(first == '_' || first.is_ascii_alphabetic()) {
+        return false;
+    }
+    chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
 fn shell_single_quote_escape(input: &str) -> String {
@@ -145,5 +159,12 @@ mod tests {
         )
         .expect_err("strict mode should reject duplicate keys");
         assert!(err.to_string().contains("duplicate exported key"));
+    }
+
+    #[test]
+    fn env_map_rejects_invalid_key() {
+        let err = to_env_map(vec![("BAD-KEY".to_string(), "1".to_string())], false)
+            .expect_err("invalid env key should fail");
+        assert!(err.to_string().contains("invalid exported key"));
     }
 }
