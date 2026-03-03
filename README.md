@@ -62,6 +62,12 @@ envlock self-update
 - Explanation: [docs/explanation/design-boundaries.md](docs/explanation/design-boundaries.md)
 - Language policy: [docs/explanation/language-maintenance.md](docs/explanation/language-maintenance.md)
 
+## Validation
+
+```bash
+scripts/converge-check.sh
+```
+
 ## Troubleshooting Fast Path
 
 Run these before filing an issue:
