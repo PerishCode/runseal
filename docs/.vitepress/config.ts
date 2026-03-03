@@ -26,6 +26,7 @@ export default defineConfig({
           text: "How-to",
           items: [
             { text: "Install", link: "/how-to/install" },
+            { text: "Common Recipes", link: "/how-to/common-recipes" },
             { text: "Migrate to v0.2", link: "/how-to/migrate-to-v0.2" },
             { text: "Use Profiles", link: "/how-to/use-profiles" },
             { text: "Run Command Mode", link: "/how-to/command-mode" },
@@ -59,6 +60,7 @@ export default defineConfig({
           items: [
             { text: "首页", link: "/zh-CN/" },
             { text: "安装", link: "/zh-CN/how-to/install" },
+            { text: "常用配方", link: "/zh-CN/how-to/common-recipes" },
             { text: "CLI 参考", link: "/zh-CN/reference/cli" },
             { text: "迁移到 v0.2", link: "/zh-CN/how-to/migrate-to-v0.2" },
             { text: "常见问题", link: "/zh-CN/explanation/faq" }

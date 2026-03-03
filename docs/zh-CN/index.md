@@ -5,6 +5,7 @@
 ## 快速入口
 
 - 安装：[`/zh-CN/how-to/install`](/zh-CN/how-to/install)
+- 常用配方：[`/zh-CN/how-to/common-recipes`](/zh-CN/how-to/common-recipes)
 - CLI 参考：[`/zh-CN/reference/cli`](/zh-CN/reference/cli)
 - v0.2 迁移：[`/zh-CN/how-to/migrate-to-v0.2`](/zh-CN/how-to/migrate-to-v0.2)
 

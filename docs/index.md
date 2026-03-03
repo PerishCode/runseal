@@ -52,5 +52,6 @@ echo "$ENVLOCK_PROFILE"
 ```
 
 - Need migration details? See [Migrate to v0.2](/how-to/migrate-to-v0.2).
+- Need copy-paste tasks? See [Common Recipes](/how-to/common-recipes).
 - Prefer Chinese docs? Start at [简体中文入口](/zh-CN/).
 - Chinese migration guide: [迁移到 v0.2](/zh-CN/how-to/migrate-to-v0.2).

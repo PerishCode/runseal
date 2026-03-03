@@ -54,6 +54,7 @@ envlock self-update
 - Chinese README: [README.zh-CN.md](README.zh-CN.md)
 - Tutorial: [docs/tutorials/quick-start.md](docs/tutorials/quick-start.md)
 - How-to: [docs/how-to/install.md](docs/how-to/install.md)
+- Common recipes: [docs/how-to/common-recipes.md](docs/how-to/common-recipes.md)
 - CLI reference: [docs/reference/cli.md](docs/reference/cli.md)
 - FAQ: [docs/explanation/faq.md](docs/explanation/faq.md)
 - Explanation: [docs/explanation/design-boundaries.md](docs/explanation/design-boundaries.md)

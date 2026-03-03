@@ -54,6 +54,7 @@ envlock self-update
 - 英文 README：[README.md](README.md)
 - 快速开始：[docs/tutorials/quick-start.md](docs/tutorials/quick-start.md)
 - 安装指南：[docs/how-to/install.md](docs/how-to/install.md)
+- 常用配方（中文）：[docs/zh-CN/how-to/common-recipes.md](docs/zh-CN/how-to/common-recipes.md)
 - CLI 参考：[docs/reference/cli.md](docs/reference/cli.md)
 - FAQ（中文）：[docs/zh-CN/explanation/faq.md](docs/zh-CN/explanation/faq.md)
 - FAQ（英文）：[docs/explanation/faq.md](docs/explanation/faq.md)
