@@ -29,7 +29,14 @@ features:
 
 ## GitHub Status
 
-[![CI](https://github.com/PerishCode/envlock/actions/workflows/ci.yml/badge.svg)](https://github.com/PerishCode/envlock/actions/workflows/ci.yml) [![Docs](https://github.com/PerishCode/envlock/actions/workflows/docs.yml/badge.svg)](https://github.com/PerishCode/envlock/actions/workflows/docs.yml) [![Converge](https://github.com/PerishCode/envlock/actions/workflows/converge.yml/badge.svg)](https://github.com/PerishCode/envlock/actions/workflows/converge.yml) [![Latest Release](https://img.shields.io/github/v/release/PerishCode/envlock?sort=semver)](https://github.com/PerishCode/envlock/releases)
+<div class="github-status-badges">
+
+[![CI](https://github.com/PerishCode/envlock/actions/workflows/ci.yml/badge.svg)](https://github.com/PerishCode/envlock/actions/workflows/ci.yml)
+[![Docs](https://github.com/PerishCode/envlock/actions/workflows/docs.yml/badge.svg)](https://github.com/PerishCode/envlock/actions/workflows/docs.yml)
+[![Converge](https://github.com/PerishCode/envlock/actions/workflows/converge.yml/badge.svg)](https://github.com/PerishCode/envlock/actions/workflows/converge.yml)
+[![Latest Release](https://img.shields.io/github/v/release/PerishCode/envlock?sort=semver)](https://github.com/PerishCode/envlock/releases)
+
+</div>
 
 ## Information Model
 

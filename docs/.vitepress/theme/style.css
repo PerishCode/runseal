@@ -131,8 +131,26 @@
   transition: border-color 0.2s ease, color 0.2s ease;
 }
 
-.VPNavBarExtra .github-stars-link {
-  margin-left: 8px;
+.VPNavBar .content-body > .github-stars-link {
+  margin-left: 16px;
+  flex-shrink: 0;
+}
+
+.github-status-badges {
+  margin: 0 0 16px;
+}
+
+.github-status-badges a {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  margin: 0 8px 8px 0;
+}
+
+.github-status-badges a img {
+  display: inline-block;
+  width: auto;
+  max-width: none;
 }
 
 .github-stars-link:hover {
