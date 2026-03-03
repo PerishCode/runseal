@@ -63,6 +63,13 @@ envlock self-update
 - 设计说明：[docs/explanation/design-boundaries.md](docs/explanation/design-boundaries.md)
 - 语言维护策略：[docs/explanation/language-maintenance.md](docs/explanation/language-maintenance.md)
 
+## 验证
+
+```bash
+scripts/converge-check.sh
+bash scripts/release-smoke.sh --version v0.2.1
+```
+
 ## 故障排查快路径
 
 提交 issue 前，先执行这 3 条命令：

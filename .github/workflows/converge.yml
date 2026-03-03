@@ -1,0 +1,53 @@
+name: Converge
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  converge-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+
+      - name: Install docs dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify doc alignment
+        run: bash scripts/verify-doc-alignment.sh
+
+      - name: Build docs
+        run: pnpm run docs:build
+
+      - name: Run cargo tests
+        run: cargo test --locked
+
+  public-surface:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: converge-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Verify public surface
+        run: bash scripts/verify-public-surface.sh

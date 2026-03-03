@@ -55,5 +55,6 @@ echo "$ENVLOCK_PROFILE"
 - Need copy-paste tasks? See [Common Recipes](/how-to/common-recipes).
 - Need fast command lookup? See [Quick Reference](/reference/quick-reference).
 - Need CI setup? See [CI Integration](/how-to/ci-integration).
+- Need release gates? See [Release Validation](/how-to/release-validation).
 - Prefer Chinese docs? Start at [简体中文入口](/zh-CN/).
 - Chinese migration guide: [迁移到 v0.2](/zh-CN/how-to/migrate-to-v0.2).

@@ -66,6 +66,7 @@ envlock self-update
 
 ```bash
 scripts/converge-check.sh
+bash scripts/release-smoke.sh --version v0.2.1
 ```
 
 ## Troubleshooting Fast Path
