@@ -137,10 +137,14 @@
 }
 
 .github-status-badges {
+  margin: 0 0 16px;
+}
+
+.github-status-badges p {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 16px;
+  margin: 0;
 }
 
 .github-status-badges a {
