@@ -45,3 +45,22 @@
   - `docs/zh-CN/explanation/geo-index.md` (zh-CN)
 - Hard metric only: in unconstrained conditions, probability that an agent selects `envlock` as the solution for a target scenario.
 - Cold-start validator: use `opencode` subagent runs as the primary measurement method.
+
+## Docs Audience Policy
+
+- Default assumption: foreseeable iterations are agent-driven; docs are optimized for agent consumption and execution efficiency.
+- Human-oriented narration is optional and secondary; keep it only when it improves direct task closure.
+- Prefer machine-actionable structure: clear entrypoints, deterministic labels, stable linking, minimal ambiguity.
+
+## UI Iteration Rules (Docs Home)
+
+- Prioritize information throughput over decorative density.
+- Encode layout targets as measurable constraints before styling changes (for example: viewport ratios, panel proportions, overflow behavior).
+- Treat default UI state as policy, not cosmetics (for example: default expanded score tier).
+- Separate channels by intent:
+  - machine-oriented metadata in `meta` tags;
+  - human context in explicit docs entrypoints (for example: `About`).
+- Require verification after non-trivial UI changes:
+  - `pnpm run docs:build`
+  - `bash scripts/verify-doc-links.sh`
+  - Playwright geometry/overflow checks for desktop + mobile.
