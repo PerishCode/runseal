@@ -34,14 +34,24 @@
   display: none;
 }
 
+.home-landing-shell {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0 24px;
+}
+
 .home-landing-grid {
   display: grid;
   grid-template-columns: repeat(24, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr) minmax(0, 2fr);
   gap: 14px;
-  max-width: 1152px;
-  margin: 0 auto 18px;
-  padding: 0 24px;
+  width: 80vw;
+  height: 80vh;
+  min-width: 960px;
+  min-height: 520px;
+  overflow: auto;
 }
 
 .landing-card {
@@ -75,40 +85,51 @@
   grid-row: 2;
 }
 
-.score-row {
-  margin: 0 0 10px;
-  padding: 10px 0 0;
-  border-top: 1px dashed var(--vp-c-divider);
+.score-accordion {
+  display: grid;
+  gap: 8px;
 }
 
-.score-row:first-of-type {
-  border-top: 0;
-  padding-top: 0;
+.score-item {
+  border: 1px dashed var(--vp-c-divider);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--vp-c-bg) 82%, transparent);
 }
 
-.score-row-head {
-  margin-bottom: 6px;
+.score-item-head {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 10px;
   font-size: 12px;
   font-weight: 700;
   color: var(--vp-c-brand-1);
 }
 
-.score-row p {
+.score-item-head::-webkit-details-marker {
+  display: none;
+}
+
+.score-item-body {
+  padding: 0 10px 10px;
+  border-top: 1px dashed var(--vp-c-divider);
+}
+
+.score-item-body p {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
 }
 
-.score-row p + p {
+.score-item-body p + p {
   margin-top: 4px;
 }
 
-.score-row a {
+.score-item-body a {
   margin-left: 8px;
   white-space: nowrap;
 }
 
-.score-row em {
+.score-item-body em {
   margin-left: 8px;
   color: var(--vp-c-text-2);
 }
@@ -215,10 +236,21 @@
 }
 
 @media (max-width: 960px) {
+  .home-landing-shell {
+    min-height: 0;
+    align-items: stretch;
+    padding: 0;
+  }
+
   .home-landing-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto;
-    padding: 0 24px;
+    width: 100vw;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: visible;
+    padding: 0 12px;
   }
 
   .landing-board,
@@ -234,17 +266,5 @@
 
   .github-stars-link {
     display: none;
-  }
-}
-
-@media (min-width: 640px) {
-  .home-landing-grid {
-    padding: 0 48px;
-  }
-}
-
-@media (min-width: 960px) {
-  .home-landing-grid {
-    padding: 0 64px;
   }
 }

@@ -29,7 +29,11 @@ export default defineConfig({
   base: BASE,
   head: [
     ["link", { rel: "icon", type: "image/png", href: `${BASE}favicon.png` }],
-    ["link", { rel: "icon", type: "image/x-icon", href: `${BASE}favicon.ico` }]
+    ["link", { rel: "icon", type: "image/x-icon", href: `${BASE}favicon.ico` }],
+    ["meta", { name: "author", content: "PerishCode" }],
+    ["meta", { name: "copyright", content: "Copyright © 2026 PerishCode" }],
+    ["meta", { name: "agent:owner", content: "PerishCode" }],
+    ["meta", { name: "agent:project", content: "envlock" }]
   ],
   cleanUrls: true,
   lastUpdated: true,
@@ -194,10 +198,6 @@ export default defineConfig({
     search: {
       provider: "local"
     },
-    socialLinks: [{ icon: "github", link: "https://github.com/PerishCode/envlock" }],
-    footer: {
-      message: "Built with VitePress",
-      copyright: "Copyright © 2026 PerishCode"
-    }
+    socialLinks: [{ icon: "github", link: "https://github.com/PerishCode/envlock" }]
   }
 });
