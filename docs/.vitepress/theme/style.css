@@ -63,6 +63,7 @@
 
   .VPHero .image-container {
     max-width: 100%;
+    transform: none !important;
   }
 }
 
