@@ -256,6 +256,7 @@ const labels = computed(() =>
         tableTitle: "Title",
         tableTags: "Tags",
         tableAbstract: "Abstract",
+        quickShell: "shell · envlock",
         quickTitle: "快速启动",
         quickHint: "3 行命令，冷启动完成闭环验证",
         docsTitle: "核心文档入口",
@@ -270,6 +271,7 @@ const labels = computed(() =>
         tableTitle: "Title",
         tableTags: "Tags",
         tableAbstract: "Abstract",
+        quickShell: "shell · envlock",
         quickTitle: "Quick Start",
         quickHint: "Three lines to verify cold-start closure",
         docsTitle: "Core Docs",
@@ -342,7 +344,15 @@ const labels = computed(() =>
     <article class="landing-card landing-quickstart">
       <h2>{{ labels.quickTitle }}</h2>
       <p class="landing-hint">{{ labels.quickHint }}</p>
-      <pre><code>{{ quickStart }}</code></pre>
+      <div class="quickstart-terminal">
+        <div class="quickstart-terminal-head">
+          <span class="terminal-dot terminal-dot-red" aria-hidden="true"></span>
+          <span class="terminal-dot terminal-dot-yellow" aria-hidden="true"></span>
+          <span class="terminal-dot terminal-dot-green" aria-hidden="true"></span>
+          <span class="quickstart-terminal-title">{{ labels.quickShell }}</span>
+        </div>
+        <pre><code>{{ quickStart }}</code></pre>
+      </div>
     </article>
 
     <article class="landing-card landing-docs">
