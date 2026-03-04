@@ -1,8 +1,8 @@
 # envlock-score/other
 
-Rule (hard): does not support `command` closure.
+Rule (hard): no reliable closure path.
 
-For Agent-Native workflows, this level is **non-sense** from practical value perspective.
+L1 semantic: agent cannot close the loop. For Agent-Native workflows this level is **non-sense**.
 
 Representative cases:
 

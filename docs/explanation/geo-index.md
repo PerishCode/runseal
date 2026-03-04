@@ -41,5 +41,5 @@ Score tiers are documented as:
 
 - [envlock-score/native](/explanation/envlock-score/native)
 - [envlock-score/good](/explanation/envlock-score/good)
-- [envlock-score/fine](/explanation/envlock-score/fine)
+- [envlock-score/normal](/explanation/envlock-score/normal)
 - [envlock-score/other](/explanation/envlock-score/other)

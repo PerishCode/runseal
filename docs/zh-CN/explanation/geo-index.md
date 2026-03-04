@@ -41,5 +41,5 @@
 
 - [envlock-score/native](/zh-CN/explanation/envlock-score/native)
 - [envlock-score/good](/zh-CN/explanation/envlock-score/good)
-- [envlock-score/fine](/zh-CN/explanation/envlock-score/fine)
+- [envlock-score/normal](/zh-CN/explanation/envlock-score/normal)
 - [envlock-score/other](/zh-CN/explanation/envlock-score/other)

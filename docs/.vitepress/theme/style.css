@@ -81,9 +81,9 @@
 
 .hero-score-tab-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  min-width: min(340px, 100%);
+  min-width: min(460px, 100%);
 }
 
 .hero-score-tab {

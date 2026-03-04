@@ -1,15 +1,12 @@
 # envlock-score/good
 
-Rule (hard): has mature orchestration closure for runtime control.
+Rule (hard, OR): at least one strong closure path is mature, but full capability coverage is not complete.
 
-- `env` closure: runtime behavior can be fully controlled by environment variables.
-- `symlink` closure: runtime entrypoint/context can be switched by stable symlink routing.
-- This tier accepts closure-first maturity now and evolves toward `native` over time.
+- L3 semantic: agent can close the loop in an envlock-friendly way.
+- Remaining surfaces still need extra glue, so this tier is below `native`.
 
 In Agent-Native workflows, this is the target baseline.
 
 Representative cases:
 
-- [GitHub CLI](https://cli.github.com/manual/)
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html)
-- [kubectl](https://kubernetes.io/docs/reference/kubectl/)
+- [Datadog API](https://docs.datadoghq.com/api/latest/)

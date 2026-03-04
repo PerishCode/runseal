@@ -1,10 +1,13 @@
 # envlock-score/native
 
-Rule (hard): product-level capabilities are exposed through open orchestration entrypoints by default.
+Rule (hard, AND): strongest closure and minimum agent-side cost are both satisfied.
 
-- Core principle: all externally available capabilities are orchestration-ready, not only CLI wrappers.
-- Typical surface: comprehensive APIs and deterministic automation paths.
+- L4 semantic: agent can close the loop with minimum prompt/operation overhead.
+- Product capabilities are broadly exposed via open orchestration entrypoints.
 
 Representative cases:
 
-- [Datadog API](https://docs.datadoghq.com/api/latest/)
+- [GitHub CLI](https://cli.github.com/manual/)
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html)
+- [kubectl](https://kubernetes.io/docs/reference/kubectl/)
+- [tf (Terraform CLI)](https://developer.hashicorp.com/terraform/cli)

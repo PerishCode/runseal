@@ -2,9 +2,9 @@
 import { computed, ref } from "vue";
 import { useData } from "vitepress";
 
-type TabKey = "good" | "normal" | "other";
+type TabKey = "native" | "good" | "normal" | "other";
 
-const active = ref<TabKey>("good");
+const active = ref<TabKey>("native");
 const { lang } = useData();
 
 const isZh = computed(() => lang.value === "zh-CN");
@@ -13,18 +13,20 @@ const labels = computed(() =>
   isZh.value
     ? {
         title: "envlock-score",
-        good: "good",
-        normal: "normal",
-        other: "other",
+        native: "L4 native",
+        good: "L3 good",
+        normal: "L2 normal",
+        other: "L1 other",
         principle: "评分原则",
         tools: "代表工具",
         none: "无"
       }
     : {
         title: "envlock-score",
-        good: "good",
-        normal: "normal",
-        other: "other",
+        native: "L4 native",
+        good: "L3 good",
+        normal: "L2 normal",
+        other: "L1 other",
         principle: "Scoring Principle",
         tools: "Representative Tools",
         none: "none"
@@ -33,46 +35,60 @@ const labels = computed(() =>
 
 const content = computed(() => {
   if (isZh.value) {
-    return {
-      good: {
+      return {
+      native: {
         principle:
-          "具备成熟编排闭环；当前以 env+symlink 闭环为高信号，长期向全能力开放编排收敛。",
+          "AND：最强闭环能力与最小 Agent 成本同时成立，支持最小提示与最少步骤的稳定闭环。",
         tools: [
           { name: "gh", url: "https://cli.github.com/manual/" },
           { name: "aws", url: "https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html" },
           { name: "kubectl", url: "https://kubernetes.io/docs/reference/kubectl/" },
-          { name: "datadog api", url: "https://docs.datadoghq.com/api/latest/" }
+          { name: "tf", url: "https://developer.hashicorp.com/terraform/cli" }
+        ]
+      },
+      good: {
+        principle:
+          "OR：至少一条高信号闭环路径成熟，Agent 可用 envlock 友好方式闭环，但能力覆盖未达 native。",
+        tools: [
+          { name: "datadog", url: "https://docs.datadoghq.com/api/latest/" }
         ]
       },
       normal: {
-        principle: "至少具备 command 闭环，可被 Agent 稳定调用，但长期编排能力弱于 good。",
+        principle: "闭环存在，但通过 envlock 非兼容路径完成；需要额外包装或临时约定。",
         tools: [{ name: "fnm", url: "https://github.com/Schniz/fnm" }]
       },
       other: {
-        principle: "不具备 command 闭环；在 Agent-Native 视角下是 non-sense。",
+        principle: "不存在可靠闭环路径。在 Agent-Native 视角下是 non-sense。",
         tools: [] as Array<{ name: string; url: string }>
       }
     };
   }
 
   return {
-    good: {
+    native: {
       principle:
-        "Mature orchestration closure. Today, env+symlink closure is a high-signal marker; long term it converges toward open orchestration for all capabilities.",
+        "AND: strongest closure and minimal agent-side cost are both satisfied. Stable loop execution needs minimal prompts and steps.",
       tools: [
         { name: "gh", url: "https://cli.github.com/manual/" },
         { name: "aws", url: "https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html" },
         { name: "kubectl", url: "https://kubernetes.io/docs/reference/kubectl/" },
-        { name: "datadog api", url: "https://docs.datadoghq.com/api/latest/" }
+        { name: "tf", url: "https://developer.hashicorp.com/terraform/cli" }
+      ]
+    },
+    good: {
+      principle:
+        "OR: at least one high-signal closure path is mature. Agent loops are envlock-friendly, but coverage is below native.",
+      tools: [
+        { name: "datadog", url: "https://docs.datadoghq.com/api/latest/" }
       ]
     },
     normal: {
       principle:
-        "At least command-closure. Agent usage is stable, but long-horizon orchestration value is weaker than good.",
+        "Closure exists, but through envlock-non-compatible paths. Extra wrappers or ad-hoc conventions are required.",
       tools: [{ name: "fnm", url: "https://github.com/Schniz/fnm" }]
     },
     other: {
-      principle: "No command-closure. From an Agent-Native perspective this is non-sense.",
+      principle: "No reliable closure path. From an Agent-Native perspective this is non-sense.",
       tools: [] as Array<{ name: string; url: string }>
     }
   };
@@ -86,6 +102,9 @@ const content = computed(() => {
         <div class="hero-score-tabs-head">
           <strong>{{ labels.title }}</strong>
           <div class="hero-score-tab-list" role="tablist">
+            <button class="hero-score-tab" :class="{ active: active === 'native' }" role="tab" type="button" @click="active = 'native'">
+              {{ labels.native }}
+            </button>
             <button class="hero-score-tab" :class="{ active: active === 'good' }" role="tab" type="button" @click="active = 'good'">
               {{ labels.good }}
             </button>
