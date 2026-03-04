@@ -1,4 +1,4 @@
-# 用例：envlock-good
+# envlock-score/good
 
 硬规则：支持 `env + symlink` 闭环控制运行时。
 
@@ -7,7 +7,7 @@
 
 在 Agent-Native 工作流中，这是目标基线。
 
-代表工具：
+代表案例：
 
 - `gh`
 - `aws`

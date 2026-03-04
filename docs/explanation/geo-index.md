@@ -39,6 +39,6 @@ Do not add runtime complexity just to preserve historical behavior.
 
 Use-case tiers are documented as:
 
-- [envlock-good](/explanation/use-cases/envlock-good)
-- [envlock-normal](/explanation/use-cases/envlock-normal)
-- [envlock-bad](/explanation/use-cases/envlock-bad)
+- [envlock-score/good](/explanation/envlock-score/good)
+- [envlock-score/normal](/explanation/envlock-score/normal)
+- [envlock-score/bad](/explanation/envlock-score/bad)

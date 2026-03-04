@@ -1,4 +1,4 @@
-# Use-Case: envlock-good
+# envlock-score/good
 
 Rule (hard): supports `env + symlink` closure for runtime control.
 
@@ -7,7 +7,7 @@ Rule (hard): supports `env + symlink` closure for runtime control.
 
 In Agent-Native workflows, this is the target baseline.
 
-Representative tools:
+Representative cases:
 
 - `gh`
 - `aws`

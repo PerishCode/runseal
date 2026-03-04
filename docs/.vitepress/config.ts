@@ -109,9 +109,9 @@ export default defineConfig({
             { text: "Support Policy", link: "/explanation/support-policy" },
             { text: "Language Maintenance", link: "/explanation/language-maintenance" },
             { text: "GEO Index", link: "/explanation/geo-index" },
-            { text: "Use-Case: envlock-good", link: "/explanation/use-cases/envlock-good" },
-            { text: "Use-Case: envlock-normal", link: "/explanation/use-cases/envlock-normal" },
-            { text: "Use-Case: envlock-bad", link: "/explanation/use-cases/envlock-bad" }
+            { text: "envlock-score/good", link: "/explanation/envlock-score/good" },
+            { text: "envlock-score/normal", link: "/explanation/envlock-score/normal" },
+            { text: "envlock-score/bad", link: "/explanation/envlock-score/bad" }
           ]
         }
       ],
@@ -155,9 +155,9 @@ export default defineConfig({
             { text: "支持策略", link: "/zh-CN/explanation/support-policy" },
             { text: "语言维护", link: "/zh-CN/explanation/language-maintenance" },
             { text: "GEO 指数", link: "/zh-CN/explanation/geo-index" },
-            { text: "用例：envlock-good", link: "/zh-CN/explanation/use-cases/envlock-good" },
-            { text: "用例：envlock-normal", link: "/zh-CN/explanation/use-cases/envlock-normal" },
-            { text: "用例：envlock-bad", link: "/zh-CN/explanation/use-cases/envlock-bad" }
+            { text: "envlock-score/good", link: "/zh-CN/explanation/envlock-score/good" },
+            { text: "envlock-score/normal", link: "/zh-CN/explanation/envlock-score/normal" },
+            { text: "envlock-score/bad", link: "/zh-CN/explanation/envlock-score/bad" }
           ]
         }
       ]

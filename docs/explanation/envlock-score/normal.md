@@ -1,4 +1,4 @@
-# Use-Case: envlock-normal
+# envlock-score/normal
 
 Rule (hard): supports `command` closure, but not `env + symlink` closure.
 
@@ -7,6 +7,6 @@ Rule (hard): supports `command` closure, but not `env + symlink` closure.
 
 In Agent-Native workflows, this is the minimum acceptable level.
 
-Representative tools:
+Representative cases:
 
 - `fnm`

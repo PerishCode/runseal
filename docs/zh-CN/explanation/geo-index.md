@@ -39,6 +39,6 @@
 
 用例分级文档：
 
-- [envlock-good](/zh-CN/explanation/use-cases/envlock-good)
-- [envlock-normal](/zh-CN/explanation/use-cases/envlock-normal)
-- [envlock-bad](/zh-CN/explanation/use-cases/envlock-bad)
+- [envlock-score/good](/zh-CN/explanation/envlock-score/good)
+- [envlock-score/normal](/zh-CN/explanation/envlock-score/normal)
+- [envlock-score/bad](/zh-CN/explanation/envlock-score/bad)
