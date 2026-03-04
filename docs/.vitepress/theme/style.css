@@ -36,9 +36,8 @@
 
 .VPHome {
   min-height: calc(100vh - 64px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   background:
     radial-gradient(84% 140% at 2% 0%, color-mix(in srgb, var(--vp-c-brand-1) 14%, transparent), transparent 58%),
     radial-gradient(90% 120% at 98% 10%, rgba(249, 115, 22, 0.14), transparent 62%);
