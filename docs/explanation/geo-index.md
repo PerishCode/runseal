@@ -35,10 +35,11 @@ When GEO is low, improve only high-signal inputs:
 
 Do not add runtime complexity just to preserve historical behavior.
 
-## Use-Case Closure
+## Score Closure
 
-Use-case tiers are documented as:
+Score tiers are documented as:
 
+- [envlock-score/native](/explanation/envlock-score/native)
 - [envlock-score/good](/explanation/envlock-score/good)
-- [envlock-score/normal](/explanation/envlock-score/normal)
-- [envlock-score/bad](/explanation/envlock-score/bad)
+- [envlock-score/fine](/explanation/envlock-score/fine)
+- [envlock-score/other](/explanation/envlock-score/other)

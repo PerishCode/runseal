@@ -1,4 +1,4 @@
-# envlock-score/bad
+# envlock-score/other
 
 Rule (hard): does not support `command` closure.
 

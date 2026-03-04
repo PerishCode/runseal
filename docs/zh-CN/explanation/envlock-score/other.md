@@ -1,4 +1,4 @@
-# envlock-score/bad
+# envlock-score/other
 
 硬规则：不支持 `command` 闭环。
 

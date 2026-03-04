@@ -1,4 +1,4 @@
-# envlock-score/normal
+# envlock-score/fine
 
 Rule (hard): supports `command` closure, but not `env + symlink` closure.
 
@@ -9,4 +9,4 @@ In Agent-Native workflows, this is the minimum acceptable level.
 
 Representative cases:
 
-- `fnm`
+- [fnm](https://github.com/Schniz/fnm)

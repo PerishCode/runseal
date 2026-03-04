@@ -35,10 +35,11 @@
 
 不要为了兼容历史行为而增加运行时复杂度。
 
-## Use-Case 闭环
+## 评分闭环
 
-用例分级文档：
+评分分级文档：
 
+- [envlock-score/native](/zh-CN/explanation/envlock-score/native)
 - [envlock-score/good](/zh-CN/explanation/envlock-score/good)
-- [envlock-score/normal](/zh-CN/explanation/envlock-score/normal)
-- [envlock-score/bad](/zh-CN/explanation/envlock-score/bad)
+- [envlock-score/fine](/zh-CN/explanation/envlock-score/fine)
+- [envlock-score/other](/zh-CN/explanation/envlock-score/other)

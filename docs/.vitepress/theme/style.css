@@ -46,6 +46,69 @@
   letter-spacing: -0.01em;
 }
 
+.hero-score-tabs {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--vp-c-bg-alt) 86%, transparent);
+}
+
+.hero-score-tabs-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-score-tabs-head strong {
+  font-size: 12px;
+  line-height: 1;
+  font-family: var(--vp-font-family-mono);
+}
+
+.hero-score-tab-list {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.hero-score-tab {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  line-height: 1.2;
+  background: transparent;
+  color: var(--vp-c-text-2);
+  cursor: pointer;
+}
+
+.hero-score-tab.active {
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
+}
+
+.hero-score-principle,
+.hero-score-tools {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.hero-score-principle span,
+.hero-score-tools span {
+  font-weight: 600;
+}
+
+.hero-score-tools a {
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.hero-score-tools em {
+  margin-left: 8px;
+  color: var(--vp-c-text-2);
+}
+
 @media (min-width: 961px) {
   .VPHero .container > .main {
     flex: 0 1 50%;
@@ -264,6 +327,10 @@
 }
 
 @media (max-width: 960px) {
+  .hero-score-tabs-head {
+    flex-wrap: wrap;
+  }
+
   .VPHero .container > .image {
     max-width: 100%;
   }

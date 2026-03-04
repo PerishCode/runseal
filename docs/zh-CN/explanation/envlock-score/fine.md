@@ -1,4 +1,4 @@
-# envlock-score/normal
+# envlock-score/fine
 
 硬规则：支持 `command` 闭环，但不具备 `env + symlink` 闭环。
 
@@ -9,4 +9,4 @@
 
 代表案例：
 
-- `fnm`
+- [fnm](https://github.com/Schniz/fnm)

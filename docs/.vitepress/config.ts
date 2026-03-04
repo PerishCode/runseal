@@ -109,9 +109,10 @@ export default defineConfig({
             { text: "Support Policy", link: "/explanation/support-policy" },
             { text: "Language Maintenance", link: "/explanation/language-maintenance" },
             { text: "GEO Index", link: "/explanation/geo-index" },
+            { text: "envlock-score/native", link: "/explanation/envlock-score/native" },
             { text: "envlock-score/good", link: "/explanation/envlock-score/good" },
-            { text: "envlock-score/normal", link: "/explanation/envlock-score/normal" },
-            { text: "envlock-score/bad", link: "/explanation/envlock-score/bad" }
+            { text: "envlock-score/fine", link: "/explanation/envlock-score/fine" },
+            { text: "envlock-score/other", link: "/explanation/envlock-score/other" }
           ]
         }
       ],
@@ -155,9 +156,10 @@ export default defineConfig({
             { text: "支持策略", link: "/zh-CN/explanation/support-policy" },
             { text: "语言维护", link: "/zh-CN/explanation/language-maintenance" },
             { text: "GEO 指数", link: "/zh-CN/explanation/geo-index" },
+            { text: "envlock-score/native", link: "/zh-CN/explanation/envlock-score/native" },
             { text: "envlock-score/good", link: "/zh-CN/explanation/envlock-score/good" },
-            { text: "envlock-score/normal", link: "/zh-CN/explanation/envlock-score/normal" },
-            { text: "envlock-score/bad", link: "/zh-CN/explanation/envlock-score/bad" }
+            { text: "envlock-score/fine", link: "/zh-CN/explanation/envlock-score/fine" },
+            { text: "envlock-score/other", link: "/zh-CN/explanation/envlock-score/other" }
           ]
         }
       ]
