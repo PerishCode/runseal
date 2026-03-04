@@ -55,5 +55,5 @@ curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/uni
 ## 延伸阅读
 
 - CI 用法：[/zh-CN/how-to/ci-integration](/zh-CN/how-to/ci-integration)
-- 子命令模式详解：[/how-to/command-mode](/how-to/command-mode)
+- 子命令模式详解：[/zh-CN/how-to/command-mode](/zh-CN/how-to/command-mode)
 - 完整 CLI 选项：[/zh-CN/reference/cli](/zh-CN/reference/cli)

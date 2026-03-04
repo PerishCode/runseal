@@ -118,6 +118,7 @@ export default defineConfig({
             { text: "首页", link: "/zh-CN/" },
             { text: "安装", link: "/zh-CN/how-to/install" },
             { text: "常见用法", link: "/zh-CN/how-to/common-recipes" },
+            { text: "子命令模式", link: "/zh-CN/how-to/command-mode" },
             { text: "CI 集成", link: "/zh-CN/how-to/ci-integration" },
             { text: "发布验证", link: "/zh-CN/how-to/release-validation" },
             { text: "发布操作指南", link: "/zh-CN/how-to/release-operator-playbook" },

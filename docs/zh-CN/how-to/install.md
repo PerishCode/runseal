@@ -23,3 +23,13 @@ curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/ins
 envlock --version
 which envlock
 ```
+
+## 平台说明
+
+`install.sh` 当前打包以下目标：
+
+- `x86_64-unknown-linux-gnu`
+- `x86_64-apple-darwin`
+- `aarch64-apple-darwin`
+
+如果 shell 找不到 `envlock`，请将 `~/.local/bin` 加入 `PATH`。

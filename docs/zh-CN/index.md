@@ -8,10 +8,10 @@ hero:
   tagline: 用一个 JSON profile 为 shell 或子命令注入可预测、可验证的环境变量。
   actions:
     - theme: brand
-      text: 快速开始
+      text: 快速开始（英文）
       link: /tutorials/quick-start
     - theme: alt
-      text: Profile 参考
+      text: Profile 参考（英文）
       link: /reference/profile
     - theme: alt
       text: CLI 参考
@@ -46,26 +46,36 @@ eval "$(envlock)"
 echo "$ENVLOCK_PROFILE"
 ```
 
-## 快速入口
+## 信息架构
 
-- 安装：[`/zh-CN/how-to/install`](/zh-CN/how-to/install)
-- 常见用法：[`/zh-CN/how-to/common-recipes`](/zh-CN/how-to/common-recipes)
-- CI 集成：[`/zh-CN/how-to/ci-integration`](/zh-CN/how-to/ci-integration)
-- 发布验证：[`/zh-CN/how-to/release-validation`](/zh-CN/how-to/release-validation)
-- 发布操作指南：[`/zh-CN/how-to/release-operator-playbook`](/zh-CN/how-to/release-operator-playbook)
-- 文档维护：[`/zh-CN/how-to/docs-maintenance`](/zh-CN/how-to/docs-maintenance)
-- 快速参考：[`/zh-CN/reference/quick-reference`](/zh-CN/reference/quick-reference)
-- CLI 参考：[`/zh-CN/reference/cli`](/zh-CN/reference/cli)
-- v0.3 迁移：[`/zh-CN/how-to/migrate-to-v0.3`](/zh-CN/how-to/migrate-to-v0.3)
+文档按四个层次组织：
+
+- Tutorial：一条从零到可运行的完整路径（当前为英文页面）。
+- How-to：围绕具体任务的操作指南。
+- Reference：命令与配置的权威说明。
+- Explanation：设计边界、取舍与常见疑问。
 
 ## 支持
 
-- FAQ（中文）：[`/zh-CN/explanation/faq`](/zh-CN/explanation/faq)
-- FAQ（英文）：[`/explanation/faq`](/explanation/faq)
+- FAQ：[`/zh-CN/explanation/faq`](/zh-CN/explanation/faq)
 - 故障排查（英文）：[`/explanation/troubleshooting`](/explanation/troubleshooting)
 - GitHub Issues：[`PerishCode/envlock/issues`](https://github.com/PerishCode/envlock/issues)
 
-## 语言说明
+## 60 秒启动
 
-- 英文文档是规范入口：[`/`](/)
-- 中文文档可能略晚同步，破坏性变更的迁移说明会同步更新
+```bash
+mkdir -p "${ENVLOCK_HOME:-$HOME/.envlock}/profiles"
+printf '%s\n' '{"injections":[{"type":"env","vars":{"ENVLOCK_PROFILE":"default"}}]}' > "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
+eval "$(envlock)"
+echo "$ENVLOCK_PROFILE"
+```
+
+- 需要迁移说明：见 [迁移到 v0.3](/zh-CN/how-to/migrate-to-v0.3)。
+- 需要复制即用命令：见 [常见用法](/zh-CN/how-to/common-recipes)。
+- 需要高频命令速查：见 [快速参考](/zh-CN/reference/quick-reference)。
+- 需要 CI 接入：见 [CI 集成](/zh-CN/how-to/ci-integration)。
+- 需要发布门禁：见 [发布验证](/zh-CN/how-to/release-validation)。
+- 需要发布操作步骤：见 [发布操作指南](/zh-CN/how-to/release-operator-playbook)。
+- 需要文档检查流程：见 [文档维护](/zh-CN/how-to/docs-maintenance)。
+- 英文规范入口：见 [English Home](/)。
+- 英文迁移页：见 [Migrate to v0.3](/how-to/migrate-to-v0.3)。
