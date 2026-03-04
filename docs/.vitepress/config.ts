@@ -1,14 +1,41 @@
 import { defineConfig } from "vitepress";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const BASE = "/envlock/";
+const THIS_DIR = fileURLToPath(new URL(".", import.meta.url));
+const ROOT_FAVICON = readFileSync(resolve(THIS_DIR, "../public/favicon.ico"));
+
+const rootFaviconPlugin = {
+  name: "envlock-root-favicon",
+  configureServer(server: { middlewares: { use: (path: string, handler: (_req: unknown, res: { setHeader: (name: string, value: string) => void; end: (buffer: Buffer) => void; }) => void) => void; }; }) {
+    server.middlewares.use("/favicon.ico", (_req, res) => {
+      res.setHeader("Content-Type", "image/x-icon");
+      res.end(ROOT_FAVICON);
+    });
+  },
+  configurePreviewServer(server: { middlewares: { use: (path: string, handler: (_req: unknown, res: { setHeader: (name: string, value: string) => void; end: (buffer: Buffer) => void; }) => void) => void; }; }) {
+    server.middlewares.use("/favicon.ico", (_req, res) => {
+      res.setHeader("Content-Type", "image/x-icon");
+      res.end(ROOT_FAVICON);
+    });
+  }
+};
 
 export default defineConfig({
   title: "envlock",
   description: "Deterministic environment sessions from JSON profiles.",
   base: BASE,
-  head: [["link", { rel: "icon", type: "image/png", href: `${BASE}favicon.png` }]],
+  head: [
+    ["link", { rel: "icon", type: "image/png", href: `${BASE}favicon.png` }],
+    ["link", { rel: "icon", type: "image/x-icon", href: `${BASE}favicon.ico` }]
+  ],
   cleanUrls: true,
   lastUpdated: true,
+  vite: {
+    plugins: [rootFaviconPlugin]
+  },
   locales: {
     root: {
       lang: "en-US",

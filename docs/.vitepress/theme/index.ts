@@ -1,8 +1,7 @@
 import DefaultTheme from "vitepress/theme";
 import { h } from "vue";
 import GithubStars from "./components/GithubStars.vue";
-import HomeHeroShell from "./components/HomeHeroShell.vue";
-import HomeScoreTabs from "./components/HomeScoreTabs.vue";
+import HomeLandingGrid from "./components/HomeLandingGrid.vue";
 import "./style.css";
 
 export default {
@@ -10,8 +9,7 @@ export default {
   Layout() {
     return h(DefaultTheme.Layout, null, {
       "nav-bar-content-after": () => h(GithubStars),
-      "home-hero-before": () => h(HomeScoreTabs),
-      "home-hero-image": () => h(HomeHeroShell)
+      "home-hero-before": () => h(HomeLandingGrid)
     });
   }
 };
