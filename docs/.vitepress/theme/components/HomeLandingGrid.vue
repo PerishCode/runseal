@@ -118,7 +118,7 @@ const labels = computed(() =>
   <section class="home-landing-shell" aria-label="envlock landing shell">
     <section class="home-landing-grid" aria-label="envlock landing grid">
       <article class="landing-card landing-board">
-        <h2 class="landing-score-title">Scoreboard <small>by envlock</small></h2>
+        <h2 class="landing-score-title"><span>Scoreboard</span><small>by envlock</small></h2>
         <div class="score-accordion">
           <details class="score-item" v-for="row in scoreRows" :key="row.level" :open="row.level.startsWith('L4')">
             <summary class="score-item-head">{{ row.level }}</summary>

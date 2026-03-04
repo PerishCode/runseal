@@ -71,6 +71,9 @@
 }
 
 .landing-score-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
   margin: 0 0 10px;
   font-family: "Sora", "IBM Plex Sans", sans-serif;
   font-size: 18px;
@@ -79,7 +82,6 @@
 }
 
 .landing-score-title small {
-  margin-left: 8px;
   font-family: "DM Serif Display", Georgia, serif;
   font-size: 0.74em;
   font-style: italic;
