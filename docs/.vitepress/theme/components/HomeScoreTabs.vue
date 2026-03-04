@@ -80,31 +80,35 @@ const content = computed(() => {
 </script>
 
 <template>
-  <div class="hero-score-tabs" aria-label="envlock score tabs">
-    <div class="hero-score-tabs-head">
-      <strong>{{ labels.title }}</strong>
-      <div class="hero-score-tab-list" role="tablist">
-        <button class="hero-score-tab" :class="{ active: active === 'good' }" role="tab" type="button" @click="active = 'good'">
-          {{ labels.good }}
-        </button>
-        <button class="hero-score-tab" :class="{ active: active === 'normal' }" role="tab" type="button" @click="active = 'normal'">
-          {{ labels.normal }}
-        </button>
-        <button class="hero-score-tab" :class="{ active: active === 'other' }" role="tab" type="button" @click="active = 'other'">
-          {{ labels.other }}
-        </button>
+  <div class="home-prehero">
+    <div class="home-prehero-inner">
+      <div class="hero-score-tabs" aria-label="envlock score tabs">
+        <div class="hero-score-tabs-head">
+          <strong>{{ labels.title }}</strong>
+          <div class="hero-score-tab-list" role="tablist">
+            <button class="hero-score-tab" :class="{ active: active === 'good' }" role="tab" type="button" @click="active = 'good'">
+              {{ labels.good }}
+            </button>
+            <button class="hero-score-tab" :class="{ active: active === 'normal' }" role="tab" type="button" @click="active = 'normal'">
+              {{ labels.normal }}
+            </button>
+            <button class="hero-score-tab" :class="{ active: active === 'other' }" role="tab" type="button" @click="active = 'other'">
+              {{ labels.other }}
+            </button>
+          </div>
+        </div>
+        <p class="hero-score-principle">
+          <span>{{ labels.principle }}:</span>
+          {{ content[active].principle }}
+        </p>
+        <p class="hero-score-tools">
+          <span>{{ labels.tools }}:</span>
+          <template v-if="content[active].tools.length > 0">
+            <a v-for="item in content[active].tools" :key="item.name" :href="item.url" target="_blank" rel="noreferrer">{{ item.name }}</a>
+          </template>
+          <em v-else>{{ labels.none }}</em>
+        </p>
       </div>
     </div>
-    <p class="hero-score-principle">
-      <span>{{ labels.principle }}:</span>
-      {{ content[active].principle }}
-    </p>
-    <p class="hero-score-tools">
-      <span>{{ labels.tools }}:</span>
-      <template v-if="content[active].tools.length > 0">
-        <a v-for="item in content[active].tools" :key="item.name" :href="item.url" target="_blank" rel="noreferrer">{{ item.name }}</a>
-      </template>
-      <em v-else>{{ labels.none }}</em>
-    </p>
   </div>
 </template>
