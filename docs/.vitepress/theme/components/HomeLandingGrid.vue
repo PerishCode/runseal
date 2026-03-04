@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useData } from "vitepress";
+import HomeHeroShell from "./HomeHeroShell.vue";
 
 const { lang, isDark } = useData();
 const isZh = computed(() => lang.value === "zh-CN");
@@ -344,15 +345,7 @@ const labels = computed(() =>
     <article class="landing-card landing-quickstart">
       <h2>{{ labels.quickTitle }}</h2>
       <p class="landing-hint">{{ labels.quickHint }}</p>
-      <div class="quickstart-terminal">
-        <div class="quickstart-terminal-head">
-          <span class="terminal-dot terminal-dot-red" aria-hidden="true"></span>
-          <span class="terminal-dot terminal-dot-yellow" aria-hidden="true"></span>
-          <span class="terminal-dot terminal-dot-green" aria-hidden="true"></span>
-          <span class="quickstart-terminal-title">{{ labels.quickShell }}</span>
-        </div>
-        <pre><code>{{ quickStart }}</code></pre>
-      </div>
+      <HomeHeroShell :title="labels.quickShell" :code="quickStart" />
     </article>
 
     <article class="landing-card landing-docs">
