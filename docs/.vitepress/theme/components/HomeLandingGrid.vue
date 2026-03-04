@@ -98,15 +98,21 @@ const docsLinks = computed(() => {
 const labels = computed(() =>
   isZh.value
     ? {
+        boardKicker: "Agent-Native Ranking",
         quickTitle: "快速启动",
+        quickHint: "3 行命令，冷启动完成闭环验证",
         docsTitle: "核心文档入口",
+        docsHint: "按任务直达，减少往返扫描",
         scoreRule: "评分原则",
         tools: "工具",
         none: "无"
       }
     : {
+        boardKicker: "Agent-Native Ranking",
         quickTitle: "Quick Start",
+        quickHint: "Three lines to verify cold-start closure",
         docsTitle: "Core Docs",
+        docsHint: "Task-routed entrypoints for faster scans",
         scoreRule: "Rule",
         tools: "Tools",
         none: "none"
@@ -118,10 +124,14 @@ const labels = computed(() =>
   <section class="home-landing-shell" aria-label="envlock landing shell">
     <section class="home-landing-grid" aria-label="envlock landing grid">
       <article class="landing-card landing-board">
+        <p class="landing-kicker">{{ labels.boardKicker }}</p>
         <h2 class="landing-score-title"><span>Scoreboard</span><small>by envlock</small></h2>
         <div class="score-accordion">
-          <details class="score-item" v-for="row in scoreRows" :key="row.level" :open="row.level.startsWith('L4')">
-            <summary class="score-item-head">{{ row.level }}</summary>
+          <details class="score-item" v-for="row in scoreRows" :key="row.level" :open="row.level.startsWith('L4')" :data-tier="row.level.slice(0, 2).toLowerCase()">
+            <summary class="score-item-head">
+              <span class="score-level">{{ row.level }}</span>
+              <span class="score-plus" aria-hidden="true">+</span>
+            </summary>
             <div class="score-item-body">
               <p><strong>{{ labels.scoreRule }}:</strong> {{ row.rule }}</p>
               <p>
@@ -138,11 +148,13 @@ const labels = computed(() =>
 
       <article class="landing-card landing-quickstart">
         <h2>{{ labels.quickTitle }}</h2>
+        <p class="landing-hint">{{ labels.quickHint }}</p>
         <pre><code>{{ quickStart }}</code></pre>
       </article>
 
       <article class="landing-card landing-docs">
         <h2>{{ labels.docsTitle }}</h2>
+        <p class="landing-hint">{{ labels.docsHint }}</p>
         <nav class="landing-docs-links">
           <a v-for="item in docsLinks" :key="item.link" :href="item.link">{{ item.label }}</a>
         </nav>
