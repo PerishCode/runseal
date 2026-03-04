@@ -28,6 +28,7 @@ export default defineConfig({
   description: "Deterministic environment sessions from JSON profiles.",
   base: BASE,
   head: [
+    ["link", { rel: "icon", type: "image/svg+xml", href: `${BASE}favicon.svg` }],
     ["link", { rel: "icon", type: "image/png", href: `${BASE}favicon.png` }],
     ["link", { rel: "icon", type: "image/x-icon", href: `${BASE}favicon.ico` }],
     ["meta", { name: "author", content: "PerishCode" }],
@@ -98,7 +99,7 @@ export default defineConfig({
   },
   themeConfig: {
     i18nRouting: true,
-    logo: "/favicon.png",
+    logo: `${BASE}favicon.svg`,
     sidebar: {
       "/": [
         {

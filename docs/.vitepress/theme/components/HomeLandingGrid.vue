@@ -32,28 +32,28 @@ const scoreTiers = computed(() => {
         rule: "AND：最强闭环 + 最小 Agent 成本同时成立。",
         tools: [
           {
-            icon: "GH",
+            icon: "https://cdn.simpleicons.org/github/181717",
             name: "gh",
             url: "https://cli.github.com/manual/",
             tags: ["cli", "native", "vcs"],
             abstract: "Agent 可直接闭环处理 issue/PR/review，步骤稳定且提示负担低。"
           },
           {
-            icon: "AWS",
+            icon: "https://cdn.simpleicons.org/amazonaws/232f3e",
             name: "aws",
             url: "https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html",
             tags: ["cloud", "native", "ops"],
             abstract: "服务 API 与命令语义一致，适合在约束清晰任务里快速闭环。"
           },
           {
-            icon: "K8S",
+            icon: "https://cdn.simpleicons.org/kubernetes/326ce5",
             name: "kubectl",
             url: "https://kubernetes.io/docs/reference/kubectl/",
             tags: ["cluster", "native", "runtime"],
             abstract: "资源模型稳定、命令反馈结构化，便于 Agent 做排错与修复循环。"
           },
           {
-            icon: "TF",
+            icon: "https://cdn.simpleicons.org/terraform/844fba",
             name: "tf",
             url: "https://developer.hashicorp.com/terraform/cli",
             tags: ["iac", "native", "plan/apply"],
@@ -67,7 +67,7 @@ const scoreTiers = computed(() => {
         rule: "OR：至少一条强闭环路径成熟，但覆盖未达 native。",
         tools: [
           {
-            icon: "DD",
+            icon: "https://cdn.simpleicons.org/datadog/632ca6",
             name: "datadog",
             url: "https://docs.datadoghq.com/api/latest/",
             tags: ["observability", "good", "api"],
@@ -81,7 +81,7 @@ const scoreTiers = computed(() => {
         rule: "闭环存在，但通过 envlock 非兼容路径完成。",
         tools: [
           {
-            icon: "FNM",
+            icon: "https://cdn.simpleicons.org/nodedotjs/5fa04e",
             name: "fnm",
             url: "https://github.com/Schniz/fnm",
             tags: ["runtime", "normal", "workaround"],
@@ -95,7 +95,7 @@ const scoreTiers = computed(() => {
         rule: "无可靠闭环路径；在 Agent-Native 下是 non-sense。",
         tools: [
           {
-            icon: "N/A",
+            icon: "/envlock/favicon.svg",
             name: "other",
             url: "/zh-CN/explanation/envlock-score/other",
             tags: ["other", "no-closure", "high-cost"],
@@ -113,28 +113,28 @@ const scoreTiers = computed(() => {
       rule: "AND: strongest closure and minimum agent-side cost are both satisfied.",
       tools: [
         {
-          icon: "GH",
+          icon: "https://cdn.simpleicons.org/github/181717",
           name: "gh",
           url: "https://cli.github.com/manual/",
           tags: ["cli", "native", "vcs"],
           abstract: "Agents can close loops on issues, PRs, and reviews with stable low-cost prompts."
         },
         {
-          icon: "AWS",
+          icon: "https://cdn.simpleicons.org/amazonaws/232f3e",
           name: "aws",
           url: "https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html",
           tags: ["cloud", "native", "ops"],
           abstract: "Command semantics align with service APIs, enabling predictable constrained loops."
         },
         {
-          icon: "K8S",
+          icon: "https://cdn.simpleicons.org/kubernetes/326ce5",
           name: "kubectl",
           url: "https://kubernetes.io/docs/reference/kubectl/",
           tags: ["cluster", "native", "runtime"],
           abstract: "Structured resource feedback supports fast diagnose-and-fix iteration by agents."
         },
         {
-          icon: "TF",
+          icon: "https://cdn.simpleicons.org/terraform/844fba",
           name: "tf",
           url: "https://developer.hashicorp.com/terraform/cli",
           tags: ["iac", "native", "plan/apply"],
@@ -148,7 +148,7 @@ const scoreTiers = computed(() => {
       rule: "OR: at least one strong closure path is mature, but coverage is below native.",
       tools: [
         {
-          icon: "DD",
+          icon: "https://cdn.simpleicons.org/datadog/632ca6",
           name: "datadog",
           url: "https://docs.datadoghq.com/api/latest/",
           tags: ["observability", "good", "api"],
@@ -162,7 +162,7 @@ const scoreTiers = computed(() => {
       rule: "Closure exists through envlock-non-compatible paths.",
       tools: [
         {
-          icon: "FNM",
+          icon: "https://cdn.simpleicons.org/nodedotjs/5fa04e",
           name: "fnm",
           url: "https://github.com/Schniz/fnm",
           tags: ["runtime", "normal", "workaround"],
@@ -176,7 +176,7 @@ const scoreTiers = computed(() => {
       rule: "No reliable closure path; non-sense for Agent-Native workflows.",
       tools: [
         {
-          icon: "N/A",
+          icon: "/envlock/favicon.svg",
           name: "other",
           url: "/explanation/envlock-score/other",
           tags: ["other", "no-closure", "high-cost"],
@@ -286,7 +286,7 @@ const labels = computed(() =>
               <tr v-for="tool in activeTierData.tools" :key="tool.name">
                 <td>
                   <a class="score-tool-link" :href="tool.url" target="_blank" rel="noreferrer">
-                    <span class="score-tool-icon">{{ tool.icon }}</span>
+                    <img class="score-tool-icon" :src="tool.icon" :alt="`${tool.name} icon`" loading="lazy" />
                     <span>{{ tool.name }}</span>
                   </a>
                 </td>
