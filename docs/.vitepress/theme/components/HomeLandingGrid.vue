@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { useData } from "vitepress";
 import HomeHeroShell from "./HomeHeroShell.vue";
 
-const { lang, isDark } = useData();
+const { lang } = useData();
 const isZh = computed(() => lang.value === "zh-CN");
 
 const quickStart = [
@@ -200,25 +200,8 @@ function hashTag(tag: string): number {
 }
 
 function tagStyle(tag: string): Record<string, string> {
-  const h = hashTag(tag);
-  if (isDark.value) {
-    const r = 70 + (h % 70);
-    const g = 90 + ((h >> 3) % 80);
-    const b = 110 + ((h >> 6) % 90);
-    return {
-      backgroundColor: `rgba(${r}, ${g}, ${b}, 0.2)`,
-      borderColor: `rgba(${r + 40}, ${g + 35}, ${b + 25}, 0.5)`,
-      color: `rgb(${r + 70}, ${g + 60}, ${b + 45})`
-    };
-  }
-
-  const r = 95 + (h % 95);
-  const g = 105 + ((h >> 3) % 95);
-  const b = 115 + ((h >> 6) % 95);
   return {
-    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.14)`,
-    borderColor: `rgba(${r - 20}, ${g - 20}, ${b - 20}, 0.35)`,
-    color: `rgb(${Math.max(35, r - 45)}, ${Math.max(40, g - 45)}, ${Math.max(45, b - 45)})`
+    "--tag-h": `${hashTag(tag) % 360}`
   };
 }
 

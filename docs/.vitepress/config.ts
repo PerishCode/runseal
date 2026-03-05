@@ -108,7 +108,7 @@ export default defineConfig({
   },
   themeConfig: {
     i18nRouting: true,
-    logo: `${BASE}favicon.svg`,
+    logo: "/favicon.svg",
     sidebar: {
       "/": [
         {
