@@ -1,0 +1,18 @@
+wc-layout-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--wc-columns, 24), minmax(0, 1fr));
+  grid-template-rows: var(--wc-rows, auto);
+  gap: var(--wc-gap, 14px);
+}
+
+wc-layout-panel {
+  display: block;
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  wc-layout-grid.home-landing-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+}

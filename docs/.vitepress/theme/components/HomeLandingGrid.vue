@@ -280,8 +280,9 @@ const labels = computed(() =>
 </script>
 
 <template>
-  <section class="home-landing-grid" aria-label="envlock landing grid">
-    <article class="landing-card landing-board">
+  <wc-layout-grid class="home-landing-grid" aria-label="envlock landing grid" columns="24" rows="minmax(0, 1fr) minmax(0, 2fr)" gap="14px">
+    <wc-layout-panel class="landing-board">
+    <article class="landing-card">
       <p class="landing-kicker">{{ labels.boardKicker }}</p>
       <h2 class="landing-score-title"><span>Scoreboard</span><small>by envlock</small></h2>
       <div class="score-global-rule">
@@ -339,17 +340,20 @@ const labels = computed(() =>
         </div>
       </div>
     </article>
+    </wc-layout-panel>
 
-    <div class="landing-quickstart">
+    <wc-layout-panel class="landing-quickstart">
       <HomeHeroShell :heading="labels.quickTitle" :hint="labels.quickHint" :code="quickStart" />
-    </div>
+    </wc-layout-panel>
 
-    <article class="landing-card landing-docs">
+    <wc-layout-panel class="landing-docs">
+    <article class="landing-card">
       <h2>{{ labels.docsTitle }}</h2>
       <p class="landing-hint">{{ labels.docsHint }}</p>
       <nav class="landing-docs-links">
         <a v-for="item in docsLinks" :key="item.link" :href="item.link">{{ item.label }}</a>
       </nav>
     </article>
-  </section>
+    </wc-layout-panel>
+  </wc-layout-grid>
 </template>
