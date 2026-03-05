@@ -1,7 +1,7 @@
 import DefaultTheme from "vitepress/theme";
 import { h } from "vue";
 import GithubStars from "./components/GithubStars.vue";
-import HomeLandingGrid from "./components/HomeLandingGrid.vue";
+import HomeLandingHost from "./components/HomeLandingHost.vue";
 import "./style.css";
 
 export default {
@@ -9,7 +9,7 @@ export default {
   Layout() {
     return h(DefaultTheme.Layout, null, {
       "nav-bar-content-after": () => h(GithubStars),
-      "home-hero-before": () => h(HomeLandingGrid)
+      "home-hero-before": () => h(HomeLandingHost)
     });
   }
 };

@@ -1,0 +1,24 @@
+wc-home-landing {
+  display: block;
+  width: 80vw;
+  height: 80vh;
+  min-width: 960px;
+  min-height: 520px;
+  margin: 0;
+}
+
+wc-home-landing:not(:defined) {
+  border: 1px solid color-mix(in srgb, var(--vp-c-brand-1) 10%, var(--vp-c-divider));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--vp-c-bg-alt) 90%, transparent);
+}
+
+@media (max-width: 960px) {
+  wc-home-landing {
+    width: 100vw;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    padding: 12px;
+  }
+}

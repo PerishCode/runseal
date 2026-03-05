@@ -31,7 +31,7 @@ export default defineConfig({
     ["link", { rel: "icon", type: "image/svg+xml", href: `${BASE}favicon.svg` }],
     ["link", { rel: "icon", type: "image/png", href: `${BASE}favicon.png` }],
     ["link", { rel: "icon", type: "image/x-icon", href: `${BASE}favicon.ico` }],
-    ["link", { rel: "stylesheet", href: `${BASE}home-layout-wc.css` }],
+    ["link", { rel: "stylesheet", href: `${BASE}home-layout-shell.css` }],
     ["script", { type: "module", src: `${BASE}home-layout-wc.js` }],
     ["meta", { name: "author", content: "PerishCode" }],
     ["meta", { name: "copyright", content: "Copyright © 2026 PerishCode" }],
