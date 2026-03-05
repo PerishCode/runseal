@@ -37,17 +37,17 @@ export default defineConfig({
     ["meta", { name: "copyright", content: "Copyright © 2026 PerishCode" }],
     ["meta", { name: "agent:owner", content: "PerishCode" }],
     ["meta", { name: "agent:project", content: "envlock" }],
-    ["meta", { name: "agent:mode", content: "meta-first" }],
-    ["meta", { name: "agent:home:intent", content: "task-router" }],
-    ["meta", { name: "agent:default:tier", content: "l4_native" }],
+    ["meta", { name: "agent:contract:version", content: "1" }],
     [
       "meta",
       {
-        name: "agent:closure:quickstart",
-        content:
-          "curl_install -> eval_envlock -> echo_ENVLOCK_PROFILE"
+        name: "agent:index:v1",
+        content: "agent:contract:version,agent:mode,agent:entry:install,agent:entry:cli,agent:entry:ci,agent:resolution,agent:locale:default"
       }
     ],
+    ["meta", { name: "agent:mode", content: "meta-first" }],
+    ["meta", { name: "agent:resolution", content: "meta_then_dom_dom_wins_on_conflict" }],
+    ["meta", { name: "agent:locale:default", content: "en-US" }],
     [
       "meta",
       {
@@ -67,42 +67,6 @@ export default defineConfig({
       {
         name: "agent:entry:ci",
         content: `${BASE}how-to/ci-integration`
-      }
-    ],
-    [
-      "meta",
-      {
-        name: "agent:entry:install:zh-CN",
-        content: `${BASE}zh-CN/how-to/install`
-      }
-    ],
-    [
-      "meta",
-      {
-        name: "agent:entry:cli:zh-CN",
-        content: `${BASE}zh-CN/reference/cli`
-      }
-    ],
-    [
-      "meta",
-      {
-        name: "agent:entry:ci:zh-CN",
-        content: `${BASE}zh-CN/how-to/ci-integration`
-      }
-    ],
-    [
-      "meta",
-      {
-        name: "agent:locale:map",
-        content: "en-US=/envlock/;zh-CN=/envlock/zh-CN/"
-      }
-    ],
-    [
-      "meta",
-      {
-        name: "agent:brief:v1",
-        content:
-          "priority=install,cli,ci;router=how-to,reference,explanation;dom=secondary"
       }
     ]
   ],
