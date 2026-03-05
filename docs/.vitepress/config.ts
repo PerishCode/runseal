@@ -36,7 +36,75 @@ export default defineConfig({
     ["meta", { name: "author", content: "PerishCode" }],
     ["meta", { name: "copyright", content: "Copyright © 2026 PerishCode" }],
     ["meta", { name: "agent:owner", content: "PerishCode" }],
-    ["meta", { name: "agent:project", content: "envlock" }]
+    ["meta", { name: "agent:project", content: "envlock" }],
+    ["meta", { name: "agent:mode", content: "meta-first" }],
+    ["meta", { name: "agent:home:intent", content: "task-router" }],
+    ["meta", { name: "agent:default:tier", content: "l4_native" }],
+    [
+      "meta",
+      {
+        name: "agent:closure:quickstart",
+        content:
+          "curl_install -> eval_envlock -> echo_ENVLOCK_PROFILE"
+      }
+    ],
+    [
+      "meta",
+      {
+        name: "agent:entry:install",
+        content: `${BASE}how-to/install`
+      }
+    ],
+    [
+      "meta",
+      {
+        name: "agent:entry:cli",
+        content: `${BASE}reference/cli`
+      }
+    ],
+    [
+      "meta",
+      {
+        name: "agent:entry:ci",
+        content: `${BASE}how-to/ci-integration`
+      }
+    ],
+    [
+      "meta",
+      {
+        name: "agent:entry:install:zh-CN",
+        content: `${BASE}zh-CN/how-to/install`
+      }
+    ],
+    [
+      "meta",
+      {
+        name: "agent:entry:cli:zh-CN",
+        content: `${BASE}zh-CN/reference/cli`
+      }
+    ],
+    [
+      "meta",
+      {
+        name: "agent:entry:ci:zh-CN",
+        content: `${BASE}zh-CN/how-to/ci-integration`
+      }
+    ],
+    [
+      "meta",
+      {
+        name: "agent:locale:map",
+        content: "en-US=/envlock/;zh-CN=/envlock/zh-CN/"
+      }
+    ],
+    [
+      "meta",
+      {
+        name: "agent:brief:v1",
+        content:
+          "priority=install,cli,ci;router=how-to,reference,explanation;dom=secondary"
+      }
+    ]
   ],
   cleanUrls: true,
   lastUpdated: true,
