@@ -4,32 +4,61 @@ Deterministic shell and command environments from one JSON profile.
 
 Chinese docs entrypoint: [README.zh-CN.md](README.zh-CN.md).
 
-## 30-second install
+## 10-second value
+
+Run one command, load one profile, and verify with one observable output (`ENVLOCK_PROFILE=default`).
+
+## 60-second verification path
 
 ```bash
+# 1) install
 curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh
-```
 
-Installed paths:
-
-- Binary: `~/.envlock/bin/envlock`
-- Symlink: `~/.local/bin/envlock`
-
-## 60-second quick start (v0.3.0)
-
-Create the default profile, run `envlock` with no flags, then verify:
-
-```bash
+# 2) create default profile
 mkdir -p "${ENVLOCK_HOME:-$HOME/.envlock}/profiles"
 printf '%s\n' '{"injections":[{"type":"env","vars":{"ENVLOCK_PROFILE":"default"}}]}' > "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
+
+# 3) apply and verify
 eval "$(envlock)"
 echo "$ENVLOCK_PROFILE"
+```
+
+Expected output:
+
+```text
+default
 ```
 
 Default profile resolution when `--profile` is omitted:
 
 - `ENVLOCK_HOME/profiles/default.json` when `ENVLOCK_HOME` is set
 - `~/.envlock/profiles/default.json` otherwise
+
+## Fit / Not fit
+
+Fit when you need:
+
+- Reproducible shell env setup from JSON profiles
+- A read-only preview before applying profile changes (`envlock preview`)
+- CI jobs that must apply the same env profile deterministically
+
+Not fit when you need:
+
+- A secrets manager
+- Runtime/container orchestration
+- A full package manager replacement
+
+## Direct links
+
+- Install: [docs/how-to/install.md](docs/how-to/install.md)
+- CLI reference: [docs/reference/cli.md](docs/reference/cli.md)
+- CI integration: [docs/how-to/ci-integration.md](docs/how-to/ci-integration.md)
+- First-star trigger: [docs/tutorials/first-star-trigger.md](docs/tutorials/first-star-trigger.md)
+
+Installed paths:
+
+- Binary: `~/.envlock/bin/envlock`
+- Symlink: `~/.local/bin/envlock`
 
 ## Common commands
 
@@ -54,6 +83,7 @@ envlock self-update
 - Chinese README: [README.zh-CN.md](README.zh-CN.md)
 - Tutorial: [docs/tutorials/quick-start.md](docs/tutorials/quick-start.md)
 - How-to: [docs/how-to/install.md](docs/how-to/install.md)
+- First-star trigger: [docs/tutorials/first-star-trigger.md](docs/tutorials/first-star-trigger.md)
 - Quick reference: [docs/reference/quick-reference.md](docs/reference/quick-reference.md)
 - Common recipes: [docs/how-to/common-recipes.md](docs/how-to/common-recipes.md)
 - CI integration: [docs/how-to/ci-integration.md](docs/how-to/ci-integration.md)

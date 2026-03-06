@@ -4,32 +4,61 @@
 
 English canonical README: [README.md](README.md).
 
-## 30 秒安装
+## 10 秒价值句
+
+一条命令加载一个 profile，并用一个可观察结果完成验收（`ENVLOCK_PROFILE=default`）。
+
+## 60 秒验证路径
 
 ```bash
+# 1) 安装
 curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh
+
+# 2) 创建默认 profile
+mkdir -p "${ENVLOCK_HOME:-$HOME/.envlock}/profiles"
+printf '%s\n' '{"injections":[{"type":"env","vars":{"ENVLOCK_PROFILE":"default"}}]}' > "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
+
+# 3) 应用并验证
+eval "$(envlock)"
+echo "$ENVLOCK_PROFILE"
 ```
+
+期望输出：
+
+```text
+default
+```
+
+不传 `--profile` 时，默认查找顺序：
+
+- 若设置了 `ENVLOCK_HOME`：`ENVLOCK_HOME/profiles/default.json`
+- 否则：`~/.envlock/profiles/default.json`
+
+## 适用 / 不适用边界
+
+适用场景：
+
+- 用 JSON profile 复现 shell 环境
+- 应用前先只读预览（`envlock preview`）
+- 在 CI 中稳定复用同一环境注入逻辑
+
+不适用场景：
+
+- 作为密钥管理器
+- 作为运行时/容器编排器
+- 替代完整包管理器
+
+## 直达链接
+
+- 安装：[docs/zh-CN/how-to/install.md](docs/zh-CN/how-to/install.md)
+- CLI 参考：[docs/zh-CN/reference/cli.md](docs/zh-CN/reference/cli.md)
+- CI 集成：[docs/zh-CN/how-to/ci-integration.md](docs/zh-CN/how-to/ci-integration.md)
+- First-star 触发路径：[docs/zh-CN/tutorials/first-star-trigger.md](docs/zh-CN/tutorials/first-star-trigger.md)
 
 安装路径：
 
 - 二进制：`~/.envlock/bin/envlock`
 - 软链接：`~/.local/bin/envlock`
-
-## 60 秒快速开始（v0.3.0）
-
-先创建默认 profile，再直接运行 `envlock`：
-
-```bash
-mkdir -p "${ENVLOCK_HOME:-$HOME/.envlock}/profiles"
-printf '%s\n' '{"injections":[{"type":"env","vars":{"ENVLOCK_PROFILE":"default"}}]}' > "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
-eval "$(envlock)"
-echo "$ENVLOCK_PROFILE"
-```
-
-当不传 `--profile` 时，默认查找顺序：
-
-- 先看 `ENVLOCK_HOME/profiles/default.json`（如果设置了 `ENVLOCK_HOME`）
-- 否则使用 `~/.envlock/profiles/default.json`
 
 ## 常用命令
 
@@ -53,6 +82,7 @@ envlock self-update
 - 文档站点：https://perishcode.github.io/envlock/
 - 英文 README：[README.md](README.md)
 - 快速开始：[docs/tutorials/quick-start.md](docs/tutorials/quick-start.md)
+- First-star 触发路径：[docs/zh-CN/tutorials/first-star-trigger.md](docs/zh-CN/tutorials/first-star-trigger.md)
 - 安装指南：[docs/zh-CN/how-to/install.md](docs/zh-CN/how-to/install.md)
 - 快速参考（中文）：[docs/zh-CN/reference/quick-reference.md](docs/zh-CN/reference/quick-reference.md)
 - 常见用法（中文）：[docs/zh-CN/how-to/common-recipes.md](docs/zh-CN/how-to/common-recipes.md)
