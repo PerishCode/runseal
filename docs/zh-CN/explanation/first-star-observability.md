@@ -56,3 +56,4 @@ python3 scripts/observe_first_star.py --repo PerishCode/envlock --days 7 --json
 - 工作流：`First Star Observer`
 - 当检测到 `stars_total >= 1` 时，工作流会自动创建前缀为 `[CVR][first_star_reached]` 的 GitHub issue。
 - 该 issue 作为关键转化瞬间的可追溯时间记录。
+- 每次观测运行还会向月度总账 issue（`[CVR Ledger] YYYY-MM envlock conversion log`）追加快照评论。

@@ -89,6 +89,60 @@ jobs:
           EOF
           )"
 
+      - name: Append monthly CVR ledger
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          MONTH="$(date -u +%Y-%m)"
+          LEDGER_TITLE="[CVR Ledger] ${MONTH} envlock conversion log"
+          LEDGER_NUMBER="$(gh issue list --repo "$REPO" --state all --search "${LEDGER_TITLE} in:title" --json number --jq '.[0].number')"
+          if [ -z "$LEDGER_NUMBER" ]; then
+            CREATED_URL="$(gh issue create --repo "$REPO" --title "$LEDGER_TITLE" --body "$(cat <<EOF
+            ## Purpose
+            Durable monthly conversion ledger for first-star readiness and milestone capture.
+
+            ## Policy
+            - Auto-updated by \\`first-star-observer.yml\\`.
+            - One comment per observer run.
+            EOF
+            )")"
+            LEDGER_NUMBER="${CREATED_URL##*/}"
+          fi
+
+          python3 - <<'PY' > ledger-comment.md
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          with open("first-star-report.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+
+          metrics = data.get("metrics", {})
+          timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          print(f"## Snapshot {timestamp}")
+          print(f"- score: `{data.get('weekly_score_0_100')}/100`")
+          print(f"- mode: `{data.get('mode')}`")
+          print(f"- confidence: `{data.get('confidence')}`")
+          print("- metrics:")
+          print(f"  - views_7d: `{metrics.get('views_count_7d')}`")
+          print(f"  - visitors_7d_proxy: `{metrics.get('visitors_7d_proxy')}`")
+          print(f"  - clones_7d_uniques_proxy: `{metrics.get('clones_uniques_7d_proxy')}`")
+          print(f"  - stars_total: `{metrics.get('stars_total')}`")
+          print(f"  - stars_new_7d: `{metrics.get('stars_new_7d')}`")
+          print(f"- workflow run: {os.environ.get('RUN_URL')}")
+
+          warnings = data.get("warnings", [])
+          if warnings:
+              print("- warnings:")
+              for item in warnings:
+                  print(f"  - {item}")
+          PY
+
+          gh issue comment "$LEDGER_NUMBER" --repo "$REPO" --body-file ledger-comment.md
+
       - name: Publish summary
         run: |
           python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"

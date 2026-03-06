@@ -60,3 +60,4 @@ python3 scripts/observe_first_star.py --repo PerishCode/envlock --days 7 --json
 - Workflow: `First Star Observer`
 - When `stars_total >= 1`, the workflow auto-creates a GitHub issue with prefix `[CVR][first_star_reached]`.
 - This issue is the durable timestamped record for the key conversion moment.
+- Each observer run also appends a snapshot comment into monthly ledger issue `[CVR Ledger] YYYY-MM envlock conversion log`.
