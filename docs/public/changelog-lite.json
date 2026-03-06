@@ -1,0 +1,12 @@
+{
+  "releases": [
+    {
+      "tag": "v0.2.1",
+      "highlights": [
+        "Added self-update command with checksum verification and managed install path guardrails.",
+        "Expanded docs for install, CI integration, and migration guidance.",
+        "Improved runtime validation and deterministic injection behavior."
+      ]
+    }
+  ]
+}

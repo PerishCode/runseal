@@ -14,6 +14,7 @@ use tempfile::TempDir;
 const REPO_OWNER: &str = "PerishCode";
 const REPO_NAME: &str = "envlock";
 const DOCS_CHANGELOG_URL: &str = "https://perishcode.github.io/envlock/changelog";
+const DOCS_CHANGELOG_FEED_URL: &str = "https://perishcode.github.io/envlock/changelog-lite.json";
 
 #[derive(Debug, Clone)]
 pub struct SelfUpdateOptions {
@@ -36,9 +37,21 @@ struct ReleaseAsset {
     browser_download_url: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct DocsChangelog {
+    releases: Vec<DocsChangelogRelease>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DocsChangelogRelease {
+    tag: String,
+    highlights: Vec<String>,
+}
+
 pub fn run(options: SelfUpdateOptions) -> Result<()> {
     let client = http_client()?;
     let release = fetch_release(&client, options.version.as_deref())?;
+    let docs_changelog = fetch_docs_changelog_release(&client, &release.tag_name).unwrap_or(None);
     let current = current_version()?;
     let target = parse_semver(&release.tag_name)?;
 
@@ -52,7 +65,7 @@ pub fn run(options: SelfUpdateOptions) -> Result<()> {
 
     if options.check_only {
         println!("Update available: v{} -> {}", current, release.tag_name);
-        print_release_notes(&release);
+        print_release_notes(&release, docs_changelog.as_ref());
         if let Err(err) = resolve_update_target_path() {
             eprintln!("note: {}", err);
         }
@@ -93,20 +106,41 @@ pub fn run(options: SelfUpdateOptions) -> Result<()> {
     replace_binary_at_path(extracted_binary, &target_binary)?;
 
     println!("Updated envlock to {}", release.tag_name);
-    print_release_notes(&release);
+    print_release_notes(&release, docs_changelog.as_ref());
     Ok(())
 }
 
-fn print_release_notes(release: &Release) {
-    let highlights = release_highlights(release.body.as_deref(), 3);
+fn print_release_notes(release: &Release, docs_release: Option<&DocsChangelogRelease>) {
+    let highlights = match docs_release {
+        Some(entry) if !entry.highlights.is_empty() => entry.highlights.clone(),
+        _ => release_highlights(release.body.as_deref(), 3),
+    };
+
     if !highlights.is_empty() {
         println!("Light changelog:");
-        for item in highlights {
+        for item in &highlights {
             println!("- {}", item);
+        }
+        if docs_release.is_some() {
+            println!("Changelog source: {}", DOCS_CHANGELOG_FEED_URL);
         }
     }
     println!("Release notes: {}", release.html_url);
     println!("Docs changelog index: {}", DOCS_CHANGELOG_URL);
+}
+
+fn fetch_docs_changelog_release(
+    client: &Client,
+    tag_name: &str,
+) -> Result<Option<DocsChangelogRelease>> {
+    let normalized = normalize_release_tag(tag_name);
+    let payload = fetch_response(client, DOCS_CHANGELOG_FEED_URL)?
+        .json::<DocsChangelog>()
+        .context("failed to parse docs changelog feed")?;
+    Ok(payload
+        .releases
+        .into_iter()
+        .find(|item| normalize_release_tag(&item.tag) == normalized))
 }
 
 fn release_highlights(body: Option<&str>, limit: usize) -> Vec<String> {
@@ -406,5 +440,16 @@ mod tests {
     fn release_highlights_handles_missing_body() {
         let items = release_highlights(None, 3);
         assert!(items.is_empty());
+    }
+
+    #[test]
+    fn docs_changelog_tag_match_normalizes_prefix() {
+        let release = DocsChangelogRelease {
+            tag: "0.2.1".to_string(),
+            highlights: vec!["line".to_string()],
+        };
+
+        let matched = normalize_release_tag(&release.tag) == normalize_release_tag("v0.2.1");
+        assert!(matched);
     }
 }
