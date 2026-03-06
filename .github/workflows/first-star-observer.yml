@@ -27,7 +27,7 @@ jobs:
 
       - name: Run first-star observer
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.FIRST_STAR_GH_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           DAYS="${{ github.event.inputs.days || '7' }}"

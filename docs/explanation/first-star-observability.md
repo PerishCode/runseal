@@ -47,6 +47,8 @@ With token (recommended):
 GITHUB_TOKEN=xxx python3 scripts/observe_first_star.py --repo PerishCode/envlock --days 7
 ```
 
+For GitHub Actions, set repository secret `FIRST_STAR_GH_TOKEN` (PAT with repo traffic access) to avoid `403` on traffic endpoints.
+
 JSON output:
 
 ```bash

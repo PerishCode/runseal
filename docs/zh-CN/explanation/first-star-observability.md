@@ -43,6 +43,8 @@ python3 scripts/observe_first_star.py --repo PerishCode/envlock --days 7
 GITHUB_TOKEN=xxx python3 scripts/observe_first_star.py --repo PerishCode/envlock --days 7
 ```
 
+在 GitHub Actions 中，建议配置仓库 Secret `FIRST_STAR_GH_TOKEN`（具备 repo traffic 读取权限），否则 traffic 接口可能返回 `403`。
+
 JSON 输出：
 
 ```bash

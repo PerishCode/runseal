@@ -38,6 +38,12 @@ jobs:
       - name: Build docs
         run: pnpm run docs:build
 
+      - name: Verify agent meta contract
+        run: bash scripts/verify-agent-meta.sh
+
+      - name: Verify agent route integrity
+        run: bash scripts/check-agent-routes.sh
+
       - name: Run cargo tests
         run: cargo test --locked
 
