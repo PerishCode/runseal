@@ -171,7 +171,9 @@ export default defineConfig({
             { text: "CLI", link: "/reference/cli" },
             { text: "Profile Format", link: "/reference/profile" },
             { text: "Environment Variables", link: "/reference/environment" },
-            { text: "Release Pipeline", link: "/reference/release" }
+            { text: "Release Pipeline", link: "/reference/release" },
+            { text: "Agent Meta Contract", link: "/reference/agent-meta-contract" },
+            { text: "Agent Cold-Start Checklist", link: "/reference/agent-coldstart-checklist" }
           ]
         },
         {
@@ -218,7 +220,9 @@ export default defineConfig({
             { text: "CLI 参考", link: "/zh-CN/reference/cli" },
             { text: "Profile 格式", link: "/zh-CN/reference/profile" },
             { text: "环境变量", link: "/zh-CN/reference/environment" },
-            { text: "发布流水线", link: "/zh-CN/reference/release" }
+            { text: "发布流水线", link: "/zh-CN/reference/release" },
+            { text: "Agent Meta 契约", link: "/zh-CN/reference/agent-meta-contract" },
+            { text: "Agent 冷启动检查清单", link: "/zh-CN/reference/agent-coldstart-checklist" }
           ]
         },
         {
