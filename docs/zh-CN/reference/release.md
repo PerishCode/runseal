@@ -20,8 +20,8 @@
 
 ```bash
 # 合并改动并更新 Cargo.toml 版本后
-git tag v0.4.1
-git push origin v0.4.1
+git tag v0.4.2
+git push origin v0.4.2
 ```
 
 ## 破坏性变更规则

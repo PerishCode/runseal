@@ -60,22 +60,22 @@ pub fn run_install(options: SkillInstallOptions) -> Result<()> {
     }
 
     let install_home = resolve_skill_install_home()?;
-    let install_path = install_home.join(&tag);
+    let target_skill_dir = install_home.join("envlock");
 
-    if install_path.exists() {
+    if target_skill_dir.exists() {
         if !options.force {
             bail!(
-                "skill version already installed: {} (use --force to overwrite)",
-                install_path.display()
+                "skill target already exists: {} (use --force to overwrite)",
+                target_skill_dir.display()
             );
         }
         if !options.yes {
-            prompt_for_overwrite(&install_path)?;
+            prompt_for_overwrite(&target_skill_dir)?;
         }
-        std::fs::remove_dir_all(&install_path).with_context(|| {
+        std::fs::remove_dir_all(&target_skill_dir).with_context(|| {
             format!(
                 "failed to remove existing skill directory: {}",
-                install_path.display()
+                target_skill_dir.display()
             )
         })?;
     }
@@ -83,20 +83,20 @@ pub fn run_install(options: SkillInstallOptions) -> Result<()> {
     println!(
         "Installing skill package {} to {}",
         tag,
-        install_path.display()
+        install_home.display()
     );
-    std::fs::create_dir_all(&install_path).with_context(|| {
+    std::fs::create_dir_all(&install_home).with_context(|| {
         format!(
             "failed to create skill install directory: {}",
-            install_path.display()
+            install_home.display()
         )
     })?;
 
-    extract_skill_zip(&zip_bytes, &install_path)?;
+    extract_skill_zip(&zip_bytes, &install_home)?;
 
     println!("Skill install complete.");
     println!("- version: {}", tag);
-    println!("- path: {}", install_path.display());
+    println!("- path: {}", target_skill_dir.display());
     println!(
         "Tip: set {} to override install root.",
         SKILL_INSTALL_HOME_ENV

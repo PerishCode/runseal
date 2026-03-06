@@ -99,7 +99,7 @@ envlock self-update
 bash scripts/version-sync-check.sh
 bash scripts/release-ready.sh
 bash scripts/converge-check.sh
-bash scripts/release-smoke.sh --version v0.4.1
+bash scripts/release-smoke.sh --version v0.4.2
 ```
 
 ## 故障排查（快速定位）

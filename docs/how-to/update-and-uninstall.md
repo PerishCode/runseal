@@ -29,7 +29,7 @@ envlock skill install --yes
 Pin to specific version:
 
 ```bash
-envlock self-update --version v0.4.1 --yes
+envlock self-update --version v0.4.2 --yes
 ```
 
 ## Uninstall

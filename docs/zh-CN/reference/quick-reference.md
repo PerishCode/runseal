@@ -1,6 +1,6 @@
 # 快速参考
 
-面向 v0.4.1 的高频命令速查。
+面向 v0.4.2 的高频命令速查。
 
 ## 日常运行
 
@@ -39,7 +39,7 @@ echo $?
 envlock self-update --check
 envlock self-update
 envlock self-update --yes
-envlock self-update --version v0.4.1 --yes
+envlock self-update --version v0.4.2 --yes
 
 # 同步安装 skill 包
 envlock skill install --yes

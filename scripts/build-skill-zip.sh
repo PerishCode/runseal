@@ -45,7 +45,7 @@ version = sys.argv[3]
 manifest = {
     "version": version,
     "format": 1,
-    "root": "skills",
+    "root": ".",
 }
 
 if output.exists():
@@ -55,7 +55,7 @@ with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as zf:
     zf.writestr("skill-manifest.json", json.dumps(manifest, indent=2) + "\n")
     for path in sorted(skills_dir.rglob("*")):
         if path.is_file():
-            arcname = Path("skills") / path.relative_to(skills_dir)
+            arcname = path.relative_to(skills_dir)
             zf.write(path, arcname.as_posix())
 PY
 

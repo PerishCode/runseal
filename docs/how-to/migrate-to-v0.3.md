@@ -1,10 +1,10 @@
 # Migrate to v0.3
 
-This page covers the breaking changes in v0.4.1.
+This page covers the breaking changes in v0.4.2.
 
 ## 1) CLI behavior in command mode is stricter
 
-In v0.4.1, `--strict` applies to all output paths, including command mode.
+In v0.4.2, `--strict` applies to all output paths, including command mode.
 
 - Duplicate exported keys now fail in strict mode before child command execution.
 - Invalid exported env keys also fail before child command execution.

@@ -29,7 +29,7 @@ envlock skill install --yes
 固定到指定版本：
 
 ```bash
-envlock self-update --version v0.4.1 --yes
+envlock self-update --version v0.4.2 --yes
 ```
 
 ## 卸载
