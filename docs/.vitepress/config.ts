@@ -42,12 +42,14 @@ export default defineConfig({
       "meta",
       {
         name: "agent:index:v1",
-        content: "agent:contract:version,agent:mode,agent:entry:install,agent:entry:cli,agent:entry:ci,agent:resolution,agent:locale:default"
+        content: "agent:contract:version,agent:mode,agent:entry:install,agent:entry:cli,agent:entry:ci,agent:resolution,agent:locale:default,agent:locale:source,agent:locale:policy"
       }
     ],
     ["meta", { name: "agent:mode", content: "meta-first" }],
-    ["meta", { name: "agent:resolution", content: "meta_then_dom_dom_wins_on_conflict" }],
+    ["meta", { name: "agent:resolution", content: "meta-primary_dom-secondary_dom-wins-on-conflict" }],
     ["meta", { name: "agent:locale:default", content: "en-US" }],
+    ["meta", { name: "agent:locale:source", content: "html_lang" }],
+    ["meta", { name: "agent:locale:policy", content: "canonical-entries-en-US" }],
     [
       "meta",
       {
