@@ -1,10 +1,10 @@
 use std::io::{self, Cursor, Write};
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use flate2::read::GzDecoder;
 use reqwest::blocking::Client;
-use reqwest::{StatusCode, blocking::Response};
+use reqwest::{blocking::Response, StatusCode};
 use semver::Version;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -13,6 +13,7 @@ use tempfile::TempDir;
 
 const REPO_OWNER: &str = "PerishCode";
 const REPO_NAME: &str = "envlock";
+const DOCS_CHANGELOG_URL: &str = "https://perishcode.github.io/envlock/changelog";
 
 #[derive(Debug, Clone)]
 pub struct SelfUpdateOptions {
@@ -24,6 +25,8 @@ pub struct SelfUpdateOptions {
 #[derive(Debug, Deserialize)]
 struct Release {
     tag_name: String,
+    html_url: String,
+    body: Option<String>,
     assets: Vec<ReleaseAsset>,
 }
 
@@ -49,6 +52,7 @@ pub fn run(options: SelfUpdateOptions) -> Result<()> {
 
     if options.check_only {
         println!("Update available: v{} -> {}", current, release.tag_name);
+        print_release_notes(&release);
         if let Err(err) = resolve_update_target_path() {
             eprintln!("note: {}", err);
         }
@@ -89,7 +93,40 @@ pub fn run(options: SelfUpdateOptions) -> Result<()> {
     replace_binary_at_path(extracted_binary, &target_binary)?;
 
     println!("Updated envlock to {}", release.tag_name);
+    print_release_notes(&release);
     Ok(())
+}
+
+fn print_release_notes(release: &Release) {
+    let highlights = release_highlights(release.body.as_deref(), 3);
+    if !highlights.is_empty() {
+        println!("Light changelog:");
+        for item in highlights {
+            println!("- {}", item);
+        }
+    }
+    println!("Release notes: {}", release.html_url);
+    println!("Docs changelog index: {}", DOCS_CHANGELOG_URL);
+}
+
+fn release_highlights(body: Option<&str>, limit: usize) -> Vec<String> {
+    let Some(body) = body else {
+        return Vec::new();
+    };
+
+    body.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .filter(|line| !line.starts_with('#'))
+        .map(|line| {
+            line.trim_start_matches("- ")
+                .trim_start_matches("* ")
+                .trim_start_matches("+ ")
+                .to_string()
+        })
+        .filter(|line| !line.is_empty())
+        .take(limit)
+        .collect()
 }
 
 fn http_client() -> Result<Client> {
@@ -349,5 +386,25 @@ mod tests {
             release_metadata_url(Some("0.2.1")),
             "https://api.github.com/repos/PerishCode/envlock/releases/tags/v0.2.1"
         );
+    }
+
+    #[test]
+    fn release_highlights_extracts_light_changelog_lines() {
+        let body = "# Release v0.3.0\n\n- add meta-first docs\n- tighten converge checks\n\nSee details below.";
+        let items = release_highlights(Some(body), 3);
+        assert_eq!(
+            items,
+            vec![
+                "add meta-first docs".to_string(),
+                "tighten converge checks".to_string(),
+                "See details below.".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn release_highlights_handles_missing_body() {
+        let items = release_highlights(None, 3);
+        assert!(items.is_empty());
     }
 }
