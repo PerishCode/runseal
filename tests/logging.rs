@@ -113,15 +113,10 @@ fn plugin_node_failure_prints_log_path_and_writes_failure_trail() {
     let envlock_home = temp.path().join("envlock-home");
     let log_home = temp.path().join("logs");
     let state_dir = temp.path().join("node-state");
-    let path_dir = temp.path().join("path-bin");
+    let missing_node = temp.path().join("missing-node");
     let npm_bin = temp.path().join("fake-npm.sh");
     let pnpm_bin = temp.path().join("fake-pnpm.sh");
     let yarn_bin = temp.path().join("fake-yarn.sh");
-
-    std::fs::create_dir_all(&path_dir).expect("path dir should be created");
-    #[cfg(unix)]
-    std::os::unix::fs::symlink("/bin/bash", path_dir.join("bash"))
-        .expect("bash symlink should be created");
 
     std::fs::write(&npm_bin, "#!/usr/bin/env bash\necho 10.9.2\n")
         .expect("fake npm should be written");
@@ -152,7 +147,6 @@ fn plugin_node_failure_prints_log_path_and_writes_failure_trail() {
         ])
         .env("ENVLOCK_HOME", &envlock_home)
         .env("ENVLOCK_LOG_HOME", &log_home)
-        .env("PATH", &path_dir)
         .output()
         .expect("init command should run");
     assert!(init.status.success());
@@ -164,6 +158,8 @@ fn plugin_node_failure_prints_log_path_and_writes_failure_trail() {
             "preview",
             "--state-dir",
             state_dir.to_str().unwrap(),
+            "--node-bin",
+            missing_node.to_str().unwrap(),
             "--npm-bin",
             npm_bin.to_str().unwrap(),
             "--pnpm-bin",
@@ -173,7 +169,6 @@ fn plugin_node_failure_prints_log_path_and_writes_failure_trail() {
         ])
         .env("ENVLOCK_HOME", &envlock_home)
         .env("ENVLOCK_LOG_HOME", &log_home)
-        .env("PATH", &path_dir)
         .output()
         .expect("preview command should run");
     assert!(!preview.status.success());
@@ -191,6 +186,6 @@ fn plugin_node_failure_prints_log_path_and_writes_failure_trail() {
         .expect("at least one log file should exist");
     let contents = std::fs::read_to_string(newest).expect("log file should be readable");
     assert!(contents.contains("plugin invocation failed"));
-    assert!(contents.contains("plugin.node resolve tool=node source=path result=not_found"));
+    assert!(contents.contains("plugin.node resolve tool=node missing_bin="));
     assert!(contents.contains("envlock invocation failed"));
 }
