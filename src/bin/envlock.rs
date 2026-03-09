@@ -7,6 +7,7 @@ use envlock::commands::alias::{
     AliasAppendOptions, resolve_profile_for_alias, run_append as run_alias_append,
     run_list as run_alias_list,
 };
+use envlock::commands::plugin::{PluginRunOptions, run as run_plugin};
 use envlock::commands::preview::{PreviewOutputMode, run as run_preview};
 use envlock::commands::profiles::{
     InitProfileType, ProfilesInitOptions, run_init as run_profiles_init,
@@ -43,6 +44,7 @@ enum Commands {
     Profiles(ProfilesArgs),
     Alias(AliasArgs),
     Skill(SkillArgs),
+    Plugin(PluginArgs),
     #[command(external_subcommand)]
     External(Vec<String>),
 }
@@ -109,6 +111,16 @@ struct SkillArgs {
 #[derive(Debug, Subcommand)]
 enum SkillSubcommand {
     Install(SkillInstallArgs),
+}
+
+#[derive(Debug, Args)]
+struct PluginArgs {
+    plugin: String,
+
+    method: String,
+
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    args: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -209,6 +221,13 @@ fn main() -> Result<()> {
                     yes: install.yes,
                 }),
             },
+            Commands::Plugin(args) => run_plugin(PluginRunOptions {
+                force_install: args.method == "init"
+                    && args.args.iter().any(|arg| arg == "--force"),
+                plugin: args.plugin,
+                method: args.method,
+                args: args.args,
+            }),
             Commands::External(tokens) => run_external_command(&tokens, &cli.run_args),
         };
     }

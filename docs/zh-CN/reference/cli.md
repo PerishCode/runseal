@@ -7,6 +7,10 @@ envlock [--profile <path>] [--output <shell|json>] [--strict] [-- <cmd...>]
 envlock preview --profile <path> [--output <text|json>]
 envlock self-update [--check] [--version <x.y.z|vX.Y.Z>] [-y|--yes]
 envlock skill install [--version <x.y.z|vX.Y.Z>] [--force] [-y|--yes]
+envlock plugin node init [--force] [--node-bin <path>] [--npm-bin <path>] [--pnpm-bin <path>] [--yarn-bin <path>] [--state-dir <path>]
+envlock plugin node validate [--node-bin <path>] [--npm-bin <path>] [--pnpm-bin <path>] [--yarn-bin <path>] [--state-dir <path>]
+envlock plugin node preview [--node-bin <path>] [--npm-bin <path>] [--pnpm-bin <path>] [--yarn-bin <path>] [--state-dir <path>]
+envlock plugin node apply [--node-bin <path>] [--npm-bin <path>] [--pnpm-bin <path>] [--yarn-bin <path>] [--state-dir <path>]
 envlock profiles status
 envlock profiles init --type <minimal|sample> [--name <name>] [--force]
 envlock alias list
@@ -52,6 +56,18 @@ skill 安装路径优先级：
 1. `ENVLOCK_SKILL_INSTALL_HOME`
 2. `$ENVLOCK_HOME/skills`
 3. `~/.envlock/skills`
+
+## `plugin node` 命令
+
+- `plugin node init`：在 `$ENVLOCK_HOME/plugins/node.sh` 初始化本地 shell 插件脚本。
+- `plugin node validate`：校验本地 node 插件输入并输出 patch JSON。
+- `plugin node preview`：输出只读 patch JSON（`env` + `symlink`）。
+- `plugin node apply`：应用本地 node symlink 状态并输出最终 patch JSON。
+- `--node-bin <path>`：显式指定 node 二进制路径。
+- `--npm-bin <path>`：显式指定 npm 二进制路径（用于版本隔离 cache/prefix）。
+- `--pnpm-bin <path>`：显式指定 pnpm 二进制路径（用于版本隔离 store）。
+- `--yarn-bin <path>`：显式指定 yarn 二进制路径（用于版本隔离 cache）。
+- `--state-dir <path>`：覆盖插件状态目录（默认：`$ENVLOCK_HOME/plugin-node`）。
 
 ## `preview` 选项
 

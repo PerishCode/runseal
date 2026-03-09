@@ -2,11 +2,192 @@ name: Release Beta
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Beta tag to publish (must match Cargo.toml version, with optional leading v)
+        required: true
+        type: string
+      notes:
+        description: Optional beta release notes
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  TOOLS: "envlock"
 
 jobs:
-  placeholder:
+  validate-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Normalize and validate beta version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="${INPUT_VERSION}"
+          if [[ "${version}" != v* ]]; then
+            version="v${version}"
+          fi
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+            echo "version must match vX.Y.Z-beta.N" >&2
+            exit 1
+          fi
+          crate_version="$(
+            awk '
+              BEGIN { in_package=0 }
+              /^\[package\]/ { in_package=1; next }
+              /^\[/ && in_package { exit }
+              in_package && $0 ~ /^version[[:space:]]*=/ {
+                gsub(/"/, "", $0)
+                sub(/^version[[:space:]]*=[[:space:]]*/, "", $0)
+                print $0
+                exit
+              }
+            ' Cargo.toml
+          )"
+          if [[ -z "${crate_version}" ]]; then
+            echo "failed to parse package.version from Cargo.toml" >&2
+            exit 1
+          fi
+          expected="v${crate_version}"
+          if [[ "${version}" != "${expected}" ]]; then
+            echo "beta version mismatch: got ${version}, expected ${expected}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: validate-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-14
+            target: x86_64-apple-darwin
+          - os: macos-14
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build release binaries
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          for tool in ${TOOLS}; do
+            cargo build --locked --release --target "${TARGET}" --bin "${tool}"
+          done
+
+      - name: Package archives
+        env:
+          VERSION: ${{ needs.validate-version.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p dist
+          for tool in ${TOOLS}; do
+            cp "target/${TARGET}/release/${tool}" "dist/${tool}"
+            tar -C dist -czf "dist/${tool}-${VERSION}-${TARGET}.tar.gz" "${tool}"
+            rm -f "dist/${tool}"
+          done
+
+      - name: Compute checksums
+        working-directory: dist
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum *.tar.gz > checksums.txt
+          else
+            shasum -a 256 *.tar.gz > checksums.txt
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-beta-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/checksums.txt
+
+  package-skill:
+    needs: validate-version
     runs-on: ubuntu-latest
     steps:
-      - name: Placeholder
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build skill zip
+        env:
+          VERSION: ${{ needs.validate-version.outputs.version }}
         run: |
-          echo "release-beta placeholder workflow registered on default branch"
+          bash scripts/build-skill-zip.sh "${VERSION}"
+
+      - name: Compute skill checksum
+        working-directory: dist
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "skill-${{ needs.validate-version.outputs.version }}.zip" > checksums.txt
+          else
+            shasum -a 256 "skill-${{ needs.validate-version.outputs.version }}.zip" > checksums.txt
+          fi
+
+      - name: Upload skill artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-beta-skill
+          path: |
+            dist/skill-${{ needs.validate-version.outputs.version }}.zip
+            dist/checksums.txt
+
+  publish:
+    needs:
+      - validate-version
+      - build
+      - package-skill
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Merge checksums
+        run: |
+          tmp_checksums="$(mktemp)"
+          find dist -name '*.txt' -type f ! -path 'dist/checksums.txt' -exec cat {} + > "${tmp_checksums}"
+          sort -k2 "${tmp_checksums}" | uniq > dist/checksums.txt
+
+      - name: Publish GitHub beta release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate-version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          generate_release_notes: true
+          body: ${{ inputs.notes }}
+          files: |
+            dist/**/*.tar.gz
+            dist/**/*.zip
+            dist/checksums.txt

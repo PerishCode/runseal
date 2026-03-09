@@ -33,3 +33,24 @@ bash scripts/release-smoke.sh --version vX.Y.Z
 ```
 
 3. If either command fails, stop rollout and fix before announcing release availability.
+
+## Beta validation
+
+Use this path when the target version is a prerelease such as `v0.4.4-beta.1`.
+
+1. Trigger `release-beta.yml` with the exact beta tag.
+2. Install from the published beta release:
+
+```bash
+bash scripts/install.sh --version v0.4.4-beta.1
+```
+
+3. Verify installed behavior, not just local build behavior:
+
+```bash
+envlock --version
+envlock plugin node init --help
+envlock plugin node preview --help
+```
+
+4. Re-run the plugin-node end-to-end checks against the installed binary before promoting to stable.

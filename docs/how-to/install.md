@@ -12,6 +12,12 @@ curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/ins
 curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.3
 ```
 
+Beta prerelease tags use the same flow:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.4-beta.1
+```
+
 ## Installed Paths
 
 - Binary: `~/.envlock/bin/envlock`

@@ -29,9 +29,27 @@ git push origin vX.Y.Z
 
 Use the exact version from `Cargo.toml`.
 
+## Beta path
+
+For prerelease validation, do not push a stable tag.
+
+1. Set `Cargo.toml` to a beta version such as `0.4.4-beta.1`.
+2. Push the branch that contains the beta changes.
+3. Run `release-beta.yml` with input `v0.4.4-beta.1`.
+4. Wait for the prerelease assets to appear on GitHub Releases.
+5. Run install-based validation against the published beta tag:
+
+```bash
+bash scripts/install.sh --version v0.4.4-beta.1
+envlock --version
+envlock plugin node init --help
+```
+
 ## 4) Watch release pipeline
 
 Verify `release.yml` finishes successfully and publishes archives plus `checksums.txt`.
+
+For beta, verify `release-beta.yml` finishes successfully and publishes a GitHub prerelease with archives plus `checksums.txt`.
 
 ## 5) Post-release verification
 

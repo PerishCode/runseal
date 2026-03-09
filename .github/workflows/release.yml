@@ -58,6 +58,10 @@ jobs:
             echo "failed to parse package.version from Cargo.toml" >&2
             exit 1
           fi
+          if [[ "${crate_version}" == *-* ]]; then
+            echo "release.yml only publishes stable versions; got prerelease Cargo version ${crate_version}" >&2
+            exit 1
+          fi
           expected_tag="v${crate_version}"
           if [[ "${TAG}" != "${expected_tag}" ]]; then
             echo "tag/version mismatch: got ${TAG}, expected ${expected_tag}" >&2
@@ -130,6 +134,10 @@ jobs:
           )"
           if [[ -z "${crate_version}" ]]; then
             echo "failed to parse package.version from Cargo.toml" >&2
+            exit 1
+          fi
+          if [[ "${crate_version}" == *-* ]]; then
+            echo "release.yml only publishes stable versions; got prerelease Cargo version ${crate_version}" >&2
             exit 1
           fi
           expected_tag="v${crate_version}"

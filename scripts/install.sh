@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="PerishCode/envlock"
+REPO="${ENVLOCK_INSTALL_REPO:-PerishCode/envlock}"
 INSTALL_ROOT="${HOME}/.envlock"
 BIN_DIR="${INSTALL_ROOT}/bin"
 BIN_PATH="${BIN_DIR}/envlock"
@@ -111,7 +111,11 @@ else
 fi
 
 ASSET="envlock-${VERSION}-${TARGET}.tar.gz"
-BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
+if [[ -n "${ENVLOCK_INSTALL_BASE_URL:-}" ]]; then
+  BASE_URL="${ENVLOCK_INSTALL_BASE_URL%/}/${VERSION}"
+else
+  BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
+fi
 ASSET_URL="${BASE_URL}/${ASSET}"
 CHECKSUMS_URL="${BASE_URL}/checksums.txt"
 

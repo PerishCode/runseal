@@ -12,6 +12,12 @@ curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/ins
 curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.3
 ```
 
+beta prerelease 版本也走同一套方式：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.4-beta.1
+```
+
 ## 安装后路径
 
 - 二进制：`~/.envlock/bin/envlock`

@@ -7,6 +7,10 @@ envlock [--profile <path>] [--output <shell|json>] [--strict] [-- <cmd...>]
 envlock preview --profile <path> [--output <text|json>]
 envlock self-update [--check] [--version <x.y.z|vX.Y.Z>] [-y|--yes]
 envlock skill install [--version <x.y.z|vX.Y.Z>] [--force] [-y|--yes]
+envlock plugin node init [--force] [--node-bin <path>] [--npm-bin <path>] [--pnpm-bin <path>] [--yarn-bin <path>] [--state-dir <path>]
+envlock plugin node validate [--node-bin <path>] [--npm-bin <path>] [--pnpm-bin <path>] [--yarn-bin <path>] [--state-dir <path>]
+envlock plugin node preview [--node-bin <path>] [--npm-bin <path>] [--pnpm-bin <path>] [--yarn-bin <path>] [--state-dir <path>]
+envlock plugin node apply [--node-bin <path>] [--npm-bin <path>] [--pnpm-bin <path>] [--yarn-bin <path>] [--state-dir <path>]
 envlock profiles status
 envlock profiles init --type <minimal|sample> [--name <name>] [--force]
 envlock alias list
@@ -52,6 +56,18 @@ Skill install destination order:
 1. `ENVLOCK_SKILL_INSTALL_HOME`
 2. `$ENVLOCK_HOME/skills`
 3. `~/.envlock/skills`
+
+## `plugin node` Commands
+
+- `plugin node init`: bootstrap local shell plugin script at `$ENVLOCK_HOME/plugins/node.sh`.
+- `plugin node validate`: validate local node plugin inputs and emit patch JSON.
+- `plugin node preview`: emit dry-run patch JSON (`env` + `symlink`).
+- `plugin node apply`: apply local node symlink state and emit final patch JSON.
+- `--node-bin <path>`: force plugin to use explicit node binary path.
+- `--npm-bin <path>`: force npm binary path for versioned cache/prefix output.
+- `--pnpm-bin <path>`: force pnpm binary path for versioned store output.
+- `--yarn-bin <path>`: force yarn binary path for versioned cache output.
+- `--state-dir <path>`: override plugin local state directory (default: `$ENVLOCK_HOME/plugin-node`).
 
 ## `preview` Options
 
