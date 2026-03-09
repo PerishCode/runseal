@@ -191,29 +191,20 @@ fn plugin_node_failure_prints_log_path_and_writes_failure_trail() {
 }
 
 #[test]
-#[cfg(unix)]
 fn unwritable_log_home_disables_file_logging_without_failing_command() {
-    use std::os::unix::fs::PermissionsExt;
-
     let temp = TempDir::new().expect("temp dir should be created");
     let envlock_home = temp.path().join("envlock-home");
-    let log_home = temp.path().join("logs");
+    let log_home = temp.path().join("logs-file");
     let profile = envlock_home.join("profiles/default.json");
 
     std::fs::create_dir_all(profile.parent().expect("profile dir should exist"))
         .expect("profile dir should be created");
-    std::fs::create_dir_all(&log_home).expect("log dir should be created");
+    std::fs::write(&log_home, "not a directory").expect("log path sentinel should be written");
     std::fs::write(
         &profile,
         r#"{"injections":[{"type":"env","vars":{"ENVLOCK_PROFILE":"default"}}]}"#,
     )
     .expect("profile should be written");
-
-    let mut permissions = std::fs::metadata(&log_home)
-        .expect("log dir metadata should exist")
-        .permissions();
-    permissions.set_mode(0o555);
-    std::fs::set_permissions(&log_home, permissions).expect("log dir should become read-only");
 
     let output = Command::new(env!("CARGO_BIN_EXE_envlock"))
         .args(["preview", "-p", profile.to_str().unwrap()])
@@ -230,12 +221,10 @@ fn unwritable_log_home_disables_file_logging_without_failing_command() {
 
     let stderr = String::from_utf8(output.stderr).expect("stderr should be valid UTF-8");
     assert!(stderr.contains("Warning: session file logging disabled"));
-    assert!(stderr.contains("failed to open session log file"));
-    assert!(!stderr.contains("See log:"));
-    assert_eq!(
-        std::fs::read_dir(&log_home)
-            .expect("log dir should remain readable")
-            .count(),
-        0
+    assert!(
+        stderr.contains("failed to create log directory")
+            || stderr.contains("failed to open session log file")
     );
+    assert!(!stderr.contains("See log:"));
+    assert!(log_home.is_file());
 }
