@@ -4,23 +4,25 @@ use std::process;
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use envlock::commands::alias::{
-    AliasAppendOptions, resolve_profile_for_alias, run_append as run_alias_append,
-    run_list as run_alias_list,
+    resolve_profile_for_alias, run_append as run_alias_append, run_list as run_alias_list,
+    AliasAppendOptions,
 };
-use envlock::commands::plugin::{PluginRunOptions, run as run_plugin};
-use envlock::commands::preview::{PreviewOutputMode, run as run_preview};
+use envlock::commands::plugin::{run as run_plugin, PluginRunOptions};
+use envlock::commands::preview::{run as run_preview, PreviewOutputMode};
 use envlock::commands::profiles::{
-    InitProfileType, ProfilesInitOptions, run_init as run_profiles_init,
-    run_status as run_profiles_status,
+    run_init as run_profiles_init, run_status as run_profiles_status, InitProfileType,
+    ProfilesInitOptions,
 };
-use envlock::commands::self_update::{SelfUpdateOptions, run as run_self_update};
-use envlock::commands::skill::{SkillInstallOptions, run_install as run_skill_install};
-use envlock::core::app::{App, AppContext};
+use envlock::commands::self_update::{run as run_self_update, SelfUpdateOptions};
+use envlock::commands::skill::{run_install as run_skill_install, SkillInstallOptions};
+use envlock::core::app::App;
 use envlock::core::config::{
     CliInput, LogFormat as RuntimeLogFormat, OutputMode, RawEnv, RuntimeConfig,
 };
+use envlock::logging::{current_log_file, make_file_writer, prepare_session_log, SessionLog};
+use envlock::plugins::host::plugin_exit_code;
 use envlock::run;
-use tracing_subscriber::{EnvFilter, prelude::*};
+use tracing_subscriber::{prelude::*, EnvFilter};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -179,8 +181,17 @@ struct RunArgs {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let raw_env = RawEnv::from_process();
+    let session_log = prepare_session_log(&raw_env, &command_slug(&cli)).ok();
+    init_logging(
+        cli.run_args.log_level.into(),
+        cli.run_args.log_format.into(),
+        session_log.as_ref(),
+    )?;
+    tracing::info!(command = %command_slug(&cli), "envlock invocation started");
+
     if let Some(command) = cli.subcommand {
-        return match command {
+        let result = match command {
             Commands::SelfUpdate(args) => run_self_update(SelfUpdateOptions {
                 check_only: args.check,
                 version: args.version,
@@ -221,15 +232,27 @@ fn main() -> Result<()> {
                     yes: install.yes,
                 }),
             },
-            Commands::Plugin(args) => run_plugin(PluginRunOptions {
-                force_install: args.method == "init"
-                    && args.args.iter().any(|arg| arg == "--force"),
-                plugin: args.plugin,
-                method: args.method,
-                args: args.args,
-            }),
+            Commands::Plugin(args) => {
+                let result = run_plugin(PluginRunOptions {
+                    force_install: args.method == "init"
+                        && args.args.iter().any(|arg| arg == "--force"),
+                    plugin: args.plugin,
+                    method: args.method,
+                    args: args.args,
+                });
+                if let Err(error) = result {
+                    if let Some(code) = plugin_exit_code(&error) {
+                        eprintln!("{error}");
+                        process::exit(code);
+                    }
+                    Err(error)
+                } else {
+                    Ok(())
+                }
+            }
             Commands::External(tokens) => run_external_command(&tokens, &cli.run_args),
         };
+        return finish_command(result);
     }
 
     if let Some(alias_name) = parse_shortcut_alias_name(&cli.run_args.command) {
@@ -238,17 +261,46 @@ fn main() -> Result<()> {
         } else {
             Some(Vec::new())
         };
-        return run_alias_named(alias_name, &cli.run_args, command);
+        return finish_command(run_alias_named(alias_name, &cli.run_args, command));
     }
 
-    let config = build_runtime_config(&cli.run_args, None, None)?;
+    let config = match build_runtime_config(&cli.run_args, None, None) {
+        Ok(config) => config,
+        Err(error) => return finish_command(Err(error)),
+    };
     let app = App::new(config);
-    init_logging(app.config().log_level, app.config().log_format)?;
-    let result = run(&app)?;
+    let result = match run(&app) {
+        Ok(result) => result,
+        Err(error) => return finish_command(Err(error)),
+    };
     if let Some(code) = result.exit_code {
         process::exit(code);
     }
-    Ok(())
+    finish_command(Ok(()))
+}
+
+fn finish_command(result: Result<()>) -> Result<()> {
+    match result {
+        Ok(()) => {
+            tracing::info!(exit_code = 0, "envlock invocation completed");
+            Ok(())
+        }
+        Err(error) => {
+            if let Some(code) = plugin_exit_code(&error) {
+                tracing::error!(exit_code = code, error = %error, "envlock invocation failed");
+                eprintln!("{error}");
+                if let Some(path) = current_log_file() {
+                    eprintln!("See log: {}", path.display());
+                }
+                process::exit(code);
+            }
+            tracing::error!(error = %error, "envlock invocation failed");
+            if let Some(path) = current_log_file() {
+                eprintln!("See log: {}", path.display());
+            }
+            Err(error)
+        }
+    }
 }
 
 fn run_external_command(tokens: &[String], run_args: &RunArgs) -> Result<()> {
@@ -280,7 +332,6 @@ fn run_alias_named(
     });
     let config = build_runtime_config(run_args, Some(PathBuf::from(profile)), command_override)?;
     let app = App::new(config);
-    init_logging(app.config().log_level, app.config().log_format)?;
     let result = run(&app)?;
     if let Some(code) = result.exit_code {
         process::exit(code);
@@ -369,27 +420,72 @@ enum ProfileTemplateType {
 fn init_logging(
     level: tracing_subscriber::filter::LevelFilter,
     format: RuntimeLogFormat,
+    session_log: Option<&SessionLog>,
 ) -> Result<()> {
     let env_filter = EnvFilter::builder()
         .with_default_directive(level.into())
         .from_env_lossy();
 
-    match format {
-        RuntimeLogFormat::Text => tracing_subscriber::registry()
-            .with(env_filter)
-            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+    let stderr_layer = match format {
+        RuntimeLogFormat::Text => tracing_subscriber::fmt::layer()
+            .with_writer(std::io::stderr)
+            .boxed(),
+        RuntimeLogFormat::Json => tracing_subscriber::fmt::layer()
+            .json()
+            .with_writer(std::io::stderr)
+            .boxed(),
+    };
+
+    let registry = tracing_subscriber::registry().with(stderr_layer.with_filter(env_filter));
+
+    if let Some(session_log) = session_log {
+        let writer = make_file_writer(session_log)?;
+        let file_layer = tracing_subscriber::fmt::layer()
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .with_filter(tracing_subscriber::filter::LevelFilter::INFO);
+        registry
+            .with(file_layer)
             .try_init()
-            .context("failed to initialize text logger")?,
-        RuntimeLogFormat::Json => tracing_subscriber::registry()
-            .with(env_filter)
-            .with(
-                tracing_subscriber::fmt::layer()
-                    .json()
-                    .with_writer(std::io::stderr),
-            )
-            .try_init()
-            .context("failed to initialize JSON logger")?,
+            .context("failed to initialize logger")?;
+    } else {
+        registry.try_init().context("failed to initialize logger")?;
+    }
+
+    if let Some(path) = current_log_file() {
+        tracing::info!(log_file = %path.display(), "session log initialized");
     }
 
     Ok(())
+}
+
+fn command_slug(cli: &Cli) -> String {
+    match &cli.subcommand {
+        Some(Commands::Plugin(args)) => format!("plugin-{}-{}", args.plugin, args.method),
+        Some(Commands::SelfUpdate(_)) => "self-update".to_owned(),
+        Some(Commands::Preview(_)) => "preview".to_owned(),
+        Some(Commands::Profiles(_)) => "profiles".to_owned(),
+        Some(Commands::Alias(_)) => "alias".to_owned(),
+        Some(Commands::Skill(_)) => "skill".to_owned(),
+        Some(Commands::External(tokens)) => tokens
+            .first()
+            .map(|token| format!("external-{token}"))
+            .unwrap_or_else(|| "external".to_owned()),
+        None => {
+            if let Some(alias) = parse_shortcut_alias_name(&cli.run_args.command) {
+                format!("alias-{alias}")
+            } else {
+                "run".to_owned()
+            }
+        }
+    }
+}
+
+impl From<LogFormat> for RuntimeLogFormat {
+    fn from(value: LogFormat) -> Self {
+        match value {
+            LogFormat::Text => RuntimeLogFormat::Text,
+            LogFormat::Json => RuntimeLogFormat::Json,
+        }
+    }
 }

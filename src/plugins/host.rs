@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{anyhow, bail, Context, Result};
 
-use crate::core::config::{RawEnv, resolve_envlock_home};
+use crate::core::config::{resolve_envlock_home, RawEnv};
+use crate::logging::current_log_file;
 
 use super::{builtin_plugin_script, patch::validate_patch_json};
 
@@ -15,9 +16,42 @@ pub struct PluginHostOptions {
     pub force_install: bool,
 }
 
+#[derive(Debug)]
+pub struct PluginCommandError {
+    exit_code: i32,
+    plugin: String,
+    method: String,
+    stderr: String,
+}
+
+impl PluginCommandError {
+    pub fn exit_code(&self) -> i32 {
+        self.exit_code
+    }
+}
+
+impl std::fmt::Display for PluginCommandError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "plugin `{}` method `{}` failed with exit code {}: {}",
+            self.plugin, self.method, self.exit_code, self.stderr
+        )
+    }
+}
+
+impl std::error::Error for PluginCommandError {}
+
+pub fn plugin_exit_code(error: &anyhow::Error) -> Option<i32> {
+    error
+        .downcast_ref::<PluginCommandError>()
+        .map(PluginCommandError::exit_code)
+}
+
 pub fn run_plugin(options: PluginHostOptions) -> Result<()> {
     validate_name("plugin", &options.plugin)?;
     validate_name("plugin method", &options.method)?;
+    tracing::info!(plugin = %options.plugin, method = %options.method, "plugin invocation starting");
 
     let envlock_home = resolve_envlock_home(&RawEnv::from_process())?;
     let script_path = plugin_script_path(&envlock_home, &options.plugin);
@@ -36,30 +70,37 @@ pub fn run_plugin(options: PluginHostOptions) -> Result<()> {
         );
     }
 
-    let output = Command::new("bash")
+    let mut command = Command::new("bash");
+    command
         .arg(&script_path)
         .arg(&options.method)
         .args(&options.args)
         .env("ENVLOCK_HOME", &envlock_home)
         .env("ENVLOCK_PLUGIN_NAME", &options.plugin)
-        .env("ENVLOCK_PLUGIN_METHOD", &options.method)
+        .env("ENVLOCK_PLUGIN_METHOD", &options.method);
+    if let Some(path) = current_log_file() {
+        command.env("ENVLOCK_LOG_FILE", path);
+    }
+    tracing::info!(plugin = %options.plugin, method = %options.method, script = %script_path.display(), "plugin command prepared");
+    let output = command
         .output()
         .with_context(|| format!("failed to execute plugin script: {}", script_path.display()))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let code = output.status.code().unwrap_or(1);
-        bail!(
-            "plugin `{}` method `{}` failed with exit code {}: {}",
-            options.plugin,
-            options.method,
-            code,
-            stderr.trim()
-        );
+        tracing::warn!(plugin = %options.plugin, method = %options.method, exit_code = code, "plugin invocation failed");
+        return Err(anyhow!(PluginCommandError {
+            exit_code: code,
+            plugin: options.plugin,
+            method: options.method,
+            stderr: stderr.trim().to_owned(),
+        }));
     }
 
     let stdout = String::from_utf8(output.stdout).context("plugin output is not valid UTF-8")?;
     validate_patch_json(&stdout)?;
+    tracing::info!(plugin = %options.plugin, method = %options.method, "plugin patch validated");
     println!("{}", stdout.trim_end());
     Ok(())
 }

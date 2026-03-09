@@ -355,3 +355,55 @@ fn plugin_node_preview_rejects_non_executable_override_without_fallback_message(
         "stderr should not contain generic PATH fallback error when override is set, got: {stderr}"
     );
 }
+
+#[test]
+fn plugin_node_failure_propagates_plugin_exit_code() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let envlock_home = temp.path().join("envlock-home");
+    let state_dir = temp.path().join("node-state");
+
+    let init = Command::new(env!("CARGO_BIN_EXE_envlock"))
+        .args([
+            "plugin",
+            "node",
+            "init",
+            "--state-dir",
+            state_dir.to_str().unwrap(),
+        ])
+        .env("ENVLOCK_HOME", &envlock_home)
+        .output()
+        .expect("init command should run");
+    assert!(init.status.success());
+
+    let script_path = envlock_home.join("plugins/node.sh");
+    std::fs::write(
+        &script_path,
+        "#!/usr/bin/env bash\necho node plugin apply is locked by another process >&2\nexit 73\n",
+    )
+    .expect("script should be rewritten");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(&script_path)
+            .expect("script metadata should exist")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&script_path, permissions).expect("script should be executable");
+    }
+
+    let apply = Command::new(env!("CARGO_BIN_EXE_envlock"))
+        .args([
+            "plugin",
+            "node",
+            "apply",
+            "--state-dir",
+            state_dir.to_str().unwrap(),
+        ])
+        .env("ENVLOCK_HOME", &envlock_home)
+        .output()
+        .expect("apply command should run");
+
+    assert_eq!(apply.status.code(), Some(73));
+    let stderr = String::from_utf8(apply.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("exit code 73"));
+}

@@ -65,6 +65,26 @@ CURRENT_BIN_DIR="$STATE_DIR/current/bin"
 LOCK_DIR="$STATE_DIR/locks/apply.lock"
 STATE_FILE="$STATE_DIR/state.v2.json"
 
+log_line() {
+  local level="$1"
+  shift
+  [[ -n "${ENVLOCK_LOG_FILE:-}" ]] || return 0
+  mkdir -p "$(dirname "$ENVLOCK_LOG_FILE")" 2>/dev/null || true
+  printf '%s %s plugin.node %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$level" "$*" >> "$ENVLOCK_LOG_FILE" 2>/dev/null || true
+}
+
+log_info() {
+  log_line INFO "$*"
+}
+
+log_warn() {
+  log_line WARN "$*"
+}
+
+log_error() {
+  log_line ERROR "$*"
+}
+
 json_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
@@ -80,15 +100,19 @@ resolve_tool_bin() {
   local tool="$2"
   local override="$3"
   if [[ -n "$override" ]]; then
+    log_info "resolve tool=$tool source=override bin=$override"
     if [[ -L "$override" && ! -e "$override" ]]; then
+      log_error "resolve tool=$tool invalid_symlink=$override"
       echo "configured $tool binary symlink has invalid or looped target: $override" >&2
       return 2
     fi
     [[ -e "$override" ]] || {
+      log_error "resolve tool=$tool missing_bin=$override"
       echo "configured $tool binary does not exist or cannot be read: $override" >&2
       return 2
     }
     [[ -x "$override" ]] || {
+      log_error "resolve tool=$tool non_executable=$override"
       echo "configured $tool binary is not executable: $override" >&2
       return 2
     }
@@ -97,10 +121,12 @@ resolve_tool_bin() {
   fi
 
   if command -v "$tool" >/dev/null 2>&1; then
+    log_info "resolve tool=$tool source=path bin=$(command -v "$tool")"
     printf -v "$__resultvar" '%s' "$(command -v "$tool")"
     return 0
   fi
 
+  log_warn "resolve tool=$tool source=path result=not_found"
   return 1
 }
 
@@ -118,6 +144,7 @@ require_resolved_tool() {
 
   case "$status" in
     1)
+      log_error "resolve tool=$tool result=not_found"
       echo "$tool binary not found (set ENVLOCK_PLUGIN_${tool^^}_BIN or ensure $tool on PATH)" >&2
       exit 3
       ;;
@@ -136,6 +163,7 @@ resolve_tool_version() {
   if ! raw="$($bin --version 2>/dev/null)"; then
     return 1
   fi
+  log_info "version bin=$bin raw=$raw"
   normalize_version "$raw"
 }
 
@@ -172,10 +200,12 @@ write_state() {
   }
 }
 EOF
+  log_info "state wrote file=$STATE_FILE"
 }
 
 ensure_layout() {
   mkdir -p "$CURRENT_BIN_DIR" "$STATE_DIR/locks"
+  log_info "layout state_dir=$STATE_DIR current_bin=$CURRENT_BIN_DIR"
 }
 
 empty_patch() {
@@ -220,6 +250,7 @@ emit_patch() {
   ]
 }
 EOF
+  log_info "patch emitted env_count=8 symlink_count=4"
 }
 
 resolve_all_tools() {
@@ -229,6 +260,7 @@ resolve_all_tools() {
     exit 2
   }
   NODE_VERSION="$(resolve_tool_version "$NODE_BIN")" || {
+    log_error "version tool=node bin=$NODE_BIN result=failed"
     echo "failed to resolve node version from: $NODE_BIN" >&2
     exit 4
   }
@@ -237,9 +269,10 @@ resolve_all_tools() {
   require_resolved_tool PNPM_BIN pnpm "$PNPM_BIN_OVERRIDE"
   require_resolved_tool YARN_BIN yarn "$YARN_BIN_OVERRIDE"
 
-  NPM_VERSION="$(resolve_tool_version "$NPM_BIN")" || { echo "failed to resolve npm version" >&2; exit 4; }
-  PNPM_VERSION="$(resolve_tool_version "$PNPM_BIN")" || { echo "failed to resolve pnpm version" >&2; exit 4; }
-  YARN_VERSION="$(resolve_tool_version "$YARN_BIN")" || { echo "failed to resolve yarn version" >&2; exit 4; }
+  NPM_VERSION="$(resolve_tool_version "$NPM_BIN")" || { log_error "version tool=npm bin=$NPM_BIN result=failed"; echo "failed to resolve npm version" >&2; exit 4; }
+  PNPM_VERSION="$(resolve_tool_version "$PNPM_BIN")" || { log_error "version tool=pnpm bin=$PNPM_BIN result=failed"; echo "failed to resolve pnpm version" >&2; exit 4; }
+  YARN_VERSION="$(resolve_tool_version "$YARN_BIN")" || { log_error "version tool=yarn bin=$YARN_BIN result=failed"; echo "failed to resolve yarn version" >&2; exit 4; }
+  log_info "resolved node=$NODE_VERSION npm=$NPM_VERSION pnpm=$PNPM_VERSION yarn=$YARN_VERSION"
 }
 
 prepare_version_dirs() {
@@ -252,6 +285,7 @@ prepare_version_dirs() {
     "$(tool_cache_dir npm "$NPM_VERSION")" \
     "$(tool_cache_dir pnpm "$PNPM_VERSION")/store" \
     "$(tool_cache_dir yarn "$YARN_VERSION")"
+  log_info "dirs prepared state_dir=$STATE_DIR"
 }
 
 link_versions() {
@@ -264,15 +298,18 @@ link_versions() {
   ln -sfn "$(tool_version_dir npm "$NPM_VERSION")/bin/npm" "$CURRENT_BIN_DIR/npm"
   ln -sfn "$(tool_version_dir pnpm "$PNPM_VERSION")/bin/pnpm" "$CURRENT_BIN_DIR/pnpm"
   ln -sfn "$(tool_version_dir yarn "$YARN_VERSION")/bin/yarn" "$CURRENT_BIN_DIR/yarn"
+  log_info "symlinks refreshed current_bin=$CURRENT_BIN_DIR"
 }
 
 do_init() {
   ensure_layout
+  log_info "method=init"
   empty_patch
 }
 
 do_validate_or_preview() {
   ensure_layout
+  log_info "method=$METHOD"
   resolve_all_tools
   prepare_version_dirs
   emit_patch "$NODE_BIN" "$NODE_VERSION" "$NPM_BIN" "$NPM_VERSION" "$PNPM_BIN" "$PNPM_VERSION" "$YARN_BIN" "$YARN_VERSION"
@@ -281,10 +318,12 @@ do_validate_or_preview() {
 do_apply() {
   ensure_layout
   if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    log_warn "lock rejected dir=$LOCK_DIR"
     echo "node plugin apply is locked by another process" >&2
     exit 73
   fi
-  trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+  log_info "lock acquired dir=$LOCK_DIR"
+  trap 'log_info "lock released dir=$LOCK_DIR"; rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
   resolve_all_tools
   prepare_version_dirs
