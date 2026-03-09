@@ -22,13 +22,13 @@ bash scripts/release-smoke.sh --version vX.Y.Z
 
 ## Beta 验证
 
-如果目标版本是 `v0.4.4-beta.1` 这类 prerelease，走下面这条路径：
+如果目标版本是 `v0.4.4-beta.2` 这类 prerelease，走下面这条路径：
 
 1. 用精确 beta tag 手动触发 `release-beta.yml`。
 2. 从已发布 beta release 安装：
 
 ```bash
-bash scripts/install.sh --version v0.4.4-beta.1
+bash scripts/install.sh --version v0.4.4-beta.2
 ```
 
 3. 验证的是安装后的行为，而不是本地构建产物：

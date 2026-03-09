@@ -25,14 +25,14 @@ git push origin vX.Y.Z
 
 如果是 prerelease 验证，不要走 stable tag 发布。
 
-1. 先把 `Cargo.toml` 版本改成 beta 版本，例如 `0.4.4-beta.1`。
+1. 先把 `Cargo.toml` 版本改成 beta 版本，例如 `0.4.4-beta.2`。
 2. 推送包含 beta 改动的分支。
-3. 手动运行 `release-beta.yml`，输入 `v0.4.4-beta.1`。
+3. 手动运行 `release-beta.yml`，输入 `v0.4.4-beta.2`。
 4. 等待 GitHub Releases 上出现 prerelease 产物。
 5. 直接针对已发布 beta tag 做安装验证：
 
 ```bash
-bash scripts/install.sh --version v0.4.4-beta.1
+bash scripts/install.sh --version v0.4.4-beta.2
 envlock --version
 envlock plugin node init --help
 ```

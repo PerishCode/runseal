@@ -12,6 +12,7 @@
 1. `release.yml` validates tag/version consistency (`vX.Y.Z` vs `Cargo.toml`).
 2. Build runs per target:
    - `x86_64-unknown-linux-gnu`
+   - `aarch64-unknown-linux-gnu`
    - `x86_64-apple-darwin`
    - `aarch64-apple-darwin`
 3. Binary archives, `skill-vX.Y.Z.zip`, and `checksums.txt` are generated.
@@ -19,8 +20,8 @@
 
 ## Beta Release Workflow
 
-1. Set `Cargo.toml` to the beta version (for example `0.4.4-beta.1`).
-2. Run `release-beta.yml` with matching input `v0.4.4-beta.1`.
+1. Set `Cargo.toml` to the beta version (for example `0.4.4-beta.2`).
+2. Run `release-beta.yml` with matching input `v0.4.4-beta.2`.
 3. The workflow validates the beta semver shape and exact Cargo version match.
 4. Artifacts are published as a GitHub prerelease.
 

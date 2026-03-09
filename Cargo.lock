@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "envlock"
-version = "0.4.4-beta.1"
+version = "0.4.4-beta.2"
 dependencies = [
  "anyhow",
  "assert_cmd",

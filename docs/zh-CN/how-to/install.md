@@ -15,7 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/ins
 beta prerelease 版本也走同一套方式：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.4-beta.1
+curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.4-beta.2
 ```
 
 ## 安装后路径
@@ -47,6 +47,7 @@ ENVLOCK_SKILL_INSTALL_HOME="$HOME/.envlock/skills" envlock skill install --yes
 `install.sh` 当前打包以下目标：
 
 - `x86_64-unknown-linux-gnu`
+- `aarch64-unknown-linux-gnu`
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 

@@ -15,7 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/ins
 Beta prerelease tags use the same flow:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.4-beta.1
+curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.4-beta.2
 ```
 
 ## Installed Paths
@@ -47,6 +47,7 @@ ENVLOCK_SKILL_INSTALL_HOME="$HOME/.envlock/skills" envlock skill install --yes
 `install.sh` currently packages these targets:
 
 - `x86_64-unknown-linux-gnu`
+- `aarch64-unknown-linux-gnu`
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 

@@ -33,14 +33,14 @@ Use the exact version from `Cargo.toml`.
 
 For prerelease validation, do not push a stable tag.
 
-1. Set `Cargo.toml` to a beta version such as `0.4.4-beta.1`.
+1. Set `Cargo.toml` to a beta version such as `0.4.4-beta.2`.
 2. Push the branch that contains the beta changes.
-3. Run `release-beta.yml` with input `v0.4.4-beta.1`.
+3. Run `release-beta.yml` with input `v0.4.4-beta.2`.
 4. Wait for the prerelease assets to appear on GitHub Releases.
 5. Run install-based validation against the published beta tag:
 
 ```bash
-bash scripts/install.sh --version v0.4.4-beta.1
+bash scripts/install.sh --version v0.4.4-beta.2
 envlock --version
 envlock plugin node init --help
 ```

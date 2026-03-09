@@ -12,6 +12,7 @@
 1. `release.yml` 校验 tag 与版本一致性（`vX.Y.Z` 与 `Cargo.toml`）。
 2. 按目标平台构建：
    - `x86_64-unknown-linux-gnu`
+   - `aarch64-unknown-linux-gnu`
    - `x86_64-apple-darwin`
    - `aarch64-apple-darwin`
 3. 生成二进制压缩包、`skill-vX.Y.Z.zip` 与 `checksums.txt`。
@@ -19,8 +20,8 @@
 
 ## Beta 发布工作流
 
-1. 先将 `Cargo.toml` 版本改为 beta 版本（例如 `0.4.4-beta.1`）。
-2. 手动运行 `release-beta.yml`，输入匹配的版本 `v0.4.4-beta.1`。
+1. 先将 `Cargo.toml` 版本改为 beta 版本（例如 `0.4.4-beta.2`）。
+2. 手动运行 `release-beta.yml`，输入匹配的版本 `v0.4.4-beta.2`。
 3. 工作流会校验 beta 版本格式和 `Cargo.toml` 版本完全一致。
 4. 产物以 GitHub prerelease 形式发布。
 

@@ -36,13 +36,13 @@ bash scripts/release-smoke.sh --version vX.Y.Z
 
 ## Beta validation
 
-Use this path when the target version is a prerelease such as `v0.4.4-beta.1`.
+Use this path when the target version is a prerelease such as `v0.4.4-beta.2`.
 
 1. Trigger `release-beta.yml` with the exact beta tag.
 2. Install from the published beta release:
 
 ```bash
-bash scripts/install.sh --version v0.4.4-beta.1
+bash scripts/install.sh --version v0.4.4-beta.2
 ```
 
 3. Verify installed behavior, not just local build behavior:

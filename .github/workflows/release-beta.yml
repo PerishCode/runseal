@@ -66,7 +66,7 @@ jobs:
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-  build:
+  build-linux:
     needs: validate-version
     strategy:
       fail-fast: false
@@ -74,6 +74,73 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    container: ubuntu:22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential pkg-config ca-certificates curl
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build release binaries
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          for tool in ${TOOLS}; do
+            cargo build --locked --release --target "${TARGET}" --bin "${tool}"
+          done
+
+      - name: Package archives
+        env:
+          VERSION: ${{ needs.validate-version.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p dist
+          for tool in ${TOOLS}; do
+            cp "target/${TARGET}/release/${tool}" "dist/${tool}"
+            tar -C dist -czf "dist/${tool}-${VERSION}-${TARGET}.tar.gz" "${tool}"
+            rm -f "dist/${tool}"
+          done
+
+      - name: Compute checksums
+        working-directory: dist
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum *.tar.gz > checksums.txt
+          else
+            shasum -a 256 *.tar.gz > checksums.txt
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-beta-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/checksums.txt
+
+  build-darwin:
+    needs: validate-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - os: macos-14
             target: x86_64-apple-darwin
           - os: macos-14
@@ -164,7 +231,8 @@ jobs:
   publish:
     needs:
       - validate-version
-      - build
+      - build-linux
+      - build-darwin
       - package-skill
     runs-on: ubuntu-latest
     steps:
