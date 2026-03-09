@@ -51,4 +51,9 @@ ENVLOCK_SKILL_INSTALL_HOME="$HOME/.envlock/skills" envlock skill install --yes
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 
+Linux 当前仅面向 GNU libc 环境：
+
+- 支持：基于 glibc 的 `x86_64` / `aarch64` Linux
+- 不支持：musl/Alpine 安装路径
+
 如果 shell 找不到 `envlock`，请将 `~/.local/bin` 加入 `PATH`。

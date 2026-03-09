@@ -18,6 +18,8 @@
 3. 生成二进制压缩包、`skill-vX.Y.Z.zip` 与 `checksums.txt`。
 4. 将产物发布到 GitHub Release。
 
+Linux 发布产物当前面向 GNU libc，不覆盖 musl。
+
 ## Beta 发布工作流
 
 1. 先将 `Cargo.toml` 版本改为 beta 版本（例如 `0.4.4-beta.2`）。

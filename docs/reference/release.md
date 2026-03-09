@@ -18,6 +18,8 @@
 3. Binary archives, `skill-vX.Y.Z.zip`, and `checksums.txt` are generated.
 4. Artifacts are published to GitHub Release.
 
+Linux release archives target GNU libc, not musl.
+
 ## Beta Release Workflow
 
 1. Set `Cargo.toml` to the beta version (for example `0.4.4-beta.2`).

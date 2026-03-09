@@ -51,4 +51,9 @@ ENVLOCK_SKILL_INSTALL_HOME="$HOME/.envlock/skills" envlock skill install --yes
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 
+Linux support currently targets GNU libc environments.
+
+- Supported: glibc-based Linux on `x86_64` and `aarch64`
+- Not supported: musl/Alpine release installs
+
 If your shell cannot find `envlock`, add `~/.local/bin` to `PATH`.
