@@ -1,13 +1,13 @@
 # 使用 Profiles
 
-`envlock` 支持“约定优先 + 显式覆盖”。
+`runseal` 支持“约定优先 + 显式覆盖”。
 
-如果你从旧调用方式升级，请先看 [迁移到 v0.3](/zh-CN/how-to/migrate-to-v0.3)。
+本页对应 `v0.1.0-beta.0` 公开 beta 版本线。
 
 ## 模式 A：显式路径
 
 ```bash
-envlock -p ./profiles/dev.json
+runseal -p ./profiles/dev.json
 ```
 
 当 profile 与项目放在一起时，优先用这个模式。
@@ -15,17 +15,17 @@ envlock -p ./profiles/dev.json
 ## 模式 B：约定默认 profile
 
 ```bash
-envlock
+runseal
 ```
 
 默认 profile 文件：
 
-- `${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json`
+- `${RUNSEAL_HOME:-$HOME/.runseal}/profiles/default.json`
 
 解析顺序：
 
-1. 若设置了 `ENVLOCK_HOME`，从 `$ENVLOCK_HOME/profiles/default.json` 读取。
-2. 否则从 `~/.envlock/profiles/default.json` 读取。
+1. 若设置了 `RUNSEAL_HOME`，从 `$RUNSEAL_HOME/profiles/default.json` 读取。
+2. 否则从 `~/.runseal/profiles/default.json` 读取。
 
 ## 常用参数
 
@@ -35,11 +35,11 @@ envlock
 
 ## 资源 URI 展开
 
-`env` 值支持基于 `ENVLOCK_RESOURCE_HOME` 的 URI 展开：
+`env` 值支持基于 `RUNSEAL_RESOURCE_HOME` 的 URI 展开：
 
 - `resource://path/to/file` -> 资源根目录下的绝对路径。
 - `resource-content://path/to/file` -> 资源文件内容。
 
-未设置 `ENVLOCK_RESOURCE_HOME` 时，默认：
+未设置 `RUNSEAL_RESOURCE_HOME` 时，默认：
 
-- `~/.envlock/resources`
+- `~/.runseal/resources`

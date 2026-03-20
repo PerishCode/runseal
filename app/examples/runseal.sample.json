@@ -1,0 +1,23 @@
+{
+  "injections": [
+    {
+      "type": "env",
+      "enabled": true,
+      "vars": {
+        "RUNSEAL_PROFILE": "dev",
+        "RUNSEAL_NODE_VERSION": "22.11.0",
+        "NPM_CONFIG_REGISTRY": "https://registry.npmjs.org",
+        "KUBECONFIG_CONTEXT": "dev-cluster",
+        "KUBECONFIG_NAMESPACE": "platform"
+      }
+    },
+    {
+      "type": "symlink",
+      "enabled": false,
+      "source": "~/.config/codex-agents.md",
+      "target": "~/.codex/AGENTS.md",
+      "on_exist": "error",
+      "cleanup": true
+    }
+  ]
+}

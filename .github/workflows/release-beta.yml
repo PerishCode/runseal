@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Beta tag to publish (must match Cargo.toml version, with optional leading v)
+        description: Beta tag to publish (must match app/Cargo.toml version, with optional leading v)
         required: true
         type: string
       notes:
@@ -17,7 +17,7 @@ permissions:
   contents: write
 
 env:
-  TOOLS: "envlock"
+  TOOLS: "runseal"
 
 jobs:
   validate-version:
@@ -36,45 +36,42 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
-          set -euo pipefail
-          version="${INPUT_VERSION}"
-          if [[ "${version}" != v* ]]; then
-            version="v${version}"
-          fi
-          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
-            echo "version must match vX.Y.Z-beta.N" >&2
-            exit 1
-          fi
-          crate_version="$(
-            awk '
-              BEGIN { in_package=0 }
-              /^\[package\]/ { in_package=1; next }
-              /^\[/ && in_package { exit }
-              in_package && $0 ~ /^version[[:space:]]*=/ {
-                gsub(/"/, "", $0)
-                sub(/^version[[:space:]]*=[[:space:]]*/, "", $0)
-                print $0
-                exit
-              }
-            ' Cargo.toml
-          )"
-          if [[ -z "${crate_version}" ]]; then
-            echo "failed to parse package.version from Cargo.toml" >&2
-            exit 1
-          fi
-          expected="v${crate_version}"
-          if [[ "${version}" != "${expected}" ]]; then
-            echo "beta version mismatch: got ${version}, expected ${expected}" >&2
-            exit 1
-          fi
-          if [[ ! -f "docs/changelog/${version}.md" ]]; then
-            echo "missing changelog entry: docs/changelog/${version}.md" >&2
-            exit 1
-          fi
+          version="$(bash scripts/release/accept.sh beta "$INPUT_VERSION")"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-  build-linux:
+  validate:
     needs: validate-version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run aggregated release validation
+        run: bash scripts/release/verify.sh
+
+  build-linux:
+    needs:
+      - validate-version
+      - validate
     strategy:
       fail-fast: false
       matrix:
@@ -105,37 +102,14 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Test
-        run: cargo test --locked
-
       - name: Build release binaries
-        env:
-          TARGET: ${{ matrix.target }}
-        run: |
-          for tool in ${TOOLS}; do
-            cargo build --locked --release --target "${TARGET}" --bin "${tool}"
-          done
-
-      - name: Package archives
         env:
           VERSION: ${{ needs.validate-version.outputs.version }}
           TARGET: ${{ matrix.target }}
-        run: |
-          mkdir -p dist
-          for tool in ${TOOLS}; do
-            cp "target/${TARGET}/release/${tool}" "dist/${tool}"
-            tar -C dist -czf "dist/${tool}-${VERSION}-${TARGET}.tar.gz" "${tool}"
-            rm -f "dist/${tool}"
-          done
+        run: bash scripts/release/package.sh "$VERSION" "$TARGET" $TOOLS
 
       - name: Compute checksums
-        working-directory: dist
-        run: |
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum *.tar.gz > checksums.txt
-          else
-            shasum -a 256 *.tar.gz > checksums.txt
-          fi
+        run: bash scripts/release/checksum.sh dist/checksums.txt dist/*.tar.gz
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -146,7 +120,9 @@ jobs:
             dist/checksums.txt
 
   build-darwin:
-    needs: validate-version
+    needs:
+      - validate-version
+      - validate
     strategy:
       fail-fast: false
       matrix:
@@ -171,37 +147,14 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Test
-        run: cargo test --locked
-
       - name: Build release binaries
-        env:
-          TARGET: ${{ matrix.target }}
-        run: |
-          for tool in ${TOOLS}; do
-            cargo build --locked --release --target "${TARGET}" --bin "${tool}"
-          done
-
-      - name: Package archives
         env:
           VERSION: ${{ needs.validate-version.outputs.version }}
           TARGET: ${{ matrix.target }}
-        run: |
-          mkdir -p dist
-          for tool in ${TOOLS}; do
-            cp "target/${TARGET}/release/${tool}" "dist/${tool}"
-            tar -C dist -czf "dist/${tool}-${VERSION}-${TARGET}.tar.gz" "${tool}"
-            rm -f "dist/${tool}"
-          done
+        run: bash scripts/release/package.sh "$VERSION" "$TARGET" $TOOLS
 
       - name: Compute checksums
-        working-directory: dist
-        run: |
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum *.tar.gz > checksums.txt
-          else
-            shasum -a 256 *.tar.gz > checksums.txt
-          fi
+        run: bash scripts/release/checksum.sh dist/checksums.txt dist/*.tar.gz
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -212,7 +165,9 @@ jobs:
             dist/checksums.txt
 
   package-skill:
-    needs: validate-version
+    needs:
+      - validate-version
+      - validate
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -225,16 +180,10 @@ jobs:
         env:
           VERSION: ${{ needs.validate-version.outputs.version }}
         run: |
-          bash scripts/build-skill-zip.sh "${VERSION}"
+          bash scripts/release/skill.sh "${VERSION}"
 
       - name: Compute skill checksum
-        working-directory: dist
-        run: |
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum "skill-${{ needs.validate-version.outputs.version }}.zip" > checksums.txt
-          else
-            shasum -a 256 "skill-${{ needs.validate-version.outputs.version }}.zip" > checksums.txt
-          fi
+        run: bash scripts/release/checksum.sh dist/checksums.txt "dist/skill-${{ needs.validate-version.outputs.version }}.zip"
 
       - name: Upload skill artifact
         uses: actions/upload-artifact@v4
@@ -247,6 +196,7 @@ jobs:
   publish:
     needs:
       - validate-version
+      - validate
       - build-linux
       - build-darwin
       - package-skill
@@ -261,10 +211,7 @@ jobs:
           path: dist
 
       - name: Merge checksums
-        run: |
-          tmp_checksums="$(mktemp)"
-          find dist -name '*.txt' -type f ! -path 'dist/checksums.txt' -exec cat {} + > "${tmp_checksums}"
-          sort -k2 "${tmp_checksums}" | uniq > dist/checksums.txt
+        run: bash scripts/release/collate.sh dist
 
       - name: Publish GitHub beta release
         uses: softprops/action-gh-release@v2

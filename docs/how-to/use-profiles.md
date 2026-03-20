@@ -1,13 +1,13 @@
 # Use Profiles
 
-`envlock` supports convention-first resolution with explicit override.
+`runseal` supports convention-first resolution with explicit override.
 
-If you are upgrading from older invocation patterns, check [Migrate to v0.3](/how-to/migrate-to-v0.3).
+This guide tracks the `v0.1.0-beta.0` public beta line.
 
 ## Mode A: Explicit Path
 
 ```bash
-envlock -p ./profiles/dev.json
+runseal -p ./profiles/dev.json
 ```
 
 Use this when your profile lives next to a project.
@@ -15,17 +15,17 @@ Use this when your profile lives next to a project.
 ## Mode B: Convention Default Profile
 
 ```bash
-envlock
+runseal
 ```
 
 Default profile file:
 
-- `${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json`
+- `${RUNSEAL_HOME:-$HOME/.runseal}/profiles/default.json`
 
 Lookup behavior:
 
-1. If `ENVLOCK_HOME` is set, resolve from `$ENVLOCK_HOME/profiles/default.json`.
-2. Otherwise resolve from `~/.envlock/profiles/default.json`.
+1. If `RUNSEAL_HOME` is set, resolve from `$RUNSEAL_HOME/profiles/default.json`.
+2. Otherwise resolve from `~/.runseal/profiles/default.json`.
 
 ## Useful Flags
 
@@ -35,11 +35,11 @@ Lookup behavior:
 
 ## Resource URI Expansion
 
-`env` values support URI expansion with `ENVLOCK_RESOURCE_HOME`:
+`env` values support URI expansion with `RUNSEAL_RESOURCE_HOME`:
 
 - `resource://path/to/file` -> absolute path under resource home.
 - `resource-content://path/to/file` -> file contents under resource home.
 
-Default `ENVLOCK_RESOURCE_HOME` when unset:
+Default `RUNSEAL_RESOURCE_HOME` when unset:
 
-- `~/.envlock/resources`
+- `~/.runseal/resources`

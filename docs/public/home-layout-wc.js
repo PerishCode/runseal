@@ -3,7 +3,7 @@ const HOME_DATA = {
     quickHint: "Three lines to verify cold-start closure",
     docsHint: "Task-routed entrypoints for faster scans",
     boardRuleBody:
-      "L4 = AND(strongest closure, minimum agent-side cost). L3 = OR(strong closure path exists). L2 = closure through envlock-non-compatible path. L1 = no reliable closure path.",
+      "L4 = AND(strongest closure, minimum agent-side cost). L3 = OR(strong closure path exists). L2 = closure through runseal-non-compatible path. L1 = no reliable closure path.",
     docsTitle: "Core Docs",
     quickTitle: "Quick Start",
     boardKicker: "Agent-Native Ranking",
@@ -13,15 +13,12 @@ const HOME_DATA = {
     tableTitle: "Title",
     tableTags: "Tags",
     tableAbstract: "Abstract",
-    docsLinks: [
-      { label: "Quick Start", link: "/tutorials/quick-start" },
-      { label: "Install", link: "/how-to/install" },
-      { label: "CLI Reference", link: "/reference/cli" },
-      { label: "Common Recipes", link: "/how-to/common-recipes" },
-      { label: "CI Integration", link: "/how-to/ci-integration" },
-      { label: "GEO Index", link: "/explanation/geo-index" },
-      { label: "About", link: "/explanation/why-envlock" }
-    ],
+      docsLinks: [
+        { label: "Install", link: "/how-to/install" },
+        { label: "Use Profiles", link: "/how-to/use-profiles" },
+        { label: "GEO Index", link: "/explanation/geo-index" },
+        { label: "L4 Native", link: "/explanation/runseal-score/native" }
+      ],
     tiers: [
       {
         key: "l4",
@@ -75,14 +72,14 @@ const HOME_DATA = {
       {
         key: "l2",
         level: "L2 normal",
-        rule: "Closure exists through envlock-non-compatible paths.",
+        rule: "Closure exists through runseal-non-compatible paths.",
         tools: [
           {
             icon: "rt",
             name: "fnm",
             url: "https://github.com/Schniz/fnm",
             tags: ["runtime", "normal", "workaround"],
-            abstract: "Closure is possible but needs wrappers or conventions outside envlock-compatible flow."
+            abstract: "Closure is possible but needs wrappers or conventions outside runseal-compatible flow."
           }
         ]
       },
@@ -94,7 +91,7 @@ const HOME_DATA = {
           {
             icon: "na",
             name: "other",
-            url: "/explanation/envlock-score/other",
+            url: "/explanation/runseal-score/other",
             tags: ["other", "no-closure", "high-cost"],
             abstract: "No reproducible closure path under unconstrained execution conditions."
           }
@@ -106,7 +103,7 @@ const HOME_DATA = {
     quickHint: "3 行命令，冷启动完成闭环验证",
     docsHint: "按任务直达，减少往返扫描",
     boardRuleBody:
-      "L4 = AND（最强闭环 + 最小 Agent 成本）；L3 = OR（至少一条强闭环路径成立）；L2 = 通过 envlock 非兼容路径闭环；L1 = 无可靠闭环路径。",
+      "L4 = AND（最强闭环 + 最小 Agent 成本）；L3 = OR（至少一条强闭环路径成立）；L2 = 通过 runseal 非兼容路径闭环；L1 = 无可靠闭环路径。",
     docsTitle: "核心文档入口",
     quickTitle: "快速启动",
     boardKicker: "Agent-Native Ranking",
@@ -116,15 +113,12 @@ const HOME_DATA = {
     tableTitle: "Title",
     tableTags: "Tags",
     tableAbstract: "Abstract",
-    docsLinks: [
-      { label: "快速开始", link: "/zh-CN/tutorials/quick-start" },
-      { label: "安装", link: "/zh-CN/how-to/install" },
-      { label: "CLI 参考", link: "/zh-CN/reference/cli" },
-      { label: "常见用法", link: "/zh-CN/how-to/common-recipes" },
-      { label: "CI 集成", link: "/zh-CN/how-to/ci-integration" },
-      { label: "GEO 指数", link: "/zh-CN/explanation/geo-index" },
-      { label: "关于", link: "/zh-CN/explanation/why-envlock" }
-    ],
+      docsLinks: [
+        { label: "安装", link: "/zh-CN/how-to/install" },
+        { label: "使用 Profiles", link: "/zh-CN/how-to/use-profiles" },
+        { label: "GEO 指数", link: "/zh-CN/explanation/geo-index" },
+        { label: "L4 Native", link: "/zh-CN/explanation/runseal-score/native" }
+      ],
     tiers: [
       {
         key: "l4",
@@ -178,14 +172,14 @@ const HOME_DATA = {
       {
         key: "l2",
         level: "L2 normal",
-        rule: "闭环存在，但通过 envlock 非兼容路径完成。",
+        rule: "闭环存在，但通过 runseal 非兼容路径完成。",
         tools: [
           {
             icon: "rt",
             name: "fnm",
             url: "https://github.com/Schniz/fnm",
             tags: ["runtime", "normal", "workaround"],
-            abstract: "需要额外约定或外层封装才能与 envlock 的闭环语义对齐。"
+            abstract: "需要额外约定或外层封装才能与 runseal 的闭环语义对齐。"
           }
         ]
       },
@@ -197,7 +191,7 @@ const HOME_DATA = {
           {
             icon: "na",
             name: "other",
-            url: "/zh-CN/explanation/envlock-score/other",
+            url: "/zh-CN/explanation/runseal-score/other",
             tags: ["other", "no-closure", "high-cost"],
             abstract: "缺乏可复制的闭环路径，不适合 Agent-first 的执行场景。"
           }
@@ -208,9 +202,9 @@ const HOME_DATA = {
 };
 
 const QUICK_START = [
-  "curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh",
-  "eval \"$(envlock)\"",
-  "echo \"$ENVLOCK_PROFILE\""
+  "curl -fsSL https://raw.githubusercontent.com/PerishCode/runseal/main/scripts/manage/install.sh | sh",
+  "eval \"$(runseal)\"",
+  "echo \"$RUNSEAL_PROFILE\""
 ].join("\n");
 
 function escapeHtml(value) {
@@ -357,10 +351,10 @@ class WcHomeLanding extends HTMLElement {
       .join("");
 
     this.shadowRoot.innerHTML = `<link rel="stylesheet" href="${base}home-layout-wc.css">
-      <section class="home-landing-grid" aria-label="envlock landing grid">
+      <section class="home-landing-grid" aria-label="runseal landing grid">
         <article class="landing-card landing-board">
           <p class="landing-kicker">${escapeHtml(data.boardKicker)}</p>
-          <h2 class="landing-score-title"><span>Scoreboard</span><small>by envlock</small></h2>
+          <h2 class="landing-score-title"><span>Scoreboard</span><small>by runseal</small></h2>
           <div class="score-global-rule">
             <p class="score-global-rule-head">${escapeHtml(data.boardRule)}</p>
             <p class="score-global-rule-body">${escapeHtml(data.boardRuleBody)}</p>
