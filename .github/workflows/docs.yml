@@ -1,6 +1,18 @@
 name: Docs
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "docs/package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "wrangler.jsonc"
+      - "worker/**"
+      - ".github/workflows/docs.yml"
   push:
     branches:
       - main
@@ -10,6 +22,8 @@ on:
       - "docs/package.json"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
+      - "wrangler.jsonc"
+      - "worker/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
