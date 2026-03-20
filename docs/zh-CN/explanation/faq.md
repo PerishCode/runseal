@@ -1,54 +1,27 @@
-# 常见问题（FAQ）
+# FAQ
 
-## v0.2+ 默认 profile 在哪里？
+## `resource://` 会在什么位置截断？
 
-不传 `--profile` 时，`envlock` 按以下顺序查找：
+`env` 注入在解析 `resource://` 时，会在遇到 `:` 或 `;` 时停止。
 
-1. `$ENVLOCK_HOME/profiles/default.json`
-2. `~/.envlock/profiles/default.json`
+这对 PATH 一类值是有意设计，但也意味着带 `:` 的 URL 字面量可能会比预期更早被截断。如果你需要原样 URL，请不要把它放进 `resource://` 解析里。
 
-## 什么时候需要 `--profile`？
+## runseal 会在什么时候发现资源文件缺失？
 
-当你希望临时切换 profile，或项目内 profile 不在默认路径时使用：
+`resource://` 解析会在导出阶段把相对路径转换成绝对路径，但不会在 parse / validate 阶段保证文件存在。
 
-```bash
-envlock --profile ./profiles/dev.json
-```
+如果资源文件缺失，通常会在下游工具真正读取该路径时才暴露出来。
 
-## `preview` 会执行注入动作吗？
+## 如果 `HOME` 缺失会发生什么？
 
-不会。`preview` 是只读检查：
+如果 `HOME` 不可用且 `RUNSEAL_HOME` 也未设置，runseal 会直接退出，并给出可执行的错误提示；不会再退回到字面量 `~/.runseal`。
 
-- 不执行 command injection
-- 不写入环境
-- 不创建/修改 symlink
+## 默认 profile 缺失时应该先检查什么？
 
-## 如何选择 shell / JSON / command mode？
+默认情况下，runseal 会在 `RUNSEAL_HOME` 指向的根目录下查找 `profiles/default.json`；如果 `RUNSEAL_HOME` 未设置，则使用 `~/.runseal`。
 
-- shell 模式（默认）：`eval "$(envlock)"`，适合交互式 shell。
-- JSON 模式：`envlock --output json`，适合读取结构化输出的自动化脚本。
-- command mode：`envlock -- <cmd...>`，适合把注入范围限制在单个子进程。
+建议先检查：
 
-## `ENVLOCK_HOME` 与 `ENVLOCK_RESOURCE_HOME` 区别是什么？
-
-- `ENVLOCK_HOME`：默认 profile 根目录（`profiles/default.json`）
-- `ENVLOCK_RESOURCE_HOME`：`resource://` 与 `resource-content://` 的资源根目录
-
-## 老的 `--use` 怎么迁移？
-
-迁移到“约定优先 + 显式覆盖”即可：
-
-- 日常：`envlock`
-- 临时覆盖：`envlock --profile <path>`
-
-提示：`--use` 与 `ENVLOCK_PROFILE_HOME` 是 v0.1 的旧行为。
-
-## 出现 “default profile not found” 时先做什么？
-
-先创建默认 profile 再重试：
-
-```bash
-mkdir -p "${ENVLOCK_HOME:-$HOME/.envlock}/profiles"
-printf '%s\n' '{"injections":[]}' > "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
-envlock preview --profile "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
-```
+- `RUNSEAL_HOME` 是否指向了你预期的根目录
+- 该根目录下是否存在 `profiles/default.json`
+- 你是否其实想使用项目内 profile，但没有显式传 `--profile`

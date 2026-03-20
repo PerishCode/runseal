@@ -1,45 +1,47 @@
 # Install
 
-## Install Latest Release
+During the `0.1.0-beta.0` public cold start, install with an explicit beta tag.
+
+The unversioned installer follows GitHub's latest stable release endpoint, so it becomes the right default only after the first stable release ships.
+
+## Install Current Beta
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/PerishCode/runseal/main/scripts/manage/install.sh | sh -s -- --version v0.1.0-beta.0
 ```
 
 ## Install a Specific Version
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.3
+curl -fsSL https://raw.githubusercontent.com/PerishCode/runseal/main/scripts/manage/install.sh | sh -s -- --version v0.1.0-beta.0
 ```
 
-Beta prerelease tags use the same flow:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh -s -- --version v0.4.4-beta.2
-```
+Use `--version vX.Y.Z-beta.N` for beta builds, or `--version vX.Y.Z` once stable tags exist.
 
 ## Installed Paths
 
-- Binary: `~/.envlock/bin/envlock`
-- Symlink: `~/.local/bin/envlock`
+- Binary: `~/.runseal/bin/runseal`
+- Symlink: `~/.local/bin/runseal`
 
 ## Verify
 
 ```bash
-envlock --version
-which envlock
+runseal --version
+which runseal
 ```
 
 ## Install Skill Package
 
 ```bash
-envlock skill install --yes
+runseal skill install --version v0.1.0-beta.0 --yes
 ```
+
+During beta, keep the skill package pinned to the same tag as the binary.
 
 Optional install destination override:
 
 ```bash
-ENVLOCK_SKILL_INSTALL_HOME="$HOME/.envlock/skills" envlock skill install --yes
+RUNSEAL_SKILL_INSTALL_HOME="$HOME/.runseal/skills" runseal skill install --version v0.1.0-beta.0 --yes
 ```
 
 ## Platform Notes
@@ -56,4 +58,4 @@ Linux support currently targets GNU libc environments.
 - Supported: glibc-based Linux on `x86_64` and `aarch64`
 - Not supported: musl/Alpine release installs
 
-If your shell cannot find `envlock`, add `~/.local/bin` to `PATH`.
+If your shell cannot find `runseal`, add `~/.local/bin` to `PATH`.

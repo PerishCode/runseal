@@ -394,28 +394,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "envlock"
-version = "0.4.7"
-dependencies = [
- "anyhow",
- "assert_cmd",
- "clap",
- "flate2",
- "path-absolutize",
- "reqwest",
- "semver",
- "serde",
- "serde_json",
- "sha2",
- "shellexpand",
- "tar",
- "tempfile",
- "tracing",
- "tracing-subscriber",
- "zip",
-]
-
-[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1338,6 +1316,28 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "runseal"
+version = "0.1.0-beta.0"
+dependencies = [
+ "anyhow",
+ "assert_cmd",
+ "clap",
+ "flate2",
+ "path-absolutize",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "shellexpand",
+ "tar",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+ "zip",
 ]
 
 [[package]]

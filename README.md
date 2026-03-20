@@ -1,26 +1,30 @@
-# envlock
+# runseal
+
+Seal the run.
 
 Deterministic shell and command environments from one JSON profile.
+
+Current public launch line: `0.1.0-beta.0`. Beta install and update examples below pin that tag explicitly.
 
 Chinese docs entrypoint: [README.zh-CN.md](README.zh-CN.md).
 
 ## 10-second value
 
-Run one command, load one profile, and verify with one observable output (`ENVLOCK_PROFILE=default`).
+Run one command, load one profile, and verify with one observable output (`RUNSEAL_PROFILE=default`).
 
 ## 60-second verification path
 
 ```bash
-# 1) install
-curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh
+# 1) install the current beta
+curl -fsSL https://raw.githubusercontent.com/PerishCode/runseal/main/scripts/manage/install.sh | sh -s -- --version v0.1.0-beta.0
 
 # 2) create default profile
-mkdir -p "${ENVLOCK_HOME:-$HOME/.envlock}/profiles"
-printf '%s\n' '{"injections":[{"type":"env","vars":{"ENVLOCK_PROFILE":"default"}}]}' > "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
+mkdir -p "${RUNSEAL_HOME:-$HOME/.runseal}/profiles"
+printf '%s\n' '{"injections":[{"type":"env","vars":{"RUNSEAL_PROFILE":"default"}}]}' > "${RUNSEAL_HOME:-$HOME/.runseal}/profiles/default.json"
 
 # 3) apply and verify
-eval "$(envlock)"
-echo "$ENVLOCK_PROFILE"
+eval "$(runseal)"
+echo "$RUNSEAL_PROFILE"
 ```
 
 Expected output:
@@ -31,15 +35,15 @@ default
 
 Default profile resolution when `--profile` is omitted:
 
-- `ENVLOCK_HOME/profiles/default.json` when `ENVLOCK_HOME` is set
-- `~/.envlock/profiles/default.json` otherwise
+- `RUNSEAL_HOME/profiles/default.json` when `RUNSEAL_HOME` is set
+- `~/.runseal/profiles/default.json` otherwise
 
 ## Fit / Not fit
 
 Fit when you need:
 
 - Reproducible shell env setup from JSON profiles
-- A read-only preview before applying profile changes (`envlock preview`)
+- A read-only preview before applying profile changes (`runseal preview`)
 - CI jobs that must apply the same env profile deterministically
 
 Not fit when you need:
@@ -51,73 +55,68 @@ Not fit when you need:
 ## Direct links
 
 - Install: [docs/how-to/install.md](docs/how-to/install.md)
-- CLI reference: [docs/reference/cli.md](docs/reference/cli.md)
-- CI integration: [docs/how-to/ci-integration.md](docs/how-to/ci-integration.md)
-- First-star trigger: [docs/tutorials/first-star-trigger.md](docs/tutorials/first-star-trigger.md)
+- Use profiles: [docs/how-to/use-profiles.md](docs/how-to/use-profiles.md)
+- FAQ: [docs/explanation/faq.md](docs/explanation/faq.md)
+- Scoreboard: [docs/explanation/runseal-score/native.md](docs/explanation/runseal-score/native.md)
 
 Installed paths:
 
-- Binary: `~/.envlock/bin/envlock`
-- Symlink: `~/.local/bin/envlock`
+- Binary: `~/.runseal/bin/runseal`
+- Symlink: `~/.local/bin/runseal`
 
 ## Common commands
 
 ```bash
 # run with default profile
-envlock
+runseal
 
 # run with explicit profile path
-envlock --profile ./profiles/dev.json
+runseal --profile ./profiles/dev.json
 
 # preview profile metadata (read-only)
-envlock preview --profile ./profiles/dev.json
+runseal preview --profile ./profiles/dev.json
 
-# update checks and upgrade
-envlock self-update --check
-envlock self-update
+# check and install the current beta explicitly
+runseal self-update --check --version v0.1.0-beta.0
+runseal self-update --version v0.1.0-beta.0
 ```
 
 ## Docs
 
-- Site: https://perishcode.github.io/envlock/
+- Site: https://runseal.ai/
 - Chinese README: [README.zh-CN.md](README.zh-CN.md)
-- Tutorial: [docs/tutorials/quick-start.md](docs/tutorials/quick-start.md)
-- How-to: [docs/how-to/install.md](docs/how-to/install.md)
-- First-star trigger: [docs/tutorials/first-star-trigger.md](docs/tutorials/first-star-trigger.md)
-- Quick reference: [docs/reference/quick-reference.md](docs/reference/quick-reference.md)
-- Common recipes: [docs/how-to/common-recipes.md](docs/how-to/common-recipes.md)
-- CI integration: [docs/how-to/ci-integration.md](docs/how-to/ci-integration.md)
-- CLI reference: [docs/reference/cli.md](docs/reference/cli.md)
+- Install: [docs/how-to/install.md](docs/how-to/install.md)
+- Use profiles: [docs/how-to/use-profiles.md](docs/how-to/use-profiles.md)
 - FAQ: [docs/explanation/faq.md](docs/explanation/faq.md)
-- Explanation: [docs/explanation/design-boundaries.md](docs/explanation/design-boundaries.md)
-- Language policy: [docs/explanation/language-maintenance.md](docs/explanation/language-maintenance.md)
+- Scoreboard: [docs/explanation/runseal-score/native.md](docs/explanation/runseal-score/native.md)
 
 ## Validation
 
 ```bash
-bash scripts/version-sync-check.sh
-bash scripts/release-ready.sh
-bash scripts/converge-check.sh
-bash scripts/release-smoke.sh --version v0.4.3
+cargo fmt --check
+cargo test
+pnpm run docs:build
+bash scripts/docs/links.sh
+bash scripts/docs/alignment.sh
+bash scripts/docs/agent-meta.sh
+bash scripts/docs/agent-routes.sh
+bash scripts/release/smoke.sh --version v0.1.0-beta.0
 ```
-
-`scripts/converge-check.sh` runs doc alignment, doc link integrity, docs build, tests, and public surface checks.
 
 ## Troubleshooting Fast Path
 
 Run these before filing an issue:
 
 ```bash
-envlock --version
-envlock preview --profile "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
-envlock --profile "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json" --output json
+runseal --version
+runseal preview --profile "${RUNSEAL_HOME:-$HOME/.runseal}/profiles/default.json"
+runseal --profile "${RUNSEAL_HOME:-$HOME/.runseal}/profiles/default.json" --output json
 ```
 
 If one command fails, include the exact command and output in your issue.
 
 ## Project Signals
 
-- Releases: https://github.com/PerishCode/envlock/releases
-- Changelog: https://github.com/PerishCode/envlock/releases
-- Docs site: https://perishcode.github.io/envlock/
-- Migration guide (v0.3): https://perishcode.github.io/envlock/how-to/migrate-to-v0.3
+- Releases: https://github.com/PerishCode/runseal/releases
+- Changelog: https://github.com/PerishCode/runseal/releases
+- Docs site: https://runseal.ai/

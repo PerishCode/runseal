@@ -1,45 +1,27 @@
 # FAQ
 
-## Where is the default profile in v0.2+?
+## How does `resource://` stop parsing?
 
-When `--profile` is omitted, envlock resolves:
+`env` injection resolves `resource://` tokens until it hits `:` or `;`.
 
-- `$ENVLOCK_HOME/profiles/default.json` if `ENVLOCK_HOME` is set.
-- `~/.envlock/profiles/default.json` otherwise.
+That is intentional for PATH-like values, but it means URL-like literals that include `:` can split earlier than expected. If you need a literal URL, keep it outside `resource://` resolution.
 
-## When should I use `--profile`?
+## When does runseal detect a missing resource file?
 
-Use `--profile` when you need a non-default profile for one command or one session. For daily local usage, keep a stable `default.json` and run `envlock` directly.
+`resource://` resolution turns relative paths into absolute paths during export, but it does not guarantee file existence at parse or validation time.
 
-## Is `envlock preview` safe to run in production?
+If a resource file is missing, the failure usually appears later when the downstream tool reads that path.
 
-`preview` is read-only. It validates and inspects profile metadata but does not execute injections, create symlinks, or run child commands.
+## What happens if `HOME` is missing?
 
-## How do I choose shell vs JSON vs command mode?
+If `HOME` is unavailable and `RUNSEAL_HOME` is unset, runseal exits with an actionable error instead of falling back to a literal `~/.runseal` path.
 
-- Shell mode (default): `eval "$(envlock)"` for interactive shells.
-- JSON mode: `envlock --output json` for automation that reads structured output.
-- Command mode: `envlock -- <cmd...>` to isolate injection scope to one process.
+## What should I check first when the default profile is missing?
 
-## What is the difference between `ENVLOCK_HOME` and `ENVLOCK_RESOURCE_HOME`?
+By default, runseal looks for `profiles/default.json` under `RUNSEAL_HOME`, or under `~/.runseal` when `RUNSEAL_HOME` is unset.
 
-- `ENVLOCK_HOME` controls envlock home paths, including default profile lookup.
-- `ENVLOCK_RESOURCE_HOME` controls where `resource://` and `resource-content://` read files.
+Check one of these first:
 
-Set one or both when profile location and resource storage should be separated.
-
-## How do I migrate from the old `--use` flow?
-
-In v0.2+, use either default profile execution (`envlock`) or explicit profile path (`envlock --profile ./profiles/dev.json`).
-
-Migration note: `--use` and `ENVLOCK_PROFILE_HOME` are old v0.1 behavior names.
-
-## I get "default profile not found". What should I do first?
-
-Create the default profile and retry:
-
-```bash
-mkdir -p "${ENVLOCK_HOME:-$HOME/.envlock}/profiles"
-printf '%s\n' '{"injections":[]}' > "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
-envlock preview --profile "${ENVLOCK_HOME:-$HOME/.envlock}/profiles/default.json"
-```
+- `RUNSEAL_HOME` points to the intended root
+- `profiles/default.json` exists under that root
+- you are not expecting a project-local profile without passing `--profile`

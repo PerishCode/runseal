@@ -1,145 +1,410 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@600;700&display=swap");
 
 :root {
-  --vp-font-family-base: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
-  --vp-font-family-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --vp-font-family-base:
+        "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+    --vp-font-family-mono:
+        "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 
-  --vp-c-brand-1: #0f766e;
-  --vp-c-brand-2: #0d9488;
-  --vp-c-brand-3: #14b8a6;
-  --vp-c-brand-soft: rgba(20, 184, 166, 0.18);
+    --vp-c-brand-1: #0f766e;
+    --vp-c-brand-2: #0d9488;
+    --vp-c-brand-3: #14b8a6;
+    --vp-c-brand-soft: rgba(20, 184, 166, 0.18);
 
-  --vp-c-bg-alt: #f4fbf9;
-  --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(120deg, #0f766e 0%, #f97316 80%);
+    --vp-c-bg-alt: #f4fbf9;
+    --vp-home-hero-name-color: transparent;
+    --vp-home-hero-name-background: linear-gradient(
+        120deg,
+        #0f766e 0%,
+        #f97316 80%
+    );
 }
 
 .dark {
-  --vp-c-brand-1: #34d399;
-  --vp-c-brand-2: #2dd4bf;
-  --vp-c-brand-3: #5eead4;
-  --vp-c-brand-soft: rgba(45, 212, 191, 0.2);
-  --vp-c-bg-alt: #111827;
-  --vp-c-bg-soft: #0f172a;
+    --vp-c-brand-1: #34d399;
+    --vp-c-brand-2: #2dd4bf;
+    --vp-c-brand-3: #5eead4;
+    --vp-c-brand-soft: rgba(45, 212, 191, 0.2);
+    --vp-c-bg-alt: #111827;
+    --vp-c-bg-soft: #0f172a;
 }
 
 .VPNavBarTitle .title {
-  font-family: "Sora", "IBM Plex Sans", sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+    font-family: "Sora", "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
 .VPHome > .VPHero,
 .VPHome > .VPFeatures {
-  display: none;
+    display: none;
 }
 
 .VPContent.is-home {
-  height: 100dvh;
-  padding-top: var(--vp-nav-height);
-  box-sizing: border-box;
-  overflow: hidden;
+    height: 100dvh;
+    padding-top: var(--vp-nav-height);
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .VPHome {
-  min-height: 100%;
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(84% 140% at 2% 0%, color-mix(in srgb, var(--vp-c-brand-1) 14%, transparent), transparent 58%),
-    radial-gradient(90% 120% at 98% 10%, rgba(249, 115, 22, 0.14), transparent 62%);
+    min-height: 100%;
+    display: grid;
+    place-items: center;
+    background:
+        radial-gradient(
+            84% 140% at 2% 0%,
+            color-mix(in srgb, var(--vp-c-brand-1) 14%, transparent),
+            transparent 58%
+        ),
+        radial-gradient(
+            90% 120% at 98% 10%,
+            rgba(249, 115, 22, 0.14),
+            transparent 62%
+        );
 }
 
-
-
 .VPFeature {
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 18px;
-  background: linear-gradient(180deg, var(--vp-c-bg-soft), var(--vp-c-bg-alt));
+    border: 1px solid var(--vp-c-divider);
+    border-radius: 18px;
+    background: linear-gradient(
+        180deg,
+        var(--vp-c-bg-soft),
+        var(--vp-c-bg-alt)
+    );
 }
 
 .VPFeature .title {
-  font-weight: 650;
+    font-weight: 650;
 }
 
 .vp-doc h1,
 .vp-doc h2,
 .vp-doc h3 {
-  letter-spacing: -0.015em;
+    letter-spacing: -0.015em;
 }
 
 .vp-doc h2 {
-  margin-top: 2rem;
-  border-top: 1px solid var(--vp-c-divider);
-  padding-top: 1rem;
+    margin-top: 2rem;
+    border-top: 1px solid var(--vp-c-divider);
+    padding-top: 1rem;
 }
 
-.vp-doc div[class*='language-'] {
-  border-radius: 14px;
-  box-shadow: inset 0 0 0 1px var(--vp-c-divider);
+.vp-doc div[class*="language-"] {
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 1px var(--vp-c-divider);
+}
+
+.post-page .VPDoc {
+    background:
+        radial-gradient(
+            110% 70% at 50% 0%,
+            color-mix(in srgb, var(--vp-c-brand-1) 7%, transparent),
+            transparent 52%
+        ),
+        linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--vp-c-bg) 94%, transparent),
+            color-mix(in srgb, var(--vp-c-bg-alt) 55%, transparent)
+        );
+}
+
+.post-shell {
+  width: min(100%, 880px);
+  margin: 0 auto;
+  padding: 18px 0 0;
+}
+
+.post-shell__card {
+  padding: 0 0 10px;
+}
+
+.post-shell__title {
+  margin: 0;
+  color: var(--vp-c-text-1);
+  font-family: "DM Serif Display", Georgia, serif;
+  font-size: clamp(2rem, 3.8vw, 3.35rem);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.post-shell__meta {
+  margin: 0.85rem 0 0;
+  color: color-mix(in srgb, var(--vp-c-text-3) 86%, transparent);
+  font-size: 0.82rem;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.post-page .VPDoc .container {
+    max-width: 1280px;
+}
+
+.post-page .VPDoc .content {
+    max-width: 820px;
+    padding-top: 20px;
+    padding-bottom: 96px;
+}
+
+.post-page .VPDoc.has-aside .content-container,
+.post-page .VPDoc .content-container {
+    max-width: none;
+    justify-content: center;
+}
+
+.post-page .VPDoc .main {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.post-page .vp-doc {
+  position: relative;
+  padding: 18px 52px 56px;
+  border: 1px solid color-mix(in srgb, var(--vp-c-divider) 82%, transparent);
+  border-radius: 28px;
+    background: color-mix(in srgb, var(--vp-c-bg) 94%, white);
+    box-shadow: 0 40px 90px -64px rgba(15, 23, 42, 0.32);
+    font-size: 18px;
+    line-height: 1.88;
+    color: var(--vp-c-text-1);
+}
+
+.post-page .vp-doc > p:first-child,
+.post-page .vp-doc > blockquote:first-of-type,
+.post-page .vp-doc > hr:first-child {
+    margin-top: 0;
+}
+
+.post-page .vp-doc h1,
+.post-page .vp-doc h2,
+.post-page .vp-doc h3 {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+}
+
+.post-page .vp-doc > h1:first-of-type {
+  display: none;
+}
+
+.post-page .vp-doc h2 {
+    margin-top: 3.6rem;
+    margin-bottom: 1rem;
+    padding-top: 0;
+    border-top: 0;
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+}
+
+.post-page .vp-doc h3 {
+    margin-top: 2rem;
+    margin-bottom: 0.8rem;
+    font-size: 1.35rem;
+}
+
+.post-page .vp-doc p,
+.post-page .vp-doc ul,
+.post-page .vp-doc ol,
+.post-page .vp-doc blockquote,
+.post-page .vp-doc div[class*="language-"] {
+    margin-top: 1.15rem;
+    margin-bottom: 1.15rem;
+}
+
+.post-page .vp-doc blockquote {
+    margin: 1.8rem 0 2.3rem;
+    padding: 1.2rem 1.35rem;
+    border: 1px solid
+        color-mix(in srgb, var(--vp-c-brand-1) 20%, var(--vp-c-divider));
+    border-left: 4px solid var(--vp-c-brand-1);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--vp-c-brand-1) 7%, var(--vp-c-bg-soft));
+    color: var(--vp-c-text-2);
+    box-shadow: 0 16px 40px -28px rgba(15, 118, 110, 0.28);
+    font-size: 0.7em;
+    line-height: 1.4;
+}
+
+.post-page .vp-doc blockquote p {
+  margin: 0.45rem 0;
+  font-size: 1em;
+  line-height: 1.4;
+}
+
+.post-page .vp-doc blockquote .post-signoff {
+  display: block;
+  margin-top: 1rem;
+  color: color-mix(in srgb, var(--vp-c-text-3) 78%, transparent);
+  font-family: "DM Serif Display", Georgia, serif;
+  font-size: 0.64em;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  text-align: right;
+}
+
+.post-page .vp-doc blockquote .post-note-title {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: color-mix(in srgb, var(--vp-c-text-1) 88%, transparent);
+  font-family: "Sora", "IBM Plex Sans", sans-serif;
+  font-size: 0.95em;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.post-page .vp-doc ul,
+.post-page .vp-doc ol {
+    padding-left: 1.35rem;
+}
+
+.post-page .vp-doc li + li {
+    margin-top: 0.5rem;
+}
+
+.post-page .vp-doc hr {
+    margin: 2.5rem 0;
+    border: 0;
+    border-top: 1px solid
+        color-mix(in srgb, var(--vp-c-divider) 82%, transparent);
+}
+
+.post-page .vp-doc p code,
+.post-page .vp-doc li code {
+    padding: 0.2rem 0.42rem;
+    border: 1px solid color-mix(in srgb, var(--vp-c-divider) 72%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--vp-c-bg-soft) 72%, transparent);
+    font-size: 0.92em;
+}
+
+.post-page .aside {
+    display: none;
+}
+
+.post-page .VPDocAsideOutline {
+    display: none;
+}
+
+.post-page .VPDoc .aside-curtain {
+    display: none;
 }
 
 .github-stars-link {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--vp-c-text-1);
-  text-decoration: none;
-  background: var(--vp-c-bg-soft);
-  transition: border-color 0.2s ease, color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 10px;
+    border: 1px solid var(--vp-c-divider);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--vp-c-text-1);
+    text-decoration: none;
+    background: var(--vp-c-bg-soft);
+    transition:
+        border-color 0.2s ease,
+        color 0.2s ease;
 }
 
 .VPNavBar .content-body > .github-stars-link {
-  margin-left: 16px;
-  flex-shrink: 0;
+    margin-left: 16px;
+    flex-shrink: 0;
 }
 
 .github-status-badges {
-  margin: 0 0 16px;
+    margin: 0 0 16px;
 }
 
 .github-status-badges p {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
 }
 
 .github-status-badges a {
-  display: inline-flex;
-  align-items: center;
-  line-height: 0;
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
 }
 
 .github-status-badges a img {
-  display: inline-block;
-  width: auto;
-  max-width: 100%;
-  height: auto;
+    display: inline-block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
 }
 
 .github-stars-link:hover {
-  color: var(--vp-c-brand-1);
-  border-color: var(--vp-c-brand-1);
+    color: var(--vp-c-brand-1);
+    border-color: var(--vp-c-brand-1);
 }
 
 @media (max-width: 960px) {
-  .VPContent.is-home {
-    height: auto;
-    overflow: visible;
+    .VPContent.is-home {
+        height: auto;
+        overflow: visible;
+    }
+
+    .VPHome {
+        min-height: 0;
+        display: block;
+    }
+
+    .github-stars-link {
+        display: none;
+    }
+
+    .post-page .VPDoc .content {
+        padding-top: 0;
+        padding-bottom: 40px;
+    }
+
+  .post-shell {
+    padding: 14px 0 0;
   }
 
-  .VPHome {
-    min-height: 0;
-    display: block;
+  .post-shell__card {
+    padding: 0 0 8px;
   }
 
-  .github-stars-link {
-    display: none;
+  .post-shell__title {
+    white-space: normal;
+    font-size: clamp(1.7rem, 8vw, 2.35rem);
   }
+
+  .post-shell__meta {
+    font-size: 0.78rem;
+  }
+
+    .post-page .VPDoc .main {
+        width: 100%;
+    }
+
+  .post-page .vp-doc {
+    padding: 14px 20px 34px;
+    border-radius: 22px;
+  }
+
+    .post-page .vp-doc {
+        font-size: 16px;
+        line-height: 1.72;
+    }
+
+    .post-page .vp-doc h1 {
+        max-width: none;
+        font-size: clamp(2.2rem, 10vw, 3rem);
+    }
+
+    .post-page .vp-doc blockquote {
+        padding: 1rem 1rem 1rem 1.1rem;
+    }
 }

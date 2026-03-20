@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const BASE = "/envlock/";
+const BASE = process.env.RUNSEAL_DOCS_BASE ?? "/";
 const THIS_DIR = fileURLToPath(new URL(".", import.meta.url));
 const ROOT_FAVICON = readFileSync(resolve(THIS_DIR, "../public/favicon.ico"));
 
 const rootFaviconPlugin = {
-  name: "envlock-root-favicon",
+  name: "runseal-root-favicon",
   configureServer(server: { middlewares: { use: (path: string, handler: (_req: unknown, res: { setHeader: (name: string, value: string) => void; end: (buffer: Buffer) => void; }) => void) => void; }; }) {
     server.middlewares.use("/favicon.ico", (_req, res) => {
       res.setHeader("Content-Type", "image/x-icon");
@@ -24,8 +24,8 @@ const rootFaviconPlugin = {
 };
 
 export default defineConfig({
-  title: "envlock",
-  description: "Deterministic environment sessions from JSON profiles.",
+  title: "runseal",
+  description: "Seal the run.",
   base: BASE,
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: `${BASE}favicon.svg` }],
@@ -36,13 +36,13 @@ export default defineConfig({
     ["meta", { name: "author", content: "PerishCode" }],
     ["meta", { name: "copyright", content: "Copyright © 2026 PerishCode" }],
     ["meta", { name: "agent:owner", content: "PerishCode" }],
-    ["meta", { name: "agent:project", content: "envlock" }],
+    ["meta", { name: "agent:project", content: "runseal" }],
     ["meta", { name: "agent:contract:version", content: "1" }],
     [
       "meta",
       {
         name: "agent:index:v1",
-        content: "agent:contract:version,agent:mode,agent:entry:install,agent:entry:cli,agent:entry:ci,agent:resolution,agent:locale:default,agent:locale:source,agent:locale:policy"
+        content: "agent:contract:version,agent:mode,agent:entry:install,agent:entry:use,agent:entry:scoreboard,agent:resolution,agent:locale:default,agent:locale:source,agent:locale:policy"
       }
     ],
     ["meta", { name: "agent:mode", content: "meta-first" }],
@@ -60,15 +60,15 @@ export default defineConfig({
     [
       "meta",
       {
-        name: "agent:entry:cli",
-        content: `${BASE}reference/cli`
+        name: "agent:entry:use",
+        content: `${BASE}how-to/use-profiles`
       }
     ],
     [
       "meta",
       {
-        name: "agent:entry:ci",
-        content: `${BASE}how-to/ci-integration`
+        name: "agent:entry:scoreboard",
+        content: `${BASE}explanation/runseal-score/native`
       }
     ]
   ],
@@ -89,22 +89,24 @@ export default defineConfig({
       lang: "en-US",
       label: "English",
       link: "/",
-      title: "envlock",
-      description: "Deterministic environment sessions from JSON profiles.",
+      title: "runseal",
+      description: "Seal the run.",
       themeConfig: {
         nav: [
-          { text: "Tutorial", link: "/tutorials/quick-start" },
-          { text: "How-to", link: "/how-to/install" },
-          { text: "Reference", link: "/reference/cli" },
-          { text: "Explanation", link: "/explanation/design-boundaries" },
-          { text: "GitHub", link: "https://github.com/PerishCode/envlock" }
+          { text: "Install", link: "/how-to/install" },
+          { text: "Use", link: "/how-to/use-profiles" },
+          { text: "Posts", link: "/posts/what-is-runseal" },
+          { text: ":node/", link: "/node/01-making-npm-i-g-pnpm-sealable" },
+          { text: "FAQ", link: "/explanation/faq" },
+          { text: "Scoreboard", link: "/explanation/runseal-score/native" },
+          { text: "GitHub", link: "https://github.com/PerishCode/runseal" }
         ],
         outline: {
           level: [2, 3],
           label: "On this page"
         },
         editLink: {
-          pattern: "https://github.com/PerishCode/envlock/edit/main/docs/:path",
+          pattern: "https://github.com/PerishCode/runseal/edit/main/docs/:path",
           text: "Edit this page on GitHub"
         },
         localeLinks: {
@@ -116,22 +118,24 @@ export default defineConfig({
       lang: "zh-CN",
       label: "简体中文",
       link: "/zh-CN/",
-      title: "envlock",
-      description: "通过 JSON 配置实现可复现环境会话。",
+      title: "runseal",
+      description: "Seal the run.",
       themeConfig: {
         nav: [
-          { text: "教程", link: "/zh-CN/tutorials/quick-start" },
-          { text: "操作指南", link: "/zh-CN/how-to/install" },
-          { text: "参考", link: "/zh-CN/reference/cli" },
-          { text: "说明", link: "/zh-CN/explanation/faq" },
-          { text: "GitHub", link: "https://github.com/PerishCode/envlock" }
+          { text: "安装", link: "/zh-CN/how-to/install" },
+          { text: "使用", link: "/zh-CN/how-to/use-profiles" },
+          { text: "Posts", link: "/zh-CN/posts/what-is-runseal" },
+          { text: ":node/", link: "/zh-CN/node/01-making-npm-i-g-pnpm-sealable" },
+          { text: "FAQ", link: "/zh-CN/explanation/faq" },
+          { text: "Scoreboard", link: "/zh-CN/explanation/runseal-score/native" },
+          { text: "GitHub", link: "https://github.com/PerishCode/runseal" }
         ],
         outline: {
           level: [2, 3],
           label: "本页导航"
         },
         editLink: {
-          pattern: "https://github.com/PerishCode/envlock/edit/main/docs/:path",
+          pattern: "https://github.com/PerishCode/runseal/edit/main/docs/:path",
           text: "在 GitHub 上编辑此页"
         },
         localeLinks: {
@@ -146,109 +150,75 @@ export default defineConfig({
     sidebar: {
       "/": [
         {
-          text: "Tutorial",
-          items: [
-            { text: "Quick Start", link: "/tutorials/quick-start" },
-            { text: "First-Star Trigger", link: "/tutorials/first-star-trigger" }
-          ]
-        },
-        {
-          text: "How-to",
+          text: "Docs",
           items: [
             { text: "Install", link: "/how-to/install" },
-            { text: "Common Recipes", link: "/how-to/common-recipes" },
-            { text: "Migrate to v0.3", link: "/how-to/migrate-to-v0.3" },
             { text: "Use Profiles", link: "/how-to/use-profiles" },
-            { text: "Run Command Mode", link: "/how-to/command-mode" },
-            { text: "CI Integration", link: "/how-to/ci-integration" },
-            { text: "Release Validation", link: "/how-to/release-validation" },
-            { text: "Release Operator Playbook", link: "/how-to/release-operator-playbook" },
-            { text: "Update and Uninstall", link: "/how-to/update-and-uninstall" },
-            { text: "Docs Maintenance", link: "/how-to/docs-maintenance" }
+            { text: "FAQ", link: "/explanation/faq" }
           ]
         },
         {
-          text: "Reference",
+          text: "Scoreboard",
           items: [
-            { text: "Quick Reference", link: "/reference/quick-reference" },
-            { text: "CLI", link: "/reference/cli" },
-            { text: "Profile Format", link: "/reference/profile" },
-            { text: "Environment Variables", link: "/reference/environment" },
-            { text: "Changelog", link: "/changelog" },
-            { text: "Release Pipeline", link: "/reference/release" },
-            { text: "Agent Meta Contract", link: "/reference/agent-meta-contract" },
-            { text: "Agent Cold-Start Checklist", link: "/reference/agent-coldstart-checklist" }
+            { text: "L4 Native", link: "/explanation/runseal-score/native" },
+            { text: "L3 Good", link: "/explanation/runseal-score/good" },
+            { text: "L2 Normal", link: "/explanation/runseal-score/normal" },
+            { text: "L1 Other", link: "/explanation/runseal-score/other" }
           ]
         },
         {
-          text: "Explanation",
+          text: "Posts",
           items: [
-            { text: "Why envlock", link: "/explanation/why-envlock" },
-            { text: "FAQ", link: "/explanation/faq" },
-            { text: "Design Boundaries", link: "/explanation/design-boundaries" },
-            { text: "Troubleshooting", link: "/explanation/troubleshooting" },
-            { text: "Support Policy", link: "/explanation/support-policy" },
-            { text: "Language Maintenance", link: "/explanation/language-maintenance" },
-            { text: "First-Star Observability", link: "/explanation/first-star-observability" },
-            { text: "GEO Index", link: "/explanation/geo-index" },
-            { text: "envlock-score/native", link: "/explanation/envlock-score/native" },
-            { text: "envlock-score/good", link: "/explanation/envlock-score/good" },
-            { text: "envlock-score/normal", link: "/explanation/envlock-score/normal" },
-            { text: "envlock-score/other", link: "/explanation/envlock-score/other" }
+            { text: "What is runseal?", link: "/posts/what-is-runseal" },
+            { text: "How We Want to Build runseal", link: "/posts/how-we-want-to-build-runseal" },
+            { text: "Why We Want to Build runseal", link: "/posts/why-we-want-to-build-runseal" }
+          ]
+        },
+        {
+          text: ":node/",
+          items: [
+            { text: "01 | Making npm i -g pnpm Sealable", link: "/node/01-making-npm-i-g-pnpm-sealable" },
+            { text: "02 | What :node Still Needs to Prove", link: "/node/02-what-node-still-needs-to-prove" },
+            { text: "03 | Where Corepack Fits", link: "/node/03-where-corepack-fits" },
+            { text: "04 | Which Boundaries Are Not Ours", link: "/node/04-which-boundaries-are-not-ours" },
+            { text: "05 | Which Node Surface Wins", link: "/node/05-which-node-surface-wins" }
           ]
         }
       ],
       "/zh-CN/": [
         {
-          text: "教程",
-          items: [
-            { text: "快速开始", link: "/zh-CN/tutorials/quick-start" },
-            { text: "首星触发页", link: "/zh-CN/tutorials/first-star-trigger" }
-          ]
-        },
-        {
-          text: "操作指南",
+          text: "文档",
           items: [
             { text: "安装", link: "/zh-CN/how-to/install" },
-            { text: "常见用法", link: "/zh-CN/how-to/common-recipes" },
-            { text: "迁移到 v0.3", link: "/zh-CN/how-to/migrate-to-v0.3" },
             { text: "使用 Profiles", link: "/zh-CN/how-to/use-profiles" },
-            { text: "子命令模式", link: "/zh-CN/how-to/command-mode" },
-            { text: "CI 集成", link: "/zh-CN/how-to/ci-integration" },
-            { text: "发布验证", link: "/zh-CN/how-to/release-validation" },
-            { text: "发布操作指南", link: "/zh-CN/how-to/release-operator-playbook" },
-            { text: "更新与卸载", link: "/zh-CN/how-to/update-and-uninstall" },
-            { text: "文档维护", link: "/zh-CN/how-to/docs-maintenance" },
+            { text: "FAQ", link: "/zh-CN/explanation/faq" }
           ]
         },
         {
-          text: "参考",
+          text: "Scoreboard",
           items: [
-            { text: "快速参考", link: "/zh-CN/reference/quick-reference" },
-            { text: "CLI 参考", link: "/zh-CN/reference/cli" },
-            { text: "Profile 格式", link: "/zh-CN/reference/profile" },
-            { text: "环境变量", link: "/zh-CN/reference/environment" },
-            { text: "变更记录", link: "/zh-CN/changelog" },
-            { text: "发布流水线", link: "/zh-CN/reference/release" },
-            { text: "Agent Meta 契约", link: "/zh-CN/reference/agent-meta-contract" },
-            { text: "Agent 冷启动检查清单", link: "/zh-CN/reference/agent-coldstart-checklist" }
+            { text: "L4 Native", link: "/zh-CN/explanation/runseal-score/native" },
+            { text: "L3 Good", link: "/zh-CN/explanation/runseal-score/good" },
+            { text: "L2 Normal", link: "/zh-CN/explanation/runseal-score/normal" },
+            { text: "L1 Other", link: "/zh-CN/explanation/runseal-score/other" }
           ]
         },
         {
-          text: "说明",
+          text: "Posts",
           items: [
-            { text: "为什么选择 envlock", link: "/zh-CN/explanation/why-envlock" },
-            { text: "常见问题", link: "/zh-CN/explanation/faq" },
-            { text: "设计边界", link: "/zh-CN/explanation/design-boundaries" },
-            { text: "故障排查", link: "/zh-CN/explanation/troubleshooting" },
-            { text: "支持策略", link: "/zh-CN/explanation/support-policy" },
-            { text: "语言维护", link: "/zh-CN/explanation/language-maintenance" },
-            { text: "首星观测", link: "/zh-CN/explanation/first-star-observability" },
-            { text: "GEO 指数", link: "/zh-CN/explanation/geo-index" },
-            { text: "envlock-score/native", link: "/zh-CN/explanation/envlock-score/native" },
-            { text: "envlock-score/good", link: "/zh-CN/explanation/envlock-score/good" },
-            { text: "envlock-score/normal", link: "/zh-CN/explanation/envlock-score/normal" },
-            { text: "envlock-score/other", link: "/zh-CN/explanation/envlock-score/other" }
+            { text: "What is runseal?", link: "/zh-CN/posts/what-is-runseal" },
+            { text: "How We Want to Build runseal", link: "/zh-CN/posts/how-we-want-to-build-runseal" },
+            { text: "Why We Want to Build runseal", link: "/zh-CN/posts/why-we-want-to-build-runseal" }
+          ]
+        },
+        {
+          text: ":node/",
+          items: [
+            { text: "01 | Making npm i -g pnpm Sealable", link: "/zh-CN/node/01-making-npm-i-g-pnpm-sealable" },
+            { text: "02 | What :node Still Needs to Prove", link: "/zh-CN/node/02-what-node-still-needs-to-prove" },
+            { text: "03 | Where Corepack Fits", link: "/zh-CN/node/03-where-corepack-fits" },
+            { text: "04 | Which Boundaries Are Not Ours", link: "/zh-CN/node/04-which-boundaries-are-not-ours" },
+            { text: "05 | Which Node Surface Wins", link: "/zh-CN/node/05-which-node-surface-wins" }
           ]
         }
       ]
@@ -256,6 +226,6 @@ export default defineConfig({
     search: {
       provider: "local"
     },
-    socialLinks: [{ icon: "github", link: "https://github.com/PerishCode/envlock" }]
+    socialLinks: [{ icon: "github", link: "https://github.com/PerishCode/runseal" }]
   }
 });

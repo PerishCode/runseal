@@ -1,4 +1,4 @@
-<svg width="720" height="480" viewBox="0 0 720 480" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="envlock shell quick start">
+<svg width="720" height="480" viewBox="0 0 720 480" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="runseal shell quick start">
   <defs>
     <linearGradient id="bg" x1="64" y1="24" x2="656" y2="456" gradientUnits="userSpaceOnUse">
       <stop stop-color="#0F172A"/>
@@ -38,12 +38,12 @@
   <circle cx="114" cy="82" r="6" fill="#FB7185"/>
   <circle cx="136" cy="82" r="6" fill="#FBBF24"/>
   <circle cx="158" cy="82" r="6" fill="#34D399"/>
-  <text x="196" y="87" fill="#93C5FD" font-size="14" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">envlock quick verify</text>
+  <text x="196" y="87" fill="#93C5FD" font-size="14" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">runseal quick verify</text>
 
   <g filter="url(#glow)">
-    <text x="112" y="180" fill="#E5E7EB" font-size="18" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" clip-path="url(#line1)">$ curl -fsSL https://raw.githubusercontent.com/PerishCode/envlock/main/scripts/install.sh | sh</text>
-    <text x="112" y="230" fill="#E5E7EB" font-size="18" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" clip-path="url(#line2)">$ eval "$(envlock)"</text>
-    <text x="112" y="280" fill="#E5E7EB" font-size="18" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" clip-path="url(#line3)">$ echo "$ENVLOCK_PROFILE"</text>
+    <text x="112" y="180" fill="#E5E7EB" font-size="18" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" clip-path="url(#line1)">$ curl -fsSL https://raw.githubusercontent.com/PerishCode/runseal/main/scripts/manage/install.sh | sh</text>
+    <text x="112" y="230" fill="#E5E7EB" font-size="18" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" clip-path="url(#line2)">$ eval "$(runseal)"</text>
+    <text x="112" y="280" fill="#E5E7EB" font-size="18" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" clip-path="url(#line3)">$ echo "$RUNSEAL_PROFILE"</text>
   </g>
 
   <text x="134" y="336" fill="#34D399" font-size="16" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">default</text>

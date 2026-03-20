@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 
 const stars = ref<string>("...");
-const CACHE_KEY = "envlock_github_stars_cache_v1";
+const CACHE_KEY = "runseal_github_stars_cache_v1";
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
 function formatStars(value: number): string {
@@ -33,7 +33,7 @@ onMounted(async () => {
   }
 
   try {
-    const response = await fetch("https://api.github.com/repos/PerishCode/envlock", {
+    const response = await fetch("https://api.github.com/repos/PerishCode/runseal", {
       headers: { Accept: "application/vnd.github+json" }
     });
     if (!response.ok) {
@@ -64,7 +64,7 @@ onMounted(async () => {
 <template>
   <a
     class="github-stars-link"
-    href="https://github.com/PerishCode/envlock/stargazers"
+    href="https://github.com/PerishCode/runseal/stargazers"
     target="_blank"
     rel="noreferrer"
     aria-label="GitHub stargazers"

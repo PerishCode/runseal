@@ -1,7 +1,5 @@
 ---
 layout: home
-title: envlock Docs
+title: runseal Docs
 titleTemplate: false
 ---
-
-[简体中文](/zh-CN/)

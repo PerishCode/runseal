@@ -1,0 +1,24 @@
+services:
+  node-helper:
+    build:
+      context: .
+      dockerfile: docker/node-helper.Dockerfile
+    platform: linux/amd64
+    working_dir: /workspace/runseal
+    volumes:
+      - .:/workspace/runseal
+    tty: true
+    stdin_open: true
+
+  builder:
+    image: rust:1.91-bookworm
+    platform: linux/amd64
+    working_dir: /workspace/runseal
+    volumes:
+      - .:/workspace/runseal
+    tty: true
+    stdin_open: true
+    command:
+      - bash
+      - -lc
+      - sleep infinity
