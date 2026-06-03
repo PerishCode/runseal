@@ -1,10 +1,10 @@
 branch: main
 ruleset:
-  name: main-minimal-gate
+  name: main-build-gate
   enforcement: active
   pull_request:
     required: true
   deletion: false
   force_push: false
   required_checks:
-    - Docs
+    - build

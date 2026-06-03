@@ -1,27 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
-use tracing_subscriber::filter::LevelFilter;
-
-#[derive(Debug, Clone, Copy)]
-pub enum OutputMode {
-    Shell,
-    Json,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum LogFormat {
-    Text,
-    Json,
-}
 
 #[derive(Debug, Clone)]
 pub struct CliInput {
     pub profile: Option<PathBuf>,
-    pub output_mode: OutputMode,
-    pub strict: bool,
-    pub log_level: LevelFilter,
-    pub log_format: LogFormat,
     pub command: Vec<String>,
 }
 
@@ -29,7 +12,7 @@ pub struct CliInput {
 pub struct RawEnv {
     pub home: Option<PathBuf>,
     pub runseal_home: Option<PathBuf>,
-    pub runseal_resource_home: Option<PathBuf>,
+    pub runseal_profile_home: Option<PathBuf>,
 }
 
 impl RawEnv {
@@ -41,7 +24,7 @@ impl RawEnv {
             runseal_home: std::env::var_os("RUNSEAL_HOME")
                 .map(PathBuf::from)
                 .filter(non_empty_path),
-            runseal_resource_home: std::env::var_os("RUNSEAL_RESOURCE_HOME")
+            runseal_profile_home: std::env::var_os("RUNSEAL_PROFILE_HOME")
                 .map(PathBuf::from)
                 .filter(non_empty_path),
         }
@@ -51,50 +34,25 @@ impl RawEnv {
 #[derive(Debug, Clone)]
 pub struct RuntimeConfig {
     pub profile_path: PathBuf,
-    pub output_mode: OutputMode,
-    pub strict: bool,
-    pub log_level: LevelFilter,
-    pub log_format: LogFormat,
-    pub command: Option<Vec<String>>,
+    pub command: Vec<String>,
     pub runseal_home: PathBuf,
-    pub resource_home: PathBuf,
+    pub profile_home: PathBuf,
 }
 
 impl RuntimeConfig {
-    pub fn from_cli_and_env(cli: CliInput, env: RawEnv) -> Result<Self> {
+    pub fn from_cli_env_and_cwd(cli: CliInput, env: RawEnv, cwd: &Path) -> Result<Self> {
         let runseal_home = resolve_runseal_home(&env)?;
-        let resource_home = env
-            .runseal_resource_home
+        let profile_home = env
+            .runseal_profile_home
             .filter(non_empty_path)
-            .unwrap_or_else(|| runseal_home.join("resources"));
-
-        let profile_path = if let Some(profile) = cli.profile {
-            profile
-        } else {
-            runseal_home.join("profiles/default.json")
-        };
-
-        if !profile_path.is_file() {
-            bail!(
-                "profile file not found: {}. create default profile at {}/profiles/default.json or pass --profile",
-                profile_path.display(),
-                runseal_home.display()
-            );
-        }
+            .unwrap_or_else(|| runseal_home.join("profiles"));
+        let profile_path = resolve_profile_path(cli.profile, cwd, &profile_home)?;
 
         Ok(Self {
             profile_path,
-            output_mode: cli.output_mode,
-            strict: cli.strict,
-            log_level: cli.log_level,
-            log_format: cli.log_format,
-            command: if cli.command.is_empty() {
-                None
-            } else {
-                Some(cli.command)
-            },
+            command: cli.command,
             runseal_home,
-            resource_home,
+            profile_home,
         })
     }
 }
@@ -114,6 +72,55 @@ pub fn resolve_runseal_home(env: &RawEnv) -> Result<PathBuf> {
 
 fn non_empty_path(path: &PathBuf) -> bool {
     !path.as_os_str().is_empty()
+}
+
+fn resolve_profile_path(
+    explicit: Option<PathBuf>,
+    cwd: &Path,
+    profile_home: &Path,
+) -> Result<PathBuf> {
+    if let Some(profile) = explicit {
+        let profile = if profile.is_absolute() {
+            profile
+        } else {
+            cwd.join(profile)
+        };
+        if !profile.is_file() {
+            bail!("profile file not found: {}", profile.display());
+        }
+        return Ok(profile);
+    }
+
+    let mut searched = Vec::new();
+    for candidate in discovery_candidates(cwd, profile_home) {
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+        searched.push(candidate);
+    }
+
+    let searched = searched
+        .iter()
+        .map(|path| format!("- {}", path.display()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    bail!("profile file not found. searched:\n{searched}")
+}
+
+fn discovery_candidates(cwd: &Path, profile_home: &Path) -> Vec<PathBuf> {
+    profile_extensions()
+        .iter()
+        .map(|ext| cwd.join(format!("runseal.{ext}")))
+        .chain(
+            profile_extensions()
+                .iter()
+                .map(|ext| profile_home.join(format!("default.{ext}"))),
+        )
+        .collect()
+}
+
+pub fn profile_extensions() -> &'static [&'static str] {
+    &["toml", "yaml", "yml", "json"]
 }
 
 #[cfg(test)]

@@ -1,0 +1,15 @@
+[[injections]]
+type = "env"
+
+[injections.vars]
+RUNSEAL_EXAMPLE = "dev"
+
+[[injections]]
+type = "env"
+
+[[injections.ops]]
+op = "prepend"
+key = "PATH"
+value = "./bin"
+separator = "os"
+dedup = true

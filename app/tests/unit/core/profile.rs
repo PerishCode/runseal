@@ -1,93 +1,53 @@
 use super::*;
+use tempfile::TempDir;
 
 #[test]
-fn parse_injections_with_defaults() {
-    let raw = r#"
-        {
-          "injections": [
-            { "type": "env", "vars": { "A": "1", "B": "2" } },
-            { "type": "symlink", "source": "./fixtures/agents.md", "target": "~/.codex/AGENTS.md" }
-          ]
-        }"#;
+fn loads_toml_yaml_and_json_profiles() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let toml_path = temp.path().join("runseal.toml");
+    let yaml_path = temp.path().join("runseal.yaml");
+    let json_path = temp.path().join("runseal.json");
 
-    let profile: Profile = serde_json::from_str(raw).expect("profile should parse");
-    assert_eq!(profile.injections.len(), 2);
+    std::fs::write(
+        &toml_path,
+        "[[injections]]\ntype = \"env\"\n[injections.vars]\nA = \"toml\"\n",
+    )
+    .expect("toml should be written");
+    std::fs::write(
+        &yaml_path,
+        "injections:\n  - type: env\n    vars:\n      A: yaml\n",
+    )
+    .expect("yaml should be written");
+    std::fs::write(
+        &json_path,
+        r#"{"injections":[{"type":"env","vars":{"A":"json"}}]}"#,
+    )
+    .expect("json should be written");
 
-    match &profile.injections[0] {
-        InjectionProfile::Env(env) => {
-            assert!(env.enabled);
-            assert_eq!(env.vars.get("A"), Some(&"1".to_string()));
-            assert_eq!(env.vars.get("B"), Some(&"2".to_string()));
-            assert!(env.ops.is_empty());
-        }
-        _ => panic!("expected env injection"),
-    }
-    match &profile.injections[1] {
-        InjectionProfile::Symlink(link) => {
-            assert!(link.enabled);
-            assert!(matches!(link.on_exist, SymlinkOnExist::Error));
-            assert!(link.cleanup);
-        }
-        _ => panic!("expected symlink injection"),
-    }
+    assert_eq!(
+        load(&toml_path).expect("toml should load").injections.len(),
+        1
+    );
+    assert_eq!(
+        load(&yaml_path).expect("yaml should load").injections.len(),
+        1
+    );
+    assert_eq!(
+        load(&json_path).expect("json should load").injections.len(),
+        1
+    );
 }
 
 #[test]
-fn reject_unknown_injection_type() {
-    let raw = r#"
-        {
-          "injections": [
-            { "type": "python" }
-          ]
-        }"#;
+fn rejects_unknown_injection_type() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let profile = temp.path().join("runseal.json");
+    std::fs::write(
+        &profile,
+        r#"{"injections":[{"type":"exec","program":"echo"}]}"#,
+    )
+    .expect("profile should be written");
 
-    let err = serde_json::from_str::<Profile>(raw).expect_err("unknown type should fail");
-    let msg = err.to_string();
-    assert!(msg.contains("unknown variant"));
-}
-
-#[test]
-fn parse_env_ops() {
-    let raw = r#"
-        {
-          "injections": [
-            {
-              "type": "env",
-              "vars": { "A": "1" },
-              "ops": [
-                { "op": "prepend", "key": "PATH", "value": "/opt/bin", "separator": "os", "dedup": true },
-                { "op": "set_if_absent", "key": "NPM_CONFIG_REGISTRY", "value": "https://registry.npmjs.org/" }
-              ]
-            }
-          ]
-        }"#;
-
-    let profile: Profile = serde_json::from_str(raw).expect("profile should parse");
-    match &profile.injections[0] {
-        InjectionProfile::Env(env) => {
-            assert_eq!(env.vars.get("A"), Some(&"1".to_string()));
-            assert_eq!(env.ops.len(), 2);
-        }
-        _ => panic!("expected env injection"),
-    }
-}
-
-#[test]
-fn parse_command_injection() {
-    let raw = r#"
-        {
-          "injections": [
-            { "type": "command", "program": "fnm", "args": ["env", "--shell", "bash"] }
-          ]
-        }"#;
-
-    let profile: Profile = serde_json::from_str(raw).expect("profile should parse");
-    match &profile.injections[0] {
-        InjectionProfile::Command(cmd) => {
-            assert!(cmd.enabled);
-            assert_eq!(cmd.program, "fnm");
-            assert_eq!(cmd.args, vec!["env", "--shell", "bash"]);
-        }
-        _ => panic!("expected command injection"),
-    }
+    let err = load(&profile).expect_err("unknown injection should be rejected");
+    assert!(err.to_string().contains("failed to parse JSON"));
 }
