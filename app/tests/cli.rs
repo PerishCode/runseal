@@ -48,14 +48,6 @@ fn symlink_check_script(path: &std::path::Path) -> String {
     format!("test -L {}", path.display())
 }
 
-#[cfg(windows)]
-fn symlink_check_script(path: &std::path::Path) -> String {
-    let path = path.to_string_lossy().replace('\'', "''");
-    format!(
-        "$item = Get-Item -LiteralPath '{path}'; if ($item.LinkType -ne 'SymbolicLink') {{ exit 1 }}"
-    )
-}
-
 #[test]
 fn help_without_command() {
     let output = bin().output().expect("runseal should run");
