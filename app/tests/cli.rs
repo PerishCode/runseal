@@ -7,7 +7,7 @@ fn bin() -> Command {
 }
 
 #[test]
-fn no_command_prints_help() {
+fn help_without_command() {
     let output = bin().output().expect("runseal should run");
 
     assert!(output.status.success());
@@ -17,7 +17,7 @@ fn no_command_prints_help() {
 }
 
 #[test]
-fn explicit_toml_profile_runs_command_with_env_and_context() {
+fn explicit_profile_runs() {
     let temp = TempDir::new().expect("temp dir should be created");
     let profile = temp.path().join("profile.toml");
     std::fs::write(
@@ -50,7 +50,7 @@ RUNSEAL_TEST_VALUE = "from-toml"
 }
 
 #[test]
-fn cwd_profile_beats_runseal_home_default() {
+fn cwd_beats_home() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("work");
     let runseal_home = temp.path().join("home");
@@ -81,7 +81,7 @@ fn cwd_profile_beats_runseal_home_default() {
 }
 
 #[test]
-fn symlink_is_available_during_command_and_cleaned_afterward() {
+fn symlink_lifecycle() {
     let temp = TempDir::new().expect("temp dir should be created");
     let source = temp.path().join("source.txt");
     let target = temp.path().join("links/source.txt");
@@ -123,7 +123,7 @@ fn symlink_is_available_during_command_and_cleaned_afterward() {
 }
 
 #[test]
-fn propagates_child_exit_code() {
+fn child_exit_code() {
     let temp = TempDir::new().expect("temp dir should be created");
     let profile = temp.path().join("profile.json");
     std::fs::write(&profile, r#"{"injections":[]}"#).expect("profile should be written");
@@ -141,4 +141,51 @@ fn propagates_child_exit_code() {
         .expect("runseal should run");
 
     assert_eq!(output.status.code(), Some(17));
+}
+
+#[test]
+fn toml_beats_yaml() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let cwd = temp.path().join("work");
+    std::fs::create_dir_all(&cwd).expect("cwd should be created");
+    std::fs::write(
+        cwd.join("runseal.toml"),
+        "[[injections]]\ntype = \"env\"\n[injections.vars]\nPICKED = \"toml\"\n",
+    )
+    .expect("toml profile should be written");
+    std::fs::write(
+        cwd.join("runseal.yaml"),
+        "injections:\n  - type: env\n    vars:\n      PICKED: yaml\n",
+    )
+    .expect("yaml profile should be written");
+
+    let output = bin()
+        .current_dir(&cwd)
+        .args(["bash", "--", "-lc", "printf '%s' \"$PICKED\""])
+        .output()
+        .expect("runseal should run");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout, "toml");
+}
+
+#[test]
+fn missing_profile_paths() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let cwd = temp.path().join("work");
+    let home = temp.path().join("home");
+    std::fs::create_dir_all(&cwd).expect("cwd should be created");
+
+    let output = bin()
+        .current_dir(&cwd)
+        .env("RUNSEAL_HOME", &home)
+        .args(["bash", "--", "-lc", "true"])
+        .output()
+        .expect("runseal should run");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("runseal.toml"));
+    assert!(stderr.contains("default.json"));
 }

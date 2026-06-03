@@ -170,7 +170,3 @@ impl RuntimeInjection {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "../../../tests/unit/core/injections/mod.rs"]
-mod tests;

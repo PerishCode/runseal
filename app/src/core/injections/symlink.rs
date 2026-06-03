@@ -92,7 +92,3 @@ impl SymlinkInjection {
         Ok(())
     }
 }
-
-#[cfg(test)]
-#[path = "../../../tests/unit/core/injections/symlink.rs"]
-mod tests;

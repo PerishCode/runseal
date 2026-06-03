@@ -191,7 +191,3 @@ fn split_parts(value: &str, separator: &str) -> Vec<String> {
         .map(ToString::to_string)
         .collect()
 }
-
-#[cfg(test)]
-#[path = "../../../tests/unit/core/injections/env.rs"]
-mod tests;

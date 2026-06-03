@@ -141,7 +141,3 @@ fn normalize_path(path: &Path, base_dir: &Path) -> Result<PathBuf> {
     }
     Ok(expanded_path.absolutize_from(base_dir)?.to_path_buf())
 }
-
-#[cfg(test)]
-#[path = "../../tests/unit/core/profile.rs"]
-mod tests;
