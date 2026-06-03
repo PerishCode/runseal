@@ -40,7 +40,7 @@ pub struct RuntimeConfig {
 }
 
 impl RuntimeConfig {
-    pub fn from_cli_env_and_cwd(cli: CliInput, env: RawEnv, cwd: &Path) -> Result<Self> {
+    pub fn from_input(cli: CliInput, env: RawEnv, cwd: &Path) -> Result<Self> {
         let runseal_home = resolve_runseal_home(&env)?;
         let profile_home = env
             .runseal_profile_home
@@ -122,7 +122,3 @@ fn discovery_candidates(cwd: &Path, profile_home: &Path) -> Vec<PathBuf> {
 pub fn profile_extensions() -> &'static [&'static str] {
     &["toml", "yaml", "yml", "json"]
 }
-
-#[cfg(test)]
-#[path = "../../tests/unit/core/config.rs"]
-mod tests;

@@ -41,7 +41,7 @@ fn main() -> Result<()> {
 
 fn build_runtime_config(cli: Cli) -> Result<RuntimeConfig> {
     let cwd = std::env::current_dir().context("failed to read current directory")?;
-    RuntimeConfig::from_cli_env_and_cwd(
+    RuntimeConfig::from_input(
         CliInput {
             profile: cli.profile,
             command: normalize_command(cli.command),

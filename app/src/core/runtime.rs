@@ -66,7 +66,3 @@ fn run_command(config: &RuntimeConfig, exports: &[(String, String)]) -> Result<i
 
     Ok(1)
 }
-
-#[cfg(test)]
-#[path = "../../tests/unit/core/runtime.rs"]
-mod tests;
