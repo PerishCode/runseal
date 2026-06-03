@@ -42,10 +42,11 @@ impl EnvInjection {
                     ..
                 } => {
                     validate_key_value(key, value)?;
-                    if let Some(sep) = separator {
-                        if sep != "os" && sep.is_empty() {
-                            bail!("separator must not be empty");
-                        }
+                    if let Some(sep) = separator
+                        && sep != "os"
+                        && sep.is_empty()
+                    {
+                        bail!("separator must not be empty");
                     }
                 }
                 EnvOpProfile::Unset { key } => {

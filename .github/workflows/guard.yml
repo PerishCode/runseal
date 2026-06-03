@@ -1,0 +1,59 @@
+name: guard
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guard-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: guard (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked --workspace
+
+      - name: Install Flavor
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          curl -fsSL https://releases.flavor.perish.uk/install.sh -o "$RUNNER_TEMP/install-flavor.sh"
+          sh "$RUNNER_TEMP/install-flavor.sh" install --bin-dir "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Flavor
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $binDir = Join-Path $env:USERPROFILE '.local\bin'
+          Invoke-WebRequest -Uri https://releases.flavor.perish.uk/install.ps1 -OutFile (Join-Path $env:RUNNER_TEMP 'install-flavor.ps1')
+          & (Join-Path $env:RUNNER_TEMP 'install-flavor.ps1') install --bin-dir $binDir
+          $binDir | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Flavor self-check
+        run: flavor check --root . --config flavor.json

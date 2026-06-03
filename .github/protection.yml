@@ -7,4 +7,6 @@ ruleset:
   deletion: false
   force_push: false
   required_checks:
-    - build
+    - guard (ubuntu-latest)
+    - guard (windows-latest)
+    - guard (macos-latest)
