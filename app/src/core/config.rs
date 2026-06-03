@@ -20,13 +20,13 @@ impl RawEnv {
         Self {
             home: std::env::var_os("HOME")
                 .map(PathBuf::from)
-                .filter(non_empty_path),
+                .filter(|path| non_empty_path(path)),
             runseal_home: std::env::var_os("RUNSEAL_HOME")
                 .map(PathBuf::from)
-                .filter(non_empty_path),
+                .filter(|path| non_empty_path(path)),
             runseal_profile_home: std::env::var_os("RUNSEAL_PROFILE_HOME")
                 .map(PathBuf::from)
-                .filter(non_empty_path),
+                .filter(|path| non_empty_path(path)),
         }
     }
 }
@@ -44,7 +44,7 @@ impl RuntimeConfig {
         let runseal_home = resolve_runseal_home(&env)?;
         let profile_home = env
             .runseal_profile_home
-            .filter(non_empty_path)
+            .filter(|path| non_empty_path(path))
             .unwrap_or_else(|| runseal_home.join("profiles"));
         let profile_path = resolve_profile_path(cli.profile, cwd, &profile_home)?;
 
@@ -60,17 +60,17 @@ impl RuntimeConfig {
 pub fn resolve_runseal_home(env: &RawEnv) -> Result<PathBuf> {
     env.runseal_home
         .clone()
-        .filter(non_empty_path)
+        .filter(|path| non_empty_path(path))
         .or_else(|| {
             env.home
                 .clone()
-                .filter(non_empty_path)
+                .filter(|path| non_empty_path(path))
                 .map(|home| home.join(".runseal"))
         })
         .ok_or_else(|| anyhow::anyhow!("HOME is not set; pass --profile or set RUNSEAL_HOME"))
 }
 
-fn non_empty_path(path: &PathBuf) -> bool {
+fn non_empty_path(path: &Path) -> bool {
     !path.as_os_str().is_empty()
 }
 

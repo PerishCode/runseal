@@ -6,6 +6,48 @@ fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_runseal"))
 }
 
+#[cfg(unix)]
+fn shell_args(script: &str) -> Vec<String> {
+    vec!["bash".into(), "--".into(), "-lc".into(), script.into()]
+}
+
+#[cfg(windows)]
+fn shell_args(script: &str) -> Vec<String> {
+    vec![
+        "pwsh".into(),
+        "--".into(),
+        "-NoProfile".into(),
+        "-Command".into(),
+        script.into(),
+    ]
+}
+
+#[cfg(unix)]
+fn print_env_script(key: &str) -> String {
+    format!("printf '%s' \"${key}\"")
+}
+
+#[cfg(windows)]
+fn print_env_script(key: &str) -> String {
+    format!("[Console]::Write($env:{key})")
+}
+
+#[cfg(unix)]
+fn explicit_profile_script() -> String {
+    "printf '%s|%s' \"$RUNSEAL_TEST_VALUE\" \"$(basename \"$RUNSEAL_PROFILE_PATH\")\"".into()
+}
+
+#[cfg(windows)]
+fn explicit_profile_script() -> String {
+    "[Console]::Write(\"$env:RUNSEAL_TEST_VALUE|$(Split-Path -Leaf $env:RUNSEAL_PROFILE_PATH)\")"
+        .into()
+}
+
+#[cfg(unix)]
+fn symlink_check_script(path: &std::path::Path) -> String {
+    format!("test -L {}", path.display())
+}
+
 #[test]
 fn help_without_command() {
     let output = bin().output().expect("runseal should run");
@@ -33,14 +75,10 @@ RUNSEAL_TEST_VALUE = "from-toml"
     .expect("profile should be written");
 
     let output = bin()
-        .args([
-            "--profile",
-            profile.to_str().expect("path should be UTF-8"),
-            "bash",
-            "--",
-            "-lc",
-            "printf '%s|%s' \"$RUNSEAL_TEST_VALUE\" \"$(basename \"$RUNSEAL_PROFILE_PATH\")\"",
-        ])
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .arg("--profile")
+        .arg(profile.to_str().expect("path should be UTF-8"))
+        .args(shell_args(&explicit_profile_script()))
         .output()
         .expect("runseal should run");
 
@@ -71,7 +109,7 @@ fn cwd_beats_home() {
     let output = bin()
         .current_dir(&cwd)
         .env("RUNSEAL_HOME", &runseal_home)
-        .args(["bash", "--", "-lc", "printf '%s' \"$PICKED\""])
+        .args(shell_args(&print_env_script("PICKED")))
         .output()
         .expect("runseal should run");
 
@@ -80,6 +118,7 @@ fn cwd_beats_home() {
     assert_eq!(stdout, "cwd");
 }
 
+#[cfg(unix)]
 #[test]
 fn symlink_lifecycle() {
     let temp = TempDir::new().expect("temp dir should be created");
@@ -107,14 +146,10 @@ fn symlink_lifecycle() {
     .expect("profile should be written");
 
     let output = bin()
-        .args([
-            "--profile",
-            profile.to_str().expect("path should be UTF-8"),
-            "bash",
-            "--",
-            "-lc",
-            &format!("test -L {}", target.display()),
-        ])
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .arg("--profile")
+        .arg(profile.to_str().expect("path should be UTF-8"))
+        .args(shell_args(&symlink_check_script(&target)))
         .output()
         .expect("runseal should run");
 
@@ -129,14 +164,10 @@ fn child_exit_code() {
     std::fs::write(&profile, r#"{"injections":[]}"#).expect("profile should be written");
 
     let output = bin()
-        .args([
-            "--profile",
-            profile.to_str().expect("path should be UTF-8"),
-            "bash",
-            "--",
-            "-lc",
-            "exit 17",
-        ])
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .arg("--profile")
+        .arg(profile.to_str().expect("path should be UTF-8"))
+        .args(shell_args("exit 17"))
         .output()
         .expect("runseal should run");
 
@@ -161,7 +192,8 @@ fn toml_beats_yaml() {
 
     let output = bin()
         .current_dir(&cwd)
-        .args(["bash", "--", "-lc", "printf '%s' \"$PICKED\""])
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .args(shell_args(&print_env_script("PICKED")))
         .output()
         .expect("runseal should run");
 
@@ -180,7 +212,7 @@ fn missing_profile_paths() {
     let output = bin()
         .current_dir(&cwd)
         .env("RUNSEAL_HOME", &home)
-        .args(["bash", "--", "-lc", "true"])
+        .args(shell_args("true"))
         .output()
         .expect("runseal should run");
 
