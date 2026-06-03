@@ -48,6 +48,19 @@ fn symlink_check_script(path: &std::path::Path) -> String {
     format!("test -L {}", path.display())
 }
 
+#[cfg(unix)]
+fn make_probe(path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    std::fs::write(path, "#!/usr/bin/env sh\nprintf '%s|' \"$@\"\n")
+        .expect("probe should be written");
+    let mut permissions = std::fs::metadata(path)
+        .expect("probe metadata should be readable")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(path, permissions).expect("probe should be executable");
+}
+
 #[test]
 fn help_without_command() {
     let output = bin().output().expect("runseal should run");
@@ -155,6 +168,51 @@ fn symlink_lifecycle() {
 
     assert!(output.status.success());
     assert!(!target.exists(), "symlink should be cleaned after command");
+}
+
+#[cfg(unix)]
+#[test]
+fn argv_injection_prefixes_command() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let bin_dir = temp.path().join("bin");
+    let profile = temp.path().join("profile.toml");
+    std::fs::create_dir_all(&bin_dir).expect("bin dir should be created");
+    make_probe(&bin_dir.join("probe"));
+    std::fs::write(
+        &profile,
+        format!(
+            r#"
+[[injections]]
+type = "env"
+
+[[injections.ops]]
+op = "prepend"
+key = "PATH"
+value = "{}"
+separator = "os"
+dedup = true
+
+[[injections]]
+type = "argv"
+command = "probe"
+args = ["-F", ".local/ssh/config"]
+"#,
+            bin_dir.display()
+        ),
+    )
+    .expect("profile should be written");
+
+    let output = bin()
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .arg("--profile")
+        .arg(profile.to_str().expect("path should be UTF-8"))
+        .args(["probe", "20m.us.zxi"])
+        .output()
+        .expect("runseal should run");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout, "-F|.local/ssh/config|20m.us.zxi|");
 }
 
 #[test]

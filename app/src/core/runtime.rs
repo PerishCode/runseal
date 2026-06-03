@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use super::app::AppContext;
 use super::config::RuntimeConfig;
 use super::env_key::is_valid_env_key;
+use super::profile::InjectionProfile;
 use super::{injections, profile};
 
 pub struct RunResult {
@@ -14,15 +15,53 @@ pub struct RunResult {
 pub fn run(app: &dyn AppContext) -> Result<RunResult> {
     let config = app.config();
     let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
+    let command = apply_argv_injections(&config.command, &profile.injections)?;
     let run_result = injections::with_registered_exports(app, profile.injections, |exports| {
         let env = to_env_map(exports.to_vec())?;
         let run_exports: Vec<(String, String)> = env.into_iter().collect();
-        let code = run_command(config, &run_exports)?;
+        let code = run_command(config, &command, &run_exports)?;
         Ok(RunResult {
             exit_code: Some(code),
         })
     })?;
     Ok(run_result)
+}
+
+fn apply_argv_injections(
+    command: &[String],
+    injections: &[InjectionProfile],
+) -> Result<Vec<String>> {
+    if command.is_empty() {
+        bail!("command mode requires at least one command token");
+    }
+
+    let mut prefix_args = Vec::new();
+    for injection in injections {
+        let InjectionProfile::Argv(spec) = injection else {
+            continue;
+        };
+        if !spec.enabled {
+            continue;
+        }
+        if spec.command.trim().is_empty() {
+            bail!("argv command must not be empty");
+        }
+        if spec.args.is_empty() {
+            bail!("argv args must not be empty");
+        }
+        if spec.command == command[0] {
+            prefix_args.extend(spec.args.clone());
+        }
+    }
+    if prefix_args.is_empty() {
+        return Ok(command.to_vec());
+    }
+
+    let mut rewritten = Vec::with_capacity(command.len() + prefix_args.len());
+    rewritten.push(command[0].clone());
+    rewritten.extend(prefix_args);
+    rewritten.extend_from_slice(&command[1..]);
+    Ok(rewritten)
 }
 
 fn to_env_map(exports: Vec<(String, String)>) -> Result<BTreeMap<String, String>> {
@@ -36,8 +75,11 @@ fn to_env_map(exports: Vec<(String, String)>) -> Result<BTreeMap<String, String>
     Ok(env)
 }
 
-fn run_command(config: &RuntimeConfig, exports: &[(String, String)]) -> Result<i32> {
-    let command = &config.command;
+fn run_command(
+    config: &RuntimeConfig,
+    command: &[String],
+    exports: &[(String, String)],
+) -> Result<i32> {
     if command.is_empty() {
         bail!("command mode requires at least one command token");
     }

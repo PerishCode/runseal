@@ -2,10 +2,11 @@
 
 Run a command inside a small, explicit profile.
 
-`runseal` currently supports two profile capabilities:
+`runseal` currently supports three profile capabilities:
 
 - `env`: export environment variables and ordered env operations.
 - `symlink`: create symlinks for the command lifecycle, then clean them up.
+- `argv`: inject fixed arguments after a matching child command token.
 
 ## Usage
 
@@ -59,6 +60,11 @@ source = "./tool"
 target = "./.runseal-bin/tool"
 on_exist = "replace"
 cleanup = true
+
+[[injections]]
+type = "argv"
+command = "ssh"
+args = ["-F", ".local/ssh/config"]
 ```
 
 ## Validation

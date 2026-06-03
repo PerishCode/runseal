@@ -5,7 +5,7 @@
 Small CLI. Explicit profile. No hidden orchestration.
 
 - Keep the Rust core thin and concrete.
-- Support only `env` and `symlink` profile injections unless a new product decision explicitly expands the surface.
+- Support only `env`, `symlink`, and fixed-prefix `argv` profile injections unless a new product decision explicitly expands the surface.
 - Use mature CLI parsing through `clap`; do not hand-roll argument parsing.
 - Treat `RUNSEAL_HOME` as the runseal configuration root.
 - Treat `RUNSEAL_PROFILE_HOME` as the profile directory, defaulting to `<RUNSEAL_HOME>/profiles`.

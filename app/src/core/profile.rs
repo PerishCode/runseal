@@ -26,6 +26,7 @@ pub struct Profile {
 pub enum InjectionProfile {
     Env(EnvProfile),
     Symlink(SymlinkProfile),
+    Argv(ArgvProfile),
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -92,6 +93,14 @@ pub struct SymlinkProfile {
     pub on_exist: SymlinkOnExist,
     #[serde(default = "default_cleanup")]
     pub cleanup: bool,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ArgvProfile {
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    pub command: String,
+    pub args: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, Default)]
