@@ -126,6 +126,7 @@ fn cwd_beats_home() {
     assert_eq!(stdout, "cwd");
 }
 
+#[cfg(unix)]
 #[test]
 fn symlink_lifecycle() {
     let temp = TempDir::new().expect("temp dir should be created");
