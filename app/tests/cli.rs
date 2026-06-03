@@ -83,6 +83,7 @@ RUNSEAL_TEST_VALUE = "from-toml"
     .expect("profile should be written");
 
     let output = bin()
+        .env("RUNSEAL_HOME", temp.path().join("home"))
         .arg("--profile")
         .arg(profile.to_str().expect("path should be UTF-8"))
         .args(shell_args(&explicit_profile_script()))
@@ -152,6 +153,7 @@ fn symlink_lifecycle() {
     .expect("profile should be written");
 
     let output = bin()
+        .env("RUNSEAL_HOME", temp.path().join("home"))
         .arg("--profile")
         .arg(profile.to_str().expect("path should be UTF-8"))
         .args(shell_args(&symlink_check_script(&target)))
@@ -169,6 +171,7 @@ fn child_exit_code() {
     std::fs::write(&profile, r#"{"injections":[]}"#).expect("profile should be written");
 
     let output = bin()
+        .env("RUNSEAL_HOME", temp.path().join("home"))
         .arg("--profile")
         .arg(profile.to_str().expect("path should be UTF-8"))
         .args(shell_args("exit 17"))
@@ -196,6 +199,7 @@ fn toml_beats_yaml() {
 
     let output = bin()
         .current_dir(&cwd)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
         .args(shell_args(&print_env_script("PICKED")))
         .output()
         .expect("runseal should run");
