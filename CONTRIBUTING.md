@@ -1,24 +1,15 @@
 # Contributing
 
-Thanks for helping improve runseal.
+Keep changes aligned with the current 0.1.0 surface:
 
-## Before you start
+- `env` injection
+- `symlink` injection
+- profile discovery through `--profile`, cwd `runseal.*`, and `RUNSEAL_PROFILE_HOME/default.*`
+- command execution through `runseal [--profile <path>] <command> -- <args>`
 
-- Open an issue or discussion for significant changes before investing heavily.
-- Keep pull requests focused and small when possible.
-- Include tests or docs updates when they are part of the change.
-
-## Local checks
-
-Run the checks that match the area you changed:
+Run local checks before sending changes:
 
 ```bash
 cargo fmt --check
 cargo test
-pnpm run docs:build
 ```
-
-## Security reports
-
-Please report suspected vulnerabilities privately as described in
-`SECURITY.md`, not in public issues.

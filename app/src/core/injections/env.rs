@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
-use std::path::Path;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 
 use crate::core::app::AppContext;
 use crate::core::profile::{EnvOpProfile, EnvProfile};
@@ -64,14 +63,13 @@ impl EnvInjection {
     }
 
     pub(crate) fn export(&self, app: &dyn AppContext) -> Result<Vec<(String, String)>> {
-        let resource_home = &app.config().resource_home;
         let mut env: BTreeMap<String, String> = self
             .cfg
             .vars
             .iter()
-            .map(|(k, v)| Ok((k.clone(), resolve_resource_refs(v, resource_home)?)))
-            .collect::<Result<_>>()?;
-        apply_ops(app, &mut env, &self.cfg.ops, resource_home)?;
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        apply_ops(app, &mut env, &self.cfg.ops)?;
         Ok(env.into_iter().collect())
     }
 
@@ -94,16 +92,15 @@ fn apply_ops(
     app: &dyn AppContext,
     env: &mut BTreeMap<String, String>,
     ops: &[EnvOpProfile],
-    resource_home: &Path,
 ) -> Result<()> {
     for op in ops {
         match op {
             EnvOpProfile::Set { key, value } => {
-                env.insert(key.clone(), resolve_resource_refs(value, resource_home)?);
+                env.insert(key.clone(), value.clone());
             }
             EnvOpProfile::SetIfAbsent { key, value } => {
                 if !env.contains_key(key) && app.env().var(key).is_none() {
-                    env.insert(key.clone(), resolve_resource_refs(value, resource_home)?);
+                    env.insert(key.clone(), value.clone());
                 }
             }
             EnvOpProfile::Prepend {
@@ -112,8 +109,7 @@ fn apply_ops(
                 separator,
                 dedup,
             } => {
-                let merged =
-                    merge_env_op(app, env, key, value, separator, *dedup, true, resource_home)?;
+                let merged = merge_env_op(app, env, key, value, separator, *dedup, true);
                 env.insert(key.clone(), merged);
             }
             EnvOpProfile::Append {
@@ -122,16 +118,7 @@ fn apply_ops(
                 separator,
                 dedup,
             } => {
-                let merged = merge_env_op(
-                    app,
-                    env,
-                    key,
-                    value,
-                    separator,
-                    *dedup,
-                    false,
-                    resource_home,
-                )?;
+                let merged = merge_env_op(app, env, key, value, separator, *dedup, false);
                 env.insert(key.clone(), merged);
             }
             EnvOpProfile::Unset { key } => {
@@ -150,21 +137,18 @@ fn merge_env_op(
     separator: &Option<String>,
     dedup: bool,
     prepend: bool,
-    resource_home: &Path,
-) -> Result<String> {
+) -> String {
     let sep = separator_value(separator);
     let base = env
         .get(key)
         .cloned()
         .or_else(|| app.env().var(key))
         .unwrap_or_default();
-    let resolved = resolve_resource_refs(value, resource_home)?;
-    let merged = if prepend {
-        merge_values(&resolved, &base, sep, dedup)
+    if prepend {
+        merge_values(value, &base, sep, dedup)
     } else {
-        merge_values(&base, &resolved, sep, dedup)
-    };
-    Ok(merged)
+        merge_values(&base, value, sep, dedup)
+    }
 }
 
 fn separator_value(separator: &Option<String>) -> &str {
@@ -206,67 +190,6 @@ fn split_parts(value: &str, separator: &str) -> Vec<String> {
         .filter(|part| !part.is_empty())
         .map(ToString::to_string)
         .collect()
-}
-
-const RESOURCE_URI_PREFIX: &str = "resource://";
-const RESOURCE_CONTENT_URI_PREFIX: &str = "resource-content://";
-
-fn resolve_resource_refs(value: &str, resource_home: &Path) -> Result<String> {
-    let mut out = String::new();
-    let mut rest = value;
-
-    while let Some((idx, prefix)) = find_next_resource_prefix(rest) {
-        out.push_str(&rest[..idx]);
-        let token_start = idx + prefix.len();
-        let after = &rest[token_start..];
-        let token_end = after
-            .char_indices()
-            .find(|(_, c)| is_resource_token_delimiter(*c))
-            .map(|(i, _)| i)
-            .unwrap_or(after.len());
-        let rel = &after[..token_end];
-        if rel.is_empty() {
-            out.push_str(prefix);
-        } else {
-            let abs = resource_home.join(rel);
-            if prefix == RESOURCE_CONTENT_URI_PREFIX {
-                let content = std::fs::read_to_string(&abs).with_context(|| {
-                    format!("failed to read resource content: {}", abs.display())
-                })?;
-                out.push_str(&content);
-            } else {
-                out.push_str(&abs.to_string_lossy());
-            }
-        }
-        rest = &after[token_end..];
-    }
-    out.push_str(rest);
-    Ok(out)
-}
-
-fn find_next_resource_prefix(input: &str) -> Option<(usize, &'static str)> {
-    let file_idx = input.find(RESOURCE_URI_PREFIX);
-    let content_idx = input.find(RESOURCE_CONTENT_URI_PREFIX);
-
-    match (file_idx, content_idx) {
-        (Some(a), Some(b)) => {
-            if a <= b {
-                Some((a, RESOURCE_URI_PREFIX))
-            } else {
-                Some((b, RESOURCE_CONTENT_URI_PREFIX))
-            }
-        }
-        (Some(a), None) => Some((a, RESOURCE_URI_PREFIX)),
-        (None, Some(b)) => Some((b, RESOURCE_CONTENT_URI_PREFIX)),
-        (None, None) => None,
-    }
-}
-
-fn is_resource_token_delimiter(c: char) -> bool {
-    matches!(
-        c,
-        ':' | ';' | ',' | '"' | '\'' | '(' | ')' | '[' | ']' | '{' | '}' | ' ' | '\t' | '\r' | '\n'
-    )
 }
 
 #[cfg(test)]

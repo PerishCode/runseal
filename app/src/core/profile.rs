@@ -25,7 +25,6 @@ pub struct Profile {
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum InjectionProfile {
     Env(EnvProfile),
-    Command(CommandProfile),
     Symlink(SymlinkProfile),
 }
 
@@ -37,15 +36,6 @@ pub struct EnvProfile {
     pub vars: BTreeMap<String, String>,
     #[serde(default)]
     pub ops: Vec<EnvOpProfile>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct CommandProfile {
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
-    pub program: String,
-    #[serde(default)]
-    pub args: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -115,8 +105,18 @@ pub enum SymlinkOnExist {
 pub fn load(path: &Path) -> Result<Profile> {
     let raw = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read profile file: {}", path.display()))?;
-    let mut profile: Profile = serde_json::from_str(&raw)
-        .with_context(|| format!("failed to parse JSON: {}", path.display()))?;
+    let mut profile: Profile = match path.extension().and_then(|ext| ext.to_str()) {
+        Some("toml") => toml::from_str(&raw)
+            .with_context(|| format!("failed to parse TOML: {}", path.display()))?,
+        Some("yaml") | Some("yml") => yaml_serde::from_str(&raw)
+            .with_context(|| format!("failed to parse YAML: {}", path.display()))?,
+        Some("json") => serde_json::from_str(&raw)
+            .with_context(|| format!("failed to parse JSON: {}", path.display()))?,
+        _ => anyhow::bail!(
+            "unsupported profile format: {} (expected .toml, .yaml, .yml, or .json)",
+            path.display()
+        ),
+    };
     normalize_symlink_paths(path, &mut profile)?;
     Ok(profile)
 }
