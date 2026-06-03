@@ -72,7 +72,7 @@ impl SymlinkInjection {
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::os::unix::fs::symlink(source, target)?;
+        create_symlink(source, target)?;
         Ok(())
     }
 
@@ -90,5 +90,19 @@ impl SymlinkInjection {
         }
         std::fs::remove_file(target)?;
         Ok(())
+    }
+}
+
+#[cfg(unix)]
+fn create_symlink(source: &Path, target: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(source, target)
+}
+
+#[cfg(windows)]
+fn create_symlink(source: &Path, target: &Path) -> std::io::Result<()> {
+    if source.is_dir() {
+        std::os::windows::fs::symlink_dir(source, target)
+    } else {
+        std::os::windows::fs::symlink_file(source, target)
     }
 }
