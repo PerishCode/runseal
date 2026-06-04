@@ -221,6 +221,12 @@ injections:
 
 ## Validation
 
+Initialize local development hooks:
+
+```bash
+python3 scripts/init.py
+```
+
 ```bash
 cargo fmt --check
 cargo test
