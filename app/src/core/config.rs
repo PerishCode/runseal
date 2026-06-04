@@ -42,11 +42,12 @@ pub struct RuntimeConfig {
 
 impl RuntimeConfig {
     pub fn from_input(cli: CliInput, env: RawEnv, cwd: &Path) -> Result<Self> {
-        let runseal_home = resolve_runseal_home(&env)?;
+        let runseal_home = absolute_path(&resolve_runseal_home(&env)?, cwd, "RUNSEAL_HOME")?;
         let profile_home = env
             .runseal_profile_home
             .filter(|path| non_empty_path(path))
             .unwrap_or_else(|| runseal_home.join("profiles"));
+        let profile_home = absolute_path(&profile_home, cwd, "RUNSEAL_PROFILE_HOME")?;
         let profile_path = resolve_profile_path(cli.profile, cwd, &profile_home)?;
 
         Ok(Self {
@@ -105,7 +106,12 @@ fn resolve_profile_path(
         .map(|path| format!("- {}", path.display()))
         .collect::<Vec<_>>()
         .join("\n");
-    bail!("profile file not found. searched:\n{searched}")
+    bail!(
+        "no runseal profile found from {} upward and no default profile under {}.\nHint: create runseal.toml here, pass --profile <path>, or add {}/default.toml.\nSearched:\n{searched}",
+        cwd.display(),
+        profile_home.display(),
+        profile_home.display()
+    )
 }
 
 fn discovery_candidates(cwd: &Path, profile_home: &Path) -> Vec<PathBuf> {
@@ -128,6 +134,17 @@ fn discovery_candidates(cwd: &Path, profile_home: &Path) -> Vec<PathBuf> {
 fn absolute_file(path: &Path) -> Result<PathBuf> {
     path.absolutize()
         .with_context(|| format!("failed to absolutize profile file: {}", path.display()))
+        .map(|path| path.to_path_buf())
+}
+
+fn absolute_path(path: &Path, cwd: &Path, name: &str) -> Result<PathBuf> {
+    let path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    };
+    path.absolutize()
+        .with_context(|| format!("failed to absolutize {name}: {}", path.display()))
         .map(|path| path.to_path_buf())
 }
 

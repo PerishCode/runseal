@@ -112,6 +112,11 @@ command = "ssh"
 args = ["-F", ".local/ssh/config"]
 ```
 
+Lifecycle symlink targets are single-owner. Do not run concurrent `runseal`
+invocations that manage the same `target` with `cleanup = true`; one process can
+replace or remove the link while another still expects to own it. Use distinct
+targets when commands need to run in parallel under the same profile.
+
 `resource://path/to/file` is a profile-only path literal. A profile that uses
 resource URIs must declare:
 

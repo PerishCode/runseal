@@ -2,6 +2,6 @@ pub mod app;
 pub mod config;
 pub(crate) mod env_key;
 pub mod injections;
-mod internal_help;
+pub mod internal_help;
 pub mod profile;
 pub mod runtime;

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 
 use crate::core::profile::{SymlinkOnExist, SymlinkProfile};
 
@@ -62,7 +62,8 @@ impl SymlinkInjection {
                     if meta.file_type().is_dir() {
                         bail!("refusing to replace directory target: {}", target.display());
                     }
-                    std::fs::remove_file(target)?;
+                    std::fs::remove_file(target)
+                        .with_context(|| shared_target_context("replace", target))?;
                 }
             },
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
@@ -70,27 +71,39 @@ impl SymlinkInjection {
         }
 
         if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!("failed to create symlink parent: {}", parent.display())
+            })?;
         }
-        create_symlink(source, target)?;
+        create_symlink(source, target).with_context(|| shared_target_context("create", target))?;
         Ok(())
     }
 
     fn shutdown_at(&self, target: &Path, source: &Path) -> Result<()> {
-        let metadata = std::fs::symlink_metadata(target)?;
+        let metadata = std::fs::symlink_metadata(target)
+            .with_context(|| shared_target_context("inspect during shutdown", target))?;
         if !metadata.file_type().is_symlink() {
             bail!("refusing to remove non-symlink at {}", target.display());
         }
-        let link_target = std::fs::read_link(target)?;
+        let link_target = std::fs::read_link(target)
+            .with_context(|| shared_target_context("read during shutdown", target))?;
         if link_target != source {
             bail!(
                 "refusing to remove symlink with unexpected target: {}",
                 target.display()
             );
         }
-        std::fs::remove_file(target)?;
+        std::fs::remove_file(target)
+            .with_context(|| shared_target_context("remove during shutdown", target))?;
         Ok(())
     }
+}
+
+fn shared_target_context(action: &str, target: &Path) -> String {
+    format!(
+        "failed to {action} symlink target {}; lifecycle symlink targets are single-owner and may already be managed by another concurrent runseal process",
+        target.display()
+    )
 }
 
 #[cfg(unix)]
