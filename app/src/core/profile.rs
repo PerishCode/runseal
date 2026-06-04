@@ -23,6 +23,12 @@ pub struct Profile {
     pub injections: Vec<InjectionProfile>,
 }
 
+#[derive(Debug, Deserialize)]
+struct ResourceMetadata {
+    #[serde(default)]
+    resources: Option<ResourcesProfile>,
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct ResourcesProfile {
     pub root: PathBuf,
@@ -139,6 +145,24 @@ pub fn load(path: &Path) -> Result<Profile> {
     Ok(profile)
 }
 
+pub fn load_resources(path: &Path) -> Result<Option<ResourcesProfile>> {
+    let raw = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read profile file: {}", path.display()))?;
+    let metadata: ResourceMetadata = match path.extension().and_then(|ext| ext.to_str()) {
+        Some("toml") => toml::from_str(&raw)
+            .with_context(|| format!("failed to parse TOML: {}", path.display()))?,
+        Some("yaml") | Some("yml") => yaml_serde::from_str(&raw)
+            .with_context(|| format!("failed to parse YAML: {}", path.display()))?,
+        Some("json") => serde_json::from_str(&raw)
+            .with_context(|| format!("failed to parse JSON: {}", path.display()))?,
+        _ => anyhow::bail!(
+            "unsupported profile format: {} (expected .toml, .yaml, .yml, or .json)",
+            path.display()
+        ),
+    };
+    Ok(metadata.resources)
+}
+
 pub fn resolve_resource_uri(
     profile_path: &Path,
     resources: Option<&ResourcesProfile>,
@@ -156,10 +180,17 @@ pub fn resolve_resource_root(
     profile_path: &Path,
     resources: Option<&ResourcesProfile>,
 ) -> Result<PathBuf> {
-    let resources = resources
-        .ok_or_else(|| anyhow::anyhow!("resource root is not configured; add [resources] root"))?;
+    let resources = resources.ok_or_else(|| {
+        anyhow::anyhow!(
+            "resource root is not configured in {}; add [resources] root = \".local\"",
+            profile_path.display()
+        )
+    })?;
     if resources.root.as_os_str().is_empty() {
-        anyhow::bail!("resources.root must not be empty");
+        anyhow::bail!(
+            "resources.root must not be empty in {}",
+            profile_path.display()
+        );
     }
     normalize_path(
         &resources.root,
