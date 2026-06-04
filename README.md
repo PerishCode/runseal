@@ -2,11 +2,18 @@
 
 Run a command inside a small, explicit profile.
 
-`runseal` currently supports three profile capabilities:
+`runseal` currently supports three profile capabilities plus explicit wrapper
+and internal command namespaces:
 
 - `env`: export environment variables and ordered env operations.
 - `symlink`: create symlinks for the command lifecycle, then clean them up.
 - `argv`: inject fixed arguments after a matching child command token.
+
+Command routing is based on the first command token:
+
+- `runseal <cmd>` runs an external command inside the profile.
+- `runseal :<cmd>` runs a profile wrapper.
+- `runseal @<cmd>` runs a read-only runseal internal command.
 
 ## Usage
 
@@ -90,6 +97,25 @@ The child working directory is not changed. A resolved wrapper receives:
 
 On Windows, runseal also checks `.exe`, `.cmd`, and `.bat` when the wrapper
 name has no extension. On Unix, the wrapper file must be executable.
+
+## Internal Commands
+
+If the command token starts with `@`, runseal resolves it as a runseal internal
+command instead of a literal program name:
+
+```bash
+runseal @profile
+runseal @wrappers
+runseal @which :ssh-run
+```
+
+Internal commands are read-only and do not run profile injections.
+
+- `@profile` prints the resolved runseal runtime paths.
+- `@wrappers` lists the effective wrappers visible to the current profile.
+- `@which :<name>` prints the wrapper file that `:<name>` resolves to.
+
+Use `runseal profile` without `@` to run an external command named `profile`.
 
 ## Validation
 

@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     env,
     path::{Path, PathBuf},
     process::Command,
@@ -17,6 +17,12 @@ pub struct RunResult {
     pub exit_code: Option<i32>,
 }
 
+enum InternalCommand {
+    Profile,
+    Wrappers,
+    WhichWrapper(String),
+}
+
 struct ResolvedCommand {
     argv: Vec<String>,
     wrapper: Option<ResolvedWrapper>,
@@ -29,6 +35,11 @@ struct ResolvedWrapper {
 
 pub fn run(app: &dyn AppContext) -> Result<RunResult> {
     let config = app.config();
+    if let Some(command) = resolve_internal_dispatch(config)? {
+        run_internal(config, command)?;
+        return Ok(RunResult { exit_code: Some(0) });
+    }
+
     let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
     let command = resolve_command(config, &profile.injections)?;
     let run_result = injections::with_registered_exports(app, profile.injections, |exports| {
@@ -40,6 +51,16 @@ pub fn run(app: &dyn AppContext) -> Result<RunResult> {
         })
     })?;
     Ok(run_result)
+}
+
+fn resolve_internal_dispatch(config: &RuntimeConfig) -> Result<Option<InternalCommand>> {
+    if config.command.is_empty() {
+        bail!("command mode requires at least one command token");
+    }
+    let Some(name) = internal_name(&config.command[0])? else {
+        return Ok(None);
+    };
+    Ok(Some(resolve_internal_command(&name, &config.command[1..])?))
 }
 
 fn resolve_command(
@@ -66,6 +87,45 @@ fn resolve_command(
     })
 }
 
+fn internal_name(token: &str) -> Result<Option<String>> {
+    let Some(name) = token.strip_prefix('@') else {
+        return Ok(None);
+    };
+    if name.is_empty() {
+        bail!("internal command name must not be empty");
+    }
+    validate_symbol_name(name)
+        .with_context(|| format!("invalid internal command name: @{name}"))?;
+    Ok(Some(name.to_string()))
+}
+
+fn resolve_internal_command(name: &str, args: &[String]) -> Result<InternalCommand> {
+    match name {
+        "profile" => {
+            if !args.is_empty() {
+                bail!("@profile does not accept arguments");
+            }
+            Ok(InternalCommand::Profile)
+        }
+        "wrappers" => {
+            if !args.is_empty() {
+                bail!("@wrappers does not accept arguments");
+            }
+            Ok(InternalCommand::Wrappers)
+        }
+        "which" => {
+            if args.len() != 1 {
+                bail!("@which requires exactly one :wrapper argument");
+            }
+            let Some(name) = wrapper_name(&args[0])? else {
+                bail!("@which currently supports only :wrapper arguments");
+            };
+            Ok(InternalCommand::WhichWrapper(name))
+        }
+        _ => bail!("unknown internal command: @{name}"),
+    }
+}
+
 fn wrapper_name(token: &str) -> Result<Option<String>> {
     let Some(name) = token.strip_prefix(':') else {
         return Ok(None);
@@ -73,23 +133,25 @@ fn wrapper_name(token: &str) -> Result<Option<String>> {
     if name.is_empty() {
         bail!("wrapper name must not be empty");
     }
+    validate_symbol_name(name).with_context(|| format!("invalid wrapper name: :{name}"))?;
+    Ok(Some(name.to_string()))
+}
+
+fn validate_symbol_name(name: &str) -> Result<()> {
     if name == "." || name == ".." {
-        bail!("invalid wrapper name: :{name}");
+        bail!("reserved name");
     }
     if !name
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
     {
-        bail!("invalid wrapper name: :{name}");
+        bail!("expected only ASCII letters, numbers, '.', '_', and '-'");
     }
-    Ok(Some(name.to_string()))
+    Ok(())
 }
 
 fn resolve_wrapper(config: &RuntimeConfig, name: &str) -> Result<PathBuf> {
-    let searched = wrapper_search_dirs(config)
-        .into_iter()
-        .flat_map(|dir| wrapper_candidates(&dir, name))
-        .collect::<Vec<_>>();
+    let searched = wrapper_search_paths(config, name);
 
     for candidate in &searched {
         if wrapper_is_executable(candidate) {
@@ -105,9 +167,18 @@ fn resolve_wrapper(config: &RuntimeConfig, name: &str) -> Result<PathBuf> {
     bail!("wrapper not found: :{name}\nsearched:\n{searched}")
 }
 
+fn wrapper_search_paths(config: &RuntimeConfig, name: &str) -> Vec<PathBuf> {
+    wrapper_search_dirs(config)
+        .into_iter()
+        .flat_map(|dir| wrapper_candidates(&dir, name))
+        .collect()
+}
+
 fn wrapper_search_dirs(config: &RuntimeConfig) -> Vec<PathBuf> {
     vec![
-        profile_root(&config.profile_path).join(".runseal/wrappers"),
+        profile_root(&config.profile_path)
+            .join(".runseal")
+            .join("wrappers"),
         config.runseal_home.join("wrappers"),
     ]
 }
@@ -151,6 +222,115 @@ fn wrapper_is_executable(path: &Path) -> bool {
 #[cfg(windows)]
 fn wrapper_is_executable(path: &Path) -> bool {
     path.is_file()
+}
+
+fn run_internal(config: &RuntimeConfig, command: InternalCommand) -> Result<()> {
+    match command {
+        InternalCommand::Profile => print_profile(config)?,
+        InternalCommand::Wrappers => print_wrappers(config)?,
+        InternalCommand::WhichWrapper(name) => print_which_wrapper(config, &name)?,
+    }
+
+    Ok(())
+}
+
+fn print_profile(config: &RuntimeConfig) -> Result<()> {
+    println!("RUNSEAL_HOME={}", config.runseal_home.display());
+    println!("RUNSEAL_PROFILE_HOME={}", config.profile_home.display());
+    println!("RUNSEAL_PROFILE_PATH={}", config.profile_path.display());
+    println!(
+        "RUNSEAL_WRAPPER_PATH={}",
+        wrapper_path_env(config)?.to_string_lossy()
+    );
+    Ok(())
+}
+
+fn print_wrappers(config: &RuntimeConfig) -> Result<()> {
+    for wrapper in effective_wrappers(config)? {
+        println!(
+            ":{:<20} {}\t{}",
+            wrapper.name,
+            wrapper.source,
+            wrapper.file.display()
+        );
+    }
+    Ok(())
+}
+
+fn print_which_wrapper(config: &RuntimeConfig, name: &str) -> Result<()> {
+    let file = resolve_wrapper(config, name)?;
+    println!("{}", file.display());
+    Ok(())
+}
+
+struct ListedWrapper {
+    name: String,
+    source: &'static str,
+    file: PathBuf,
+}
+
+fn effective_wrappers(config: &RuntimeConfig) -> Result<Vec<ListedWrapper>> {
+    let dirs = wrapper_search_dirs(config);
+    let mut names = BTreeSet::new();
+
+    for dir in &dirs {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue;
+        };
+        for entry in entries {
+            let entry =
+                entry.with_context(|| format!("failed to read wrapper dir: {}", dir.display()))?;
+            let file = entry.path();
+            if !wrapper_is_executable(&file) {
+                continue;
+            }
+            let Some(name) = listed_wrapper_name(&file) else {
+                continue;
+            };
+            names.insert(name);
+        }
+    }
+
+    let mut wrappers = Vec::new();
+    for name in names {
+        let file = resolve_wrapper(config, &name)?;
+        let source = if file.starts_with(&dirs[0]) {
+            "profile"
+        } else {
+            "home"
+        };
+        wrappers.push(ListedWrapper { name, source, file });
+    }
+    Ok(wrappers)
+}
+
+fn listed_wrapper_name(path: &Path) -> Option<String> {
+    let file_name = path.file_name()?.to_str()?;
+
+    #[cfg(windows)]
+    {
+        if let Some(ext) = path.extension().and_then(std::ffi::OsStr::to_str)
+            && matches_ignore_ascii_case(ext, &["exe", "cmd", "bat"])
+        {
+            let stem = path.file_stem()?.to_str()?;
+            if validate_symbol_name(stem).is_ok() {
+                return Some(stem.to_string());
+            }
+            return None;
+        }
+    }
+
+    if validate_symbol_name(file_name).is_ok() {
+        return Some(file_name.to_string());
+    }
+    None
+}
+
+#[cfg(windows)]
+fn matches_ignore_ascii_case(value: &str, expected: &[&str]) -> bool {
+    expected
+        .iter()
+        .any(|candidate| value.eq_ignore_ascii_case(candidate))
 }
 
 fn apply_argv_injections(
