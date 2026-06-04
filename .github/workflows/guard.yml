@@ -42,8 +42,8 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           set -euo pipefail
-          curl -fsSL https://releases.flavor.perish.uk/install.sh -o "$RUNNER_TEMP/install-flavor.sh"
-          sh "$RUNNER_TEMP/install-flavor.sh" install --bin-dir "$HOME/.local/bin"
+          curl -fsSL https://flavor.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-flavor.sh"
+          sh "$RUNNER_TEMP/manage-flavor.sh" install --bin-dir "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install Flavor
@@ -51,8 +51,8 @@ jobs:
         shell: pwsh
         run: |
           $binDir = Join-Path $env:USERPROFILE '.local\bin'
-          Invoke-WebRequest -Uri https://releases.flavor.perish.uk/install.ps1 -OutFile (Join-Path $env:RUNNER_TEMP 'install-flavor.ps1')
-          & (Join-Path $env:RUNNER_TEMP 'install-flavor.ps1') install --bin-dir $binDir
+          Invoke-WebRequest -Uri https://flavor.perish.uk/manage.ps1 -OutFile (Join-Path $env:RUNNER_TEMP 'manage-flavor.ps1')
+          & (Join-Path $env:RUNNER_TEMP 'manage-flavor.ps1') install --bin-dir $binDir
           $binDir | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
       - name: Flavor self-check

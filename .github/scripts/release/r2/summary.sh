@@ -28,12 +28,8 @@ done
   echo ""
   echo "### Links"
   echo ""
-  if [ "$RELEASE_CHANNEL" = "stable" ]; then
-    echo "- Stable unix installer: ${RUNSEAL_RELEASES_PUBLIC_URL%/}/install.sh"
-    echo "- Stable windows installer: ${RUNSEAL_RELEASES_PUBLIC_URL%/}/install.ps1"
-    echo "- Stable unix uninstaller: ${RUNSEAL_RELEASES_PUBLIC_URL%/}/uninstall.sh"
-    echo "- Stable windows uninstaller: ${RUNSEAL_RELEASES_PUBLIC_URL%/}/uninstall.ps1"
-  fi
+  echo "- Unix manager: ${RUNSEAL_RELEASES_PUBLIC_URL%/}/manage.sh"
+  echo "- Windows manager: ${RUNSEAL_RELEASES_PUBLIC_URL%/}/manage.ps1"
   echo "- Latest metadata: ${R2_METADATA_URL}"
   echo "- Version metadata: ${R2_VERSION_METADATA_URL}"
 } >> "$GITHUB_STEP_SUMMARY"

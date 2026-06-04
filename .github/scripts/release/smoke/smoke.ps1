@@ -11,11 +11,11 @@ try {
     $env:RUNSEAL_INSTALL_ROOT = Join-Path $tmpdir 'install'
     $env:RUNSEAL_LOCAL_BIN_DIR = Join-Path $tmpdir 'bin'
     New-Item -ItemType Directory -Force -Path $env:RUNSEAL_INSTALL_ROOT, $env:RUNSEAL_LOCAL_BIN_DIR | Out-Null
-    & (Join-Path $root 'install.ps1') install --channel $channel --version $version
+    & (Join-Path $root 'manage.ps1') install --channel $channel --version $version --retain=false
     & (Join-Path $env:RUNSEAL_LOCAL_BIN_DIR 'runseal.exe') --version
     $env:RUNSEAL_HOME = Join-Path $tmpdir 'runseal-home'
     & (Join-Path $env:RUNSEAL_LOCAL_BIN_DIR 'runseal.exe') --profile (Join-Path $root 'app/examples/runseal.toml') pwsh -- -NoProfile -Command '$true'
-    & (Join-Path $root 'uninstall.ps1') --version $version
+    & (Join-Path $root 'manage.ps1') uninstall --version $version
     if (Test-Path (Join-Path $env:RUNSEAL_INSTALL_ROOT $version)) {
         throw "version uninstall left $(Join-Path $env:RUNSEAL_INSTALL_ROOT $version)"
     }
@@ -23,11 +23,11 @@ try {
     if ($env:SMOKE_LATEST -eq '1') {
         Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $env:RUNSEAL_LOCAL_BIN_DIR 'runseal.exe')
         $env:RUNSEAL_INSTALL_ROOT = Join-Path $tmpdir 'latest-smoke'
-        & (Join-Path $root 'install.ps1') install --channel $channel
+        & (Join-Path $root 'manage.ps1') install --channel $channel --retain=false
         & (Join-Path $env:RUNSEAL_LOCAL_BIN_DIR 'runseal.exe') --version
         $env:RUNSEAL_HOME = Join-Path $tmpdir 'runseal-home-latest'
         & (Join-Path $env:RUNSEAL_LOCAL_BIN_DIR 'runseal.exe') --profile (Join-Path $root 'app/examples/runseal.toml') pwsh -- -NoProfile -Command '$true'
-        & (Join-Path $root 'uninstall.ps1') --install-root $env:RUNSEAL_INSTALL_ROOT
+        & (Join-Path $root 'manage.ps1') uninstall --install-root $env:RUNSEAL_INSTALL_ROOT
         if (Test-Path $env:RUNSEAL_INSTALL_ROOT) {
             throw "full uninstall left $env:RUNSEAL_INSTALL_ROOT"
         }

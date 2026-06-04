@@ -22,6 +22,33 @@ Command routing is based on the first command token:
 runseal --profile ./runseal.toml bash -- -lc 'echo "$RUNSEAL_PROFILE_PATH"'
 ```
 
+## Install
+
+Unix:
+
+```bash
+curl -fsSL https://runseal.perish.uk/manage.sh | sh
+```
+
+Windows:
+
+```powershell
+irm https://runseal.perish.uk/manage.ps1 | pwsh
+```
+
+Install a beta or one explicit version:
+
+```bash
+curl -fsSL https://runseal.perish.uk/manage.sh | sh -s -- install --channel beta
+curl -fsSL https://runseal.perish.uk/manage.sh | sh -s -- install --version v0.1.0-beta.10
+```
+
+Uninstall:
+
+```bash
+curl -fsSL https://runseal.perish.uk/manage.sh | sh -s -- uninstall
+```
+
 If `--profile` is omitted, profile discovery walks from the current directory
 to filesystem root. At each directory, format priority is:
 
@@ -192,4 +219,12 @@ injections:
 ```bash
 cargo fmt --check
 cargo test
+```
+
+Repo-local operator commands use runseal itself:
+
+```bash
+runseal :cloudflare manage-inspect
+runseal :pr --dry-run
+runseal :release --channel beta --dry-run
 ```

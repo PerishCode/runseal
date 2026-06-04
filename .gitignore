@@ -1,5 +1,8 @@
 /target
 /.task/
+/.local/
+/scripts/.venv/
+__pycache__/
 /.github/release.env
 node_modules/
 docs/.vitepress/cache/
