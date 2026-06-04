@@ -223,6 +223,48 @@ fn symlink_lifecycle() {
 
 #[cfg(unix)]
 #[test]
+fn symlink_shutdown_contention() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let source = temp.path().join("source.txt");
+    let target = temp.path().join("links/source.txt");
+    let profile = temp.path().join("profile.json");
+    std::fs::write(&source, "sealed").expect("source should be written");
+    std::fs::write(
+        &profile,
+        format!(
+            r#"{{
+  "injections": [
+    {{
+      "type": "symlink",
+      "source": "{}",
+      "target": "{}",
+      "cleanup": true
+    }}
+  ]
+}}"#,
+            source.display(),
+            target.display()
+        ),
+    )
+    .expect("profile should be written");
+
+    let output = bin()
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .arg("--profile")
+        .arg(profile.to_str().expect("path should be UTF-8"))
+        .args(shell_args(&format!("rm -- '{}'", target.display())))
+        .output()
+        .expect("runseal should run");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("symlink shutdown failed"));
+    assert!(stderr.contains("lifecycle symlink targets are single-owner"));
+    assert!(stderr.contains("another concurrent runseal process"));
+}
+
+#[cfg(unix)]
+#[test]
 fn argv_injection_prefixes_command() {
     let temp = TempDir::new().expect("temp dir should be created");
     let bin_dir = temp.path().join("bin");

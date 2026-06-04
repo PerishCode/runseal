@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 use std::process;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{CommandFactory, Parser};
 use runseal::core::app::AppState;
 use runseal::core::config::{CliInput, RawEnv, RuntimeConfig};
+use runseal::core::internal_help;
 use runseal::run;
 
 #[derive(Debug, Parser)]
@@ -41,10 +42,14 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
+    cli.command = normalize_command(cli.command);
     if cli.command.is_empty() {
         Cli::command().print_help()?;
         println!();
+        return Ok(());
+    }
+    if print_internal_help(&cli.command)? {
         return Ok(());
     }
 
@@ -67,6 +72,20 @@ fn build_runtime_config(cli: Cli) -> Result<RuntimeConfig> {
         RawEnv::from_process(),
         &cwd,
     )
+}
+
+fn print_internal_help(command: &[String]) -> Result<bool> {
+    let Some(name) = command[0].strip_prefix('@') else {
+        return Ok(false);
+    };
+    if name.is_empty() {
+        bail!("internal command name must not be empty");
+    }
+    let Some(help) = internal_help::resolve(name, &command[1..])? else {
+        return Ok(false);
+    };
+    print!("{help}");
+    Ok(true)
 }
 
 fn normalize_command(mut command: Vec<String>) -> Vec<String> {
