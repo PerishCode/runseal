@@ -6,7 +6,7 @@ COMMAND=${1:-install}
 
 CHANNEL=${RUNSEAL_CHANNEL:-stable}
 VERSION=${RUNSEAL_VERSION:-}
-PUBLIC_URL=${RUNSEAL_RELEASES_PUBLIC_URL:-https://runseal.perish.uk}
+PUBLIC_URL=${RUNSEAL_RELEASES_PUBLIC_URL:-https://releases.runseal.perish.uk}
 INSTALL_ROOT=${RUNSEAL_INSTALL_ROOT:-"$HOME/.local/share/runseal"}
 LOCAL_BIN_DIR=${RUNSEAL_LOCAL_BIN_DIR:-"$HOME/.local/bin"}
 RETAIN=${RUNSEAL_RETAIN:-}
@@ -75,7 +75,7 @@ Usage:
   manage.sh uninstall [--version vX.Y.Z]
 
 Environment:
-  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://runseal.perish.uk
+  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://releases.runseal.perish.uk
   RUNSEAL_CHANNEL
   RUNSEAL_VERSION
   RUNSEAL_INSTALL_ROOT
@@ -237,7 +237,7 @@ Usage:
   manage.sh uninstall [--version vX.Y.Z]
 
 Environment:
-  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://runseal.perish.uk
+  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://releases.runseal.perish.uk
   RUNSEAL_CHANNEL
   RUNSEAL_VERSION
   RUNSEAL_INSTALL_ROOT

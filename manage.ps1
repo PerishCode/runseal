@@ -5,7 +5,7 @@ $remaining = if ($args.Length -gt 1) { $args[1..($args.Length - 1)] } else { @()
 
 $channel = if ($env:RUNSEAL_CHANNEL) { $env:RUNSEAL_CHANNEL } else { 'stable' }
 $version = if ($env:RUNSEAL_VERSION) { $env:RUNSEAL_VERSION } else { '' }
-$publicUrl = if ($env:RUNSEAL_RELEASES_PUBLIC_URL) { $env:RUNSEAL_RELEASES_PUBLIC_URL } else { 'https://runseal.perish.uk' }
+$publicUrl = if ($env:RUNSEAL_RELEASES_PUBLIC_URL) { $env:RUNSEAL_RELEASES_PUBLIC_URL } else { 'https://releases.runseal.perish.uk' }
 $installRoot = if ($env:RUNSEAL_INSTALL_ROOT) { $env:RUNSEAL_INSTALL_ROOT } else { Join-Path $env:LOCALAPPDATA 'runseal' }
 $localBinDir = if ($env:RUNSEAL_LOCAL_BIN_DIR) { $env:RUNSEAL_LOCAL_BIN_DIR } else { Join-Path $env:USERPROFILE '.local\bin' }
 $retain = if ($env:RUNSEAL_RETAIN) { $env:RUNSEAL_RETAIN } else { '' }
@@ -34,7 +34,7 @@ Usage:
   manage.ps1 uninstall [--version vX.Y.Z]
 
 Environment:
-  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://runseal.perish.uk
+  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://releases.runseal.perish.uk
   RUNSEAL_CHANNEL
   RUNSEAL_VERSION
   RUNSEAL_INSTALL_ROOT
@@ -186,7 +186,7 @@ Usage:
   manage.ps1 uninstall [--version vX.Y.Z]
 
 Environment:
-  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://runseal.perish.uk
+  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://releases.runseal.perish.uk
   RUNSEAL_CHANNEL
   RUNSEAL_VERSION
   RUNSEAL_INSTALL_ROOT
