@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
+use path_absolutize::Absolutize;
 
 #[derive(Debug, Clone)]
 pub struct CliInput {
@@ -88,13 +89,13 @@ fn resolve_profile_path(
         if !profile.is_file() {
             bail!("profile file not found: {}", profile.display());
         }
-        return Ok(profile);
+        return absolute_file(&profile);
     }
 
     let mut searched = Vec::new();
     for candidate in discovery_candidates(cwd, profile_home) {
         if candidate.is_file() {
-            return Ok(candidate);
+            return absolute_file(&candidate);
         }
         searched.push(candidate);
     }
@@ -108,15 +109,26 @@ fn resolve_profile_path(
 }
 
 fn discovery_candidates(cwd: &Path, profile_home: &Path) -> Vec<PathBuf> {
-    profile_extensions()
-        .iter()
-        .map(|ext| cwd.join(format!("runseal.{ext}")))
-        .chain(
+    let mut candidates = Vec::new();
+    for dir in cwd.ancestors() {
+        candidates.extend(
             profile_extensions()
                 .iter()
-                .map(|ext| profile_home.join(format!("default.{ext}"))),
-        )
-        .collect()
+                .map(|ext| dir.join(format!("runseal.{ext}"))),
+        );
+    }
+    candidates.extend(
+        profile_extensions()
+            .iter()
+            .map(|ext| profile_home.join(format!("default.{ext}"))),
+    );
+    candidates
+}
+
+fn absolute_file(path: &Path) -> Result<PathBuf> {
+    path.absolutize()
+        .with_context(|| format!("failed to absolutize profile file: {}", path.display()))
+        .map(|path| path.to_path_buf())
 }
 
 pub fn profile_extensions() -> &'static [&'static str] {

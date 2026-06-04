@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
+use path_absolutize::Absolutize;
 
 use super::app::AppContext;
 use super::config::RuntimeConfig;
@@ -155,7 +156,10 @@ fn resolve_wrapper(config: &RuntimeConfig, name: &str) -> Result<PathBuf> {
 
     for candidate in &searched {
         if wrapper_is_executable(candidate) {
-            return Ok(candidate.clone());
+            return candidate
+                .absolutize()
+                .with_context(|| format!("failed to absolutize wrapper: {}", candidate.display()))
+                .map(|path| path.to_path_buf());
         }
     }
 

@@ -210,6 +210,33 @@ fn which_resolves_wrapper() {
 }
 
 #[test]
+fn which_prints_absolute_path() {
+    let fx = fixture();
+    let nested = fx.project.join("nested");
+    std::fs::create_dir_all(&nested).expect("nested dir should be created");
+    let wrapper = wrapper_file(&fx.project_wrappers, "wrap");
+    make_wrapper(&wrapper, "project");
+
+    let output = bin()
+        .current_dir(&nested)
+        .env("RUNSEAL_HOME", &fx.home)
+        .args(["--profile", "../runseal.toml", "@which", ":wrap"])
+        .output()
+        .expect("runseal should run");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    let printed = Path::new(stdout.trim());
+    assert!(printed.is_absolute());
+    assert!(
+        !printed
+            .components()
+            .any(|component| { matches!(component, std::path::Component::ParentDir) })
+    );
+    assert_path_ends_with(stdout.trim(), &wrapper);
+}
+
+#[test]
 fn which_rejects_external() {
     let fx = fixture();
 
