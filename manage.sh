@@ -6,9 +6,10 @@ COMMAND=${1:-install}
 
 CHANNEL=${RUNSEAL_CHANNEL:-stable}
 VERSION=${RUNSEAL_VERSION:-}
-PUBLIC_URL=${RUNSEAL_RELEASES_PUBLIC_URL:-https://releases.runseal.perish.uk}
+PUBLIC_URL=${RUNSEAL_RELEASES_PUBLIC_URL:-https://runseal.perish.uk}
 INSTALL_ROOT=${RUNSEAL_INSTALL_ROOT:-"$HOME/.local/share/runseal"}
 LOCAL_BIN_DIR=${RUNSEAL_LOCAL_BIN_DIR:-"$HOME/.local/bin"}
+RETAIN=${RUNSEAL_RETAIN:-}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -57,22 +58,29 @@ while [ $# -gt 0 ]; do
       LOCAL_BIN_DIR=${1#--bin-dir=}
       shift
       ;;
+    --retain)
+      RETAIN=true
+      shift
+      ;;
+    --retain=*)
+      RETAIN=${1#--retain=}
+      shift
+      ;;
     -h|--help|help)
       cat <<'EOF'
-runseal installer
+runseal manager
 
 Usage:
-  install.sh
-  install.sh install [--channel stable|beta] [--version vX.Y.Z] [--public-url <url>]
-  install.sh upgrade [--channel stable|beta] [--version vX.Y.Z] [--public-url <url>]
-  install.sh uninstall
+  manage.sh install [--channel stable|beta] [--version vX.Y.Z] [--retain[=true|false]]
+  manage.sh uninstall [--version vX.Y.Z]
 
 Environment:
-  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://releases.runseal.perish.uk
+  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://runseal.perish.uk
   RUNSEAL_CHANNEL
   RUNSEAL_VERSION
   RUNSEAL_INSTALL_ROOT
   RUNSEAL_LOCAL_BIN_DIR
+  RUNSEAL_RETAIN
 EOF
       exit 0
       ;;
@@ -85,6 +93,18 @@ done
 
 need_public_url() {
   PUBLIC_URL=${PUBLIC_URL%/}
+}
+
+normalize_bool() {
+  case "$1" in
+    true|1|yes|y|on) printf '%s' true ;;
+    false|0|no|n|off) printf '%s' false ;;
+    *) echo "invalid --retain value: $1" >&2; exit 1 ;;
+  esac
+}
+
+normalize_version() {
+  printf 'v%s' "$(printf '%s' "$1" | sed 's/^v//')"
 }
 
 platform_archive() {
@@ -103,6 +123,40 @@ latest_version() {
   sed -n 's/.*"releaseVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$metadata" | head -n 1
 }
 
+old_versions() {
+  current="$1"
+  [ -d "$INSTALL_ROOT" ] || return 0
+  for path in "$INSTALL_ROOT"/*; do
+    [ -d "$path" ] || continue
+    name=$(basename "$path")
+    [ "$name" != "$current" ] || continue
+    printf '%s\n' "$name"
+  done
+}
+
+retain_old_versions() {
+  old="$1"
+  if [ -z "$old" ]; then
+    printf '%s' true
+    return
+  fi
+  if [ -n "$RETAIN" ]; then
+    normalize_bool "$RETAIN"
+    return
+  fi
+  if [ -t 0 ]; then
+    printf 'runseal: remove previously installed versions after install? [y/N] ' >&2
+    IFS= read -r answer || answer=
+    case "$answer" in
+      y|Y|yes|YES|Yes) printf '%s' false ;;
+      *) printf '%s' true ;;
+    esac
+    return
+  fi
+  echo "runseal: preserving previous versions; pass --retain=false to prune after install" >&2
+  printf '%s' true
+}
+
 install_runseal() {
   need_public_url
   tmpdir=$(mktemp -d)
@@ -113,11 +167,16 @@ install_runseal() {
     VERSION=$(latest_version "$tmpdir/metadata.json")
     [ -n "$VERSION" ] || { echo "failed to resolve latest runseal version" >&2; exit 1; }
   fi
+  VERSION=$(normalize_version "$VERSION")
+
+  old=$(old_versions "$VERSION")
+  retain=$(retain_old_versions "$old")
 
   archive=$(platform_archive)
   archive_url="$PUBLIC_URL/$CHANNEL/versions/$VERSION/$archive"
-  mkdir -p "$INSTALL_ROOT/$VERSION" "$LOCAL_BIN_DIR"
   curl -fsSL "$archive_url" -o "$tmpdir/$archive"
+  rm -rf "$INSTALL_ROOT/$VERSION"
+  mkdir -p "$INSTALL_ROOT/$VERSION" "$LOCAL_BIN_DIR"
   tar -xzf "$tmpdir/$archive" -C "$INSTALL_ROOT/$VERSION"
   chmod +x "$INSTALL_ROOT/$VERSION/runseal"
 
@@ -125,39 +184,68 @@ install_runseal() {
   rm -f "$link"
   ln -s "$INSTALL_ROOT/$VERSION/runseal" "$link"
   "$link" --version
+
+  if [ "$retain" = false ]; then
+    printf '%s\n' "$old" | while IFS= read -r old_version; do
+      [ -n "$old_version" ] || continue
+      rm -rf "$INSTALL_ROOT/$old_version"
+      printf 'removed old runseal %s from %s\n' "$old_version" "$INSTALL_ROOT"
+    done
+  fi
+
   printf 'installed runseal to %s\n' "$link"
+}
+
+remove_empty_dir() {
+  dir="$1"
+  if [ -d "$dir" ]; then
+    rmdir "$dir" 2>/dev/null || true
+  fi
 }
 
 uninstall_runseal() {
   bin_path="$LOCAL_BIN_DIR/runseal"
   if [ -n "$VERSION" ]; then
-    normalized_version="v$(printf '%s' "$VERSION" | sed 's/^v//')"
+    VERSION=$(normalize_version "$VERSION")
     target="$INSTALL_ROOT/$VERSION/runseal"
-    normalized_target="$INSTALL_ROOT/$normalized_version/runseal"
     if [ -L "$bin_path" ]; then
       link_target=$(readlink "$bin_path" || true)
-      if [ "$link_target" = "$target" ] || [ "$link_target" = "$normalized_target" ]; then
+      if [ "$link_target" = "$target" ]; then
         rm -f "$bin_path"
         printf 'removed %s\n' "$bin_path"
       fi
     fi
     rm -rf "$INSTALL_ROOT/$VERSION"
-    if [ "$normalized_version" != "$VERSION" ]; then
-      rm -rf "$INSTALL_ROOT/$normalized_version"
-    fi
-    rmdir "$INSTALL_ROOT" 2>/dev/null || true
+    remove_empty_dir "$INSTALL_ROOT"
     printf 'removed runseal %s from %s\n' "$VERSION" "$INSTALL_ROOT"
     return
   fi
 
   rm -f "$bin_path"
   rm -rf "$INSTALL_ROOT"
-  rmdir "$LOCAL_BIN_DIR" 2>/dev/null || true
+  remove_empty_dir "$LOCAL_BIN_DIR"
   printf 'removed runseal from %s and %s\n' "$INSTALL_ROOT" "$bin_path"
 }
 
 case "$COMMAND" in
-  install|upgrade) install_runseal ;;
+  -h|--help|help)
+    cat <<'EOF'
+runseal manager
+
+Usage:
+  manage.sh install [--channel stable|beta] [--version vX.Y.Z] [--retain[=true|false]]
+  manage.sh uninstall [--version vX.Y.Z]
+
+Environment:
+  RUNSEAL_RELEASES_PUBLIC_URL  # default: https://runseal.perish.uk
+  RUNSEAL_CHANNEL
+  RUNSEAL_VERSION
+  RUNSEAL_INSTALL_ROOT
+  RUNSEAL_LOCAL_BIN_DIR
+  RUNSEAL_RETAIN
+EOF
+    ;;
+  install) install_runseal ;;
   uninstall) uninstall_runseal ;;
   *)
     echo "unknown command: $COMMAND" >&2

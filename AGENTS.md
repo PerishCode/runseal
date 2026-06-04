@@ -21,6 +21,10 @@ Small CLI. Explicit profile. No hidden orchestration.
 - `app/src/core/runtime.rs`: command execution lifecycle.
 - `app/src/core/injections/`: `env` and `symlink` implementations.
 - `app/tests/`: integration tests and focused unit tests.
+- `runseal.toml`: repo-local operator profile.
+- `.runseal/wrappers/`: thin repo-local `:wrapper` entrypoints.
+- `scripts/cli/`: uv-managed support commands for repository operations.
+- `manage.sh` and `manage.ps1`: public install/uninstall managers.
 - `.task/`: branch-bound task state, ignored by git.
 
 ## Profile Discovery
@@ -44,13 +48,23 @@ Successful profile and wrapper paths are normalized absolute paths.
 ## Development Workflow
 
 1. Work on a feature branch.
-2. Keep changes scoped to the reduced CLI surface.
-3. Run:
+2. Use `runseal :cloudflare`, `runseal :pr`, and `runseal :release` for repo management.
+3. Keep changes scoped to the reduced CLI surface.
+4. Run:
 
 ```bash
 cargo fmt --check
 cargo test
 ```
+
+Release and manager downloads use R2 metadata and artifacts as the source of
+truth. Public install/uninstall entrypoints are `manage.sh` and `manage.ps1`;
+release and smoke scripts should reference those root files.
+
+Cloudflare manager redirects are exact-path rules for
+`runseal.perish.uk/manage.sh` and `runseal.perish.uk/manage.ps1`, pointing to
+`releases.runseal.perish.uk/manage.sh` and
+`releases.runseal.perish.uk/manage.ps1`.
 
 ## Commit Rules
 
