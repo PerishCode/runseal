@@ -12,16 +12,15 @@ def usage() -> None:
     print(
         """Usage: runseal :pr [options]
 
-Create or update the GitHub PR for the current branch.
+Create or update, watch, and squash-merge the GitHub PR for the current branch.
 
 Options:
   --base <branch>       PR base branch (default: main)
   --title <title>       title when creating a new PR
   --body-file <path>    body file when creating a new PR
-  --ready              mark the PR ready for review
-  --auto-merge         enable squash auto-merge and branch deletion
-  --checks             print PR checks after create/update
-  --watch-checks       watch PR checks after create/update
+  --draft              create the PR as draft and require --no-merge
+  --no-watch           do not watch PR checks
+  --no-merge           do not squash-merge after checks
   --no-push            do not push the current branch first
   --dry-run            print planned actions without changing remote state
 """
@@ -31,12 +30,6 @@ Options:
 def output(argv: list[str]) -> str:
     result = run_checked(argv, stdout=subprocess.PIPE)
     return result.stdout.decode("utf-8").strip()
-
-
-def run_report(argv: list[str]) -> None:
-    result = subprocess.run(argv, check=False)
-    if result.returncode not in {0, 8}:
-        raise subprocess.CalledProcessError(result.returncode, argv)
 
 
 def current_branch() -> str:
@@ -70,17 +63,25 @@ def find_pr(branch: str) -> dict[str, object] | None:
     return items[0]
 
 
-def create_pr(branch: str, base: str, title: str | None, body_file: str | None) -> dict[str, object]:
+def create_pr(
+    branch: str,
+    base: str,
+    title: str | None,
+    body_file: str | None,
+    *,
+    draft: bool,
+) -> dict[str, object]:
     argv = [
         "gh",
         "pr",
         "create",
-        "--draft",
         "--base",
         base,
         "--head",
         branch,
     ]
+    if draft:
+        argv.append("--draft")
     if title:
         argv.extend(["--title", title])
     else:
@@ -101,10 +102,9 @@ def cmd_default(args: list[str]) -> int:
     parser.add_argument("--base", default="main")
     parser.add_argument("--title")
     parser.add_argument("--body-file")
-    parser.add_argument("--ready", action="store_true")
-    parser.add_argument("--auto-merge", action="store_true")
-    parser.add_argument("--checks", action="store_true")
-    parser.add_argument("--watch-checks", action="store_true")
+    parser.add_argument("--draft", action="store_true")
+    parser.add_argument("--no-watch", action="store_true")
+    parser.add_argument("--no-merge", action="store_true")
     parser.add_argument("--no-push", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parsed = parser.parse_args(args)
@@ -113,15 +113,18 @@ def cmd_default(args: list[str]) -> int:
     branch = current_branch()
     if branch in {parsed.base, "main", "master"}:
         raise CliError(f"refusing to open a PR from base branch: {branch}")
+    if parsed.draft and not parsed.no_merge:
+        raise CliError("--draft requires --no-merge")
 
     if parsed.dry_run:
         print(f"branch: {branch}")
         print(f"base: {parsed.base}")
         print(f"push: {not parsed.no_push}")
         print("pr: create if missing, otherwise reuse existing")
-        print(f"ready: {parsed.ready}")
-        print(f"auto_merge: {parsed.auto_merge}")
-        print(f"checks: {parsed.checks or parsed.watch_checks}")
+        print(f"draft: {parsed.draft}")
+        print(f"ready: {not parsed.draft}")
+        print(f"watch: {not parsed.no_watch}")
+        print(f"squash_merge: {not parsed.no_merge}")
         return 0
 
     if not parsed.no_push:
@@ -129,22 +132,26 @@ def cmd_default(args: list[str]) -> int:
 
     pr = find_pr(branch)
     if pr is None:
-        pr = create_pr(branch, parsed.base, parsed.title, parsed.body_file)
+        pr = create_pr(
+            branch,
+            parsed.base,
+            parsed.title,
+            parsed.body_file,
+            draft=parsed.draft,
+        )
         print(f"created PR #{pr['number']}: {pr['url']}", flush=True)
     else:
         print(f"found PR #{pr['number']}: {pr['url']}", flush=True)
 
     number = str(pr["number"])
-    if parsed.ready:
+    if pr.get("isDraft") and not parsed.draft:
         run_checked(["gh", "pr", "ready", number])
         print(f"marked PR #{number} ready")
-    if parsed.auto_merge:
-        run_checked(["gh", "pr", "merge", number, "--auto", "--squash", "--delete-branch"])
-        print(f"enabled auto-merge for PR #{number}")
-    if parsed.watch_checks:
+    if not parsed.no_watch:
         run_checked(["gh", "pr", "checks", number, "--watch", "--interval", "10"])
-    elif parsed.checks:
-        run_report(["gh", "pr", "checks", number])
+    if not parsed.no_merge:
+        run_checked(["gh", "pr", "merge", number, "--squash", "--delete-branch"])
+        print(f"squash-merged PR #{number}")
     return 0
 
 
