@@ -11,6 +11,7 @@ use path_absolutize::Absolutize;
 use super::app::AppContext;
 use super::config::RuntimeConfig;
 use super::env_key::is_valid_env_key;
+use super::internal_help;
 use super::profile::InjectionProfile;
 use super::{injections, profile};
 
@@ -19,6 +20,7 @@ pub struct RunResult {
 }
 
 enum InternalCommand {
+    Help(&'static str),
     Profile,
     ResolveResource(Vec<String>),
     Resources,
@@ -103,31 +105,20 @@ fn internal_name(token: &str) -> Result<Option<String>> {
 }
 
 fn resolve_internal_command(name: &str, args: &[String]) -> Result<InternalCommand> {
+    if let Some(help) = internal_help::resolve(name, args)? {
+        return Ok(InternalCommand::Help(help));
+    }
+
     match name {
-        "profile" => {
-            if !args.is_empty() {
-                bail!("@profile does not accept arguments");
-            }
-            Ok(InternalCommand::Profile)
-        }
+        "profile" => no_internal_args(args, "@profile").map(|()| InternalCommand::Profile),
         "resolve" => {
             if args.is_empty() {
                 bail!("@resolve requires at least one resource:// URI argument");
             }
             Ok(InternalCommand::ResolveResource(args.to_vec()))
         }
-        "resources" => {
-            if !args.is_empty() {
-                bail!("@resources does not accept arguments");
-            }
-            Ok(InternalCommand::Resources)
-        }
-        "wrappers" => {
-            if !args.is_empty() {
-                bail!("@wrappers does not accept arguments");
-            }
-            Ok(InternalCommand::Wrappers)
-        }
+        "resources" => no_internal_args(args, "@resources").map(|()| InternalCommand::Resources),
+        "wrappers" => no_internal_args(args, "@wrappers").map(|()| InternalCommand::Wrappers),
         "which" => {
             if args.len() != 1 {
                 bail!("@which requires exactly one :wrapper argument");
@@ -139,6 +130,13 @@ fn resolve_internal_command(name: &str, args: &[String]) -> Result<InternalComma
         }
         _ => bail!("unknown internal command: @{name}"),
     }
+}
+
+fn no_internal_args(args: &[String], name: &str) -> Result<()> {
+    if !args.is_empty() {
+        bail!("{name} does not accept arguments");
+    }
+    Ok(())
 }
 
 fn wrapper_name(token: &str) -> Result<Option<String>> {
@@ -244,6 +242,7 @@ fn wrapper_is_executable(path: &Path) -> bool {
 
 fn run_internal(config: &RuntimeConfig, command: InternalCommand) -> Result<()> {
     match command {
+        InternalCommand::Help(help) => print!("{help}"),
         InternalCommand::Profile => print_profile(config)?,
         InternalCommand::ResolveResource(uris) => print_resolve_resources(config, &uris)?,
         InternalCommand::Resources => print_resources(config)?,
