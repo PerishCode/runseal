@@ -270,7 +270,9 @@ fn print_wrappers(config: &RuntimeConfig) -> Result<()> {
 }
 
 fn print_resolve_resource(config: &RuntimeConfig, uri: &str) -> Result<()> {
-    let path = profile::resolve_resource_uri(&config.profile_path, uri)?;
+    let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
+    let path =
+        profile::resolve_resource_uri(&config.profile_path, profile.resources.as_ref(), uri)?;
     println!("{}", path.display());
     Ok(())
 }
