@@ -28,16 +28,18 @@ Small CLI. Explicit profile. No hidden orchestration.
 Priority order:
 
 1. `--profile <path>`
-2. `<cwd>/runseal.toml`
-3. `<cwd>/runseal.yaml`
-4. `<cwd>/runseal.yml`
-5. `<cwd>/runseal.json`
-6. `<RUNSEAL_PROFILE_HOME>/default.toml`
-7. `<RUNSEAL_PROFILE_HOME>/default.yaml`
-8. `<RUNSEAL_PROFILE_HOME>/default.yml`
-9. `<RUNSEAL_PROFILE_HOME>/default.json`
+2. From `<cwd>` upward to filesystem root, at each directory:
+   - `runseal.toml`
+   - `runseal.yaml`
+   - `runseal.yml`
+   - `runseal.json`
+3. `<RUNSEAL_PROFILE_HOME>/default.toml`
+4. `<RUNSEAL_PROFILE_HOME>/default.yaml`
+5. `<RUNSEAL_PROFILE_HOME>/default.yml`
+6. `<RUNSEAL_PROFILE_HOME>/default.json`
 
-Format priority is TOML, YAML, then JSON.
+Format priority is TOML, YAML, then JSON within each searched directory.
+Successful profile and wrapper paths are normalized absolute paths.
 
 ## Development Workflow
 

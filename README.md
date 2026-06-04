@@ -21,16 +21,20 @@ Command routing is based on the first command token:
 runseal --profile ./runseal.toml bash -- -lc 'echo "$RUNSEAL_PROFILE_PATH"'
 ```
 
-If `--profile` is omitted, profile discovery is:
+If `--profile` is omitted, profile discovery walks from the current directory
+to filesystem root. At each directory, format priority is:
 
-1. `./runseal.toml`
-2. `./runseal.yaml`
-3. `./runseal.yml`
-4. `./runseal.json`
-5. `$RUNSEAL_PROFILE_HOME/default.toml`
-6. `$RUNSEAL_PROFILE_HOME/default.yaml`
-7. `$RUNSEAL_PROFILE_HOME/default.yml`
-8. `$RUNSEAL_PROFILE_HOME/default.json`
+1. `runseal.toml`
+2. `runseal.yaml`
+3. `runseal.yml`
+4. `runseal.json`
+
+If no ancestor profile is found, discovery falls back to:
+
+1. `$RUNSEAL_PROFILE_HOME/default.toml`
+2. `$RUNSEAL_PROFILE_HOME/default.yaml`
+3. `$RUNSEAL_PROFILE_HOME/default.yml`
+4. `$RUNSEAL_PROFILE_HOME/default.json`
 
 `RUNSEAL_HOME` is the runseal configuration root. When unset it defaults to `~/.runseal`.
 
@@ -90,6 +94,7 @@ Wrapper lookup order is:
 2. `$RUNSEAL_HOME/wrappers/<name>`
 
 The profile directory is the directory containing `RUNSEAL_PROFILE_PATH`.
+Successful profile and wrapper paths are normalized absolute paths.
 The child working directory is not changed. A resolved wrapper receives:
 
 - `RUNSEAL_WRAPPER_NAME`
