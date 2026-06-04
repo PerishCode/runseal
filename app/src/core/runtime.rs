@@ -21,6 +21,7 @@ pub struct RunResult {
 enum InternalCommand {
     Profile,
     ResolveResource(String),
+    Resources,
     Wrappers,
     WhichWrapper(String),
 }
@@ -114,6 +115,12 @@ fn resolve_internal_command(name: &str, args: &[String]) -> Result<InternalComma
                 bail!("@resolve requires exactly one resource:// URI argument");
             }
             Ok(InternalCommand::ResolveResource(args[0].clone()))
+        }
+        "resources" => {
+            if !args.is_empty() {
+                bail!("@resources does not accept arguments");
+            }
+            Ok(InternalCommand::Resources)
         }
         "wrappers" => {
             if !args.is_empty() {
@@ -239,6 +246,7 @@ fn run_internal(config: &RuntimeConfig, command: InternalCommand) -> Result<()> 
     match command {
         InternalCommand::Profile => print_profile(config)?,
         InternalCommand::ResolveResource(uri) => print_resolve_resource(config, &uri)?,
+        InternalCommand::Resources => print_resources(config)?,
         InternalCommand::Wrappers => print_wrappers(config)?,
         InternalCommand::WhichWrapper(name) => print_which_wrapper(config, &name)?,
     }
@@ -274,6 +282,13 @@ fn print_resolve_resource(config: &RuntimeConfig, uri: &str) -> Result<()> {
     let path =
         profile::resolve_resource_uri(&config.profile_path, profile.resources.as_ref(), uri)?;
     println!("{}", path.display());
+    Ok(())
+}
+
+fn print_resources(config: &RuntimeConfig) -> Result<()> {
+    let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
+    let root = profile::resolve_resource_root(&config.profile_path, profile.resources.as_ref())?;
+    println!("RUNSEAL_RESOURCE_ROOT={}", root.display());
     Ok(())
 }
 

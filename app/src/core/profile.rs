@@ -25,7 +25,7 @@ pub struct Profile {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ResourcesProfile {
-    pub path: PathBuf,
+    pub root: PathBuf,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -145,11 +145,26 @@ pub fn resolve_resource_uri(
     uri: &str,
 ) -> Result<PathBuf> {
     let relative = parse_resource_uri(uri)?;
-    resource_root(profile_path, resources)?
+    resolve_resource_root(profile_path, resources)?
         .join(relative)
         .absolutize()
         .with_context(|| format!("failed to absolutize resource URI: {uri}"))
         .map(|path| path.to_path_buf())
+}
+
+pub fn resolve_resource_root(
+    profile_path: &Path,
+    resources: Option<&ResourcesProfile>,
+) -> Result<PathBuf> {
+    let resources = resources
+        .ok_or_else(|| anyhow::anyhow!("resource root is not configured; add [resources] root"))?;
+    if resources.root.as_os_str().is_empty() {
+        anyhow::bail!("resources.root must not be empty");
+    }
+    normalize_path(
+        &resources.root,
+        profile_path.parent().unwrap_or(Path::new(".")),
+    )
 }
 
 fn normalize_symlink_paths(profile_path: &Path, profile: &mut Profile) -> Result<()> {
@@ -206,24 +221,12 @@ fn normalize_env_value(
     Ok(())
 }
 
-fn resource_root(profile_path: &Path, resources: Option<&ResourcesProfile>) -> Result<PathBuf> {
-    let resources = resources
-        .ok_or_else(|| anyhow::anyhow!("resource path is not configured; set [resources] path"))?;
-    if resources.path.as_os_str().is_empty() {
-        anyhow::bail!("resources.path must not be empty");
-    }
-    normalize_path(
-        &resources.path,
-        profile_path.parent().unwrap_or(Path::new(".")),
-    )
-}
-
 fn parse_resource_uri(uri: &str) -> Result<PathBuf> {
     let Some(raw) = uri.strip_prefix("resource://") else {
         anyhow::bail!("expected resource URI to start with resource://");
     };
-    if raw.is_empty() {
-        anyhow::bail!("resource URI path must not be empty");
+    if raw.is_empty() || raw == "." {
+        return Ok(PathBuf::new());
     }
     if raw.contains('\\') {
         anyhow::bail!("resource URI path must use '/' separators");
