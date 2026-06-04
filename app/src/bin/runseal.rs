@@ -11,7 +11,7 @@ use runseal::run;
 #[command(
     name = "runseal",
     version = build_version(),
-    about = "Run a command inside an env, symlink, and argv profile.",
+    about = "Run a command inside an env, symlink, argv, and wrapper profile.",
     after_help = "Profile discovery: --profile, ./runseal.toml|yaml|yml|json, then $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json."
 )]
 struct Cli {
