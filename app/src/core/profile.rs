@@ -18,7 +18,14 @@ fn default_cleanup() -> bool {
 #[derive(Debug, Deserialize)]
 pub struct Profile {
     #[serde(default)]
+    pub resources: Option<ResourcesProfile>,
+    #[serde(default)]
     pub injections: Vec<InjectionProfile>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ResourcesProfile {
+    pub path: PathBuf,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -127,17 +134,18 @@ pub fn load(path: &Path) -> Result<Profile> {
         ),
     };
     normalize_symlink_paths(path, &mut profile)?;
-    normalize_env_resource_values(path, &mut profile)?;
+    let resources = profile.resources.clone();
+    normalize_env_resource_values(path, resources.as_ref(), &mut profile)?;
     Ok(profile)
 }
 
-pub fn resolve_resource_uri(profile_path: &Path, uri: &str) -> Result<PathBuf> {
+pub fn resolve_resource_uri(
+    profile_path: &Path,
+    resources: Option<&ResourcesProfile>,
+    uri: &str,
+) -> Result<PathBuf> {
     let relative = parse_resource_uri(uri)?;
-    profile_path
-        .parent()
-        .unwrap_or(Path::new("."))
-        .join(".runseal")
-        .join("resources")
+    resource_root(profile_path, resources)?
         .join(relative)
         .absolutize()
         .with_context(|| format!("failed to absolutize resource URI: {uri}"))
@@ -155,14 +163,18 @@ fn normalize_symlink_paths(profile_path: &Path, profile: &mut Profile) -> Result
     Ok(())
 }
 
-fn normalize_env_resource_values(profile_path: &Path, profile: &mut Profile) -> Result<()> {
+fn normalize_env_resource_values(
+    profile_path: &Path,
+    resources: Option<&ResourcesProfile>,
+    profile: &mut Profile,
+) -> Result<()> {
     for injection in &mut profile.injections {
         let InjectionProfile::Env(spec) = injection else {
             continue;
         };
 
         for value in spec.vars.values_mut() {
-            normalize_env_value(profile_path, value)?;
+            normalize_env_value(profile_path, resources, value)?;
         }
 
         for op in &mut spec.ops {
@@ -171,7 +183,7 @@ fn normalize_env_resource_values(profile_path: &Path, profile: &mut Profile) -> 
                 | EnvOpProfile::SetIfAbsent { value, .. }
                 | EnvOpProfile::Prepend { value, .. }
                 | EnvOpProfile::Append { value, .. } => {
-                    normalize_env_value(profile_path, value)?;
+                    normalize_env_value(profile_path, resources, value)?;
                 }
                 EnvOpProfile::Unset { .. } => {}
             }
@@ -180,14 +192,30 @@ fn normalize_env_resource_values(profile_path: &Path, profile: &mut Profile) -> 
     Ok(())
 }
 
-fn normalize_env_value(profile_path: &Path, value: &mut String) -> Result<()> {
+fn normalize_env_value(
+    profile_path: &Path,
+    resources: Option<&ResourcesProfile>,
+    value: &mut String,
+) -> Result<()> {
     if !value.starts_with("resource://") {
         return Ok(());
     }
-    *value = resolve_resource_uri(profile_path, value)?
+    *value = resolve_resource_uri(profile_path, resources, value)?
         .to_string_lossy()
         .into_owned();
     Ok(())
+}
+
+fn resource_root(profile_path: &Path, resources: Option<&ResourcesProfile>) -> Result<PathBuf> {
+    let resources = resources
+        .ok_or_else(|| anyhow::anyhow!("resource path is not configured; set [resources] path"))?;
+    if resources.path.as_os_str().is_empty() {
+        anyhow::bail!("resources.path must not be empty");
+    }
+    normalize_path(
+        &resources.path,
+        profile_path.parent().unwrap_or(Path::new(".")),
+    )
 }
 
 fn parse_resource_uri(uri: &str) -> Result<PathBuf> {

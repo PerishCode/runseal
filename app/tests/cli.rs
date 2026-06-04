@@ -170,6 +170,9 @@ fn resource_env_is_absolute() {
     std::fs::write(
         &profile,
         r#"
+[resources]
+path = ".resource"
+
 [[injections]]
 type = "env"
 
@@ -204,8 +207,7 @@ value = "resource://state/export.json"
     assert!(std::path::Path::new(right).is_absolute());
     assert!(
         std::path::Path::new(left).ends_with(
-            std::path::Path::new(".runseal")
-                .join("resources")
+            std::path::Path::new(".resource")
                 .join("local")
                 .join("ssh")
                 .join("config")
@@ -213,12 +215,40 @@ value = "resource://state/export.json"
     );
     assert!(
         std::path::Path::new(right).ends_with(
-            std::path::Path::new(".runseal")
-                .join("resources")
+            std::path::Path::new(".resource")
                 .join("state")
                 .join("export.json")
         )
     );
+}
+
+#[test]
+fn resource_requires_path() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let profile = temp.path().join("runseal.toml");
+    std::fs::write(
+        &profile,
+        r#"
+[[injections]]
+type = "env"
+
+[injections.vars]
+RUNSEAL_RESOURCE_A = "resource://local/ssh/config"
+"#,
+    )
+    .expect("profile should be written");
+
+    let output = bin()
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .arg("--profile")
+        .arg(profile.to_str().expect("path should be UTF-8"))
+        .args(shell_args(&print_env_script("RUNSEAL_RESOURCE_A")))
+        .output()
+        .expect("runseal should run");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("resource path is not configured"));
 }
 
 #[test]

@@ -51,6 +51,9 @@ Each child command receives:
 ## Profile
 
 ```toml
+[resources]
+path = ".local"
+
 [[injections]]
 type = "env"
 
@@ -81,12 +84,18 @@ command = "ssh"
 args = ["-F", ".local/ssh/config"]
 ```
 
-`resource://path/to/file` is a profile-only path literal. In env injection
-values, runseal rewrites it to an absolute path under:
+`resource://path/to/file` is a profile-only path literal. A profile that uses
+resource URIs must declare:
 
-```text
-<profile-dir>/.runseal/resources/path/to/file
+```toml
+[resources]
+path = ".local"
 ```
+
+The resource path may be relative to the profile directory, absolute, or `~`
+expanded. In env injection values, runseal rewrites resource URIs to absolute
+paths under that configured root. For example, with `path = ".local"`,
+`resource://ssh/config` resolves to `<profile-dir>/.local/ssh/config`.
 
 Child commands receive only the resolved absolute path. They do not receive
 or need to understand `resource://`.

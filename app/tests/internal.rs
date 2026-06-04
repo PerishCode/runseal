@@ -77,7 +77,11 @@ fn fixture() -> Fixture {
     let home_wrappers = home.join("wrappers");
     std::fs::create_dir_all(&project_wrappers).expect("project wrappers should be created");
     std::fs::create_dir_all(&home_wrappers).expect("home wrappers should be created");
-    std::fs::write(&profile, "injections = []\n").expect("profile should be written");
+    std::fs::write(
+        &profile,
+        "injections = []\n[resources]\npath = \".resource\"\n",
+    )
+    .expect("profile should be written");
     Fixture {
         _temp: temp,
         project,
@@ -248,8 +252,7 @@ fn resolve_prints_resource() {
     assert!(printed.is_absolute());
     assert!(
         printed.ends_with(
-            Path::new(".runseal")
-                .join("resources")
+            Path::new(".resource")
                 .join("local")
                 .join("ssh")
                 .join("config")
