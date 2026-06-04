@@ -61,6 +61,57 @@ fn make_probe(path: &std::path::Path) {
     std::fs::set_permissions(path, permissions).expect("probe should be executable");
 }
 
+#[cfg(unix)]
+fn wrapper_file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    dir.join(name)
+}
+
+#[cfg(windows)]
+fn wrapper_file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    dir.join(format!("{name}.cmd"))
+}
+
+#[cfg(unix)]
+fn wrapper_basename(name: &str) -> String {
+    name.to_string()
+}
+
+#[cfg(windows)]
+fn wrapper_basename(name: &str) -> String {
+    format!("{name}.cmd")
+}
+
+#[cfg(unix)]
+fn make_wrapper(path: &std::path::Path, label: &str) {
+    use std::os::unix::fs::PermissionsExt;
+
+    std::fs::write(
+        path,
+        format!(
+            "#!/usr/bin/env sh\nprintf '{}|%s|%s|%s|' \"$1\" \"$RUNSEAL_WRAPPER_NAME\" \"$(basename \"$RUNSEAL_WRAPPER_FILE\")\"\n",
+            label
+        ),
+    )
+    .expect("wrapper should be written");
+    let mut permissions = std::fs::metadata(path)
+        .expect("wrapper metadata should be readable")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(path, permissions).expect("wrapper should be executable");
+}
+
+#[cfg(windows)]
+fn make_wrapper(path: &std::path::Path, label: &str) {
+    std::fs::write(
+        path,
+        format!(
+            "@echo off\r\n<nul set /p=\"{}|%1|%RUNSEAL_WRAPPER_NAME%|%~nx0|\"\r\nexit /b 0\r\n",
+            label
+        ),
+    )
+    .expect("wrapper should be written");
+}
+
 #[test]
 fn help_without_command() {
     let output = bin().output().expect("runseal should run");
@@ -213,6 +264,60 @@ args = ["-F", ".local/ssh/config"]
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     assert_eq!(stdout, "-F|.local/ssh/config|20m.us.zxi|");
+}
+
+#[test]
+fn wrapper_uses_profile_root() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let project = temp.path().join("project");
+    let cwd = project.join("nested");
+    let project_wrappers = project.join(".runseal/wrappers");
+    let home_wrappers = temp.path().join("home/wrappers");
+    std::fs::create_dir_all(&cwd).expect("cwd should be created");
+    std::fs::create_dir_all(&project_wrappers).expect("project wrappers should be created");
+    std::fs::create_dir_all(&home_wrappers).expect("home wrappers should be created");
+    std::fs::write(project.join("runseal.toml"), "injections = []\n")
+        .expect("profile should be written");
+    make_wrapper(&wrapper_file(&project_wrappers, "wrap"), "project");
+    make_wrapper(&wrapper_file(&home_wrappers, "wrap"), "home");
+
+    let output = bin()
+        .current_dir(&cwd)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .arg("--profile")
+        .arg("../runseal.toml")
+        .args([":wrap", "arg"])
+        .output()
+        .expect("runseal should run");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(
+        stdout,
+        format!("project|arg|wrap|{}|", wrapper_basename("wrap"))
+    );
+}
+
+#[test]
+fn wrapper_missing_lists_paths() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let project = temp.path().join("project");
+    std::fs::create_dir_all(&project).expect("project should be created");
+    std::fs::write(project.join("runseal.toml"), "injections = []\n")
+        .expect("profile should be written");
+
+    let output = bin()
+        .current_dir(&project)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .args([":missing"])
+        .output()
+        .expect("runseal should run");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("wrapper not found: :missing"));
+    assert!(stderr.contains(".runseal"));
+    assert!(stderr.contains("wrappers"));
 }
 
 #[test]
