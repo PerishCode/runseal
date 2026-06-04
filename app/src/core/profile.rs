@@ -127,7 +127,21 @@ pub fn load(path: &Path) -> Result<Profile> {
         ),
     };
     normalize_symlink_paths(path, &mut profile)?;
+    normalize_env_resource_values(path, &mut profile)?;
     Ok(profile)
+}
+
+pub fn resolve_resource_uri(profile_path: &Path, uri: &str) -> Result<PathBuf> {
+    let relative = parse_resource_uri(uri)?;
+    profile_path
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join(".runseal")
+        .join("resources")
+        .join(relative)
+        .absolutize()
+        .with_context(|| format!("failed to absolutize resource URI: {uri}"))
+        .map(|path| path.to_path_buf())
 }
 
 fn normalize_symlink_paths(profile_path: &Path, profile: &mut Profile) -> Result<()> {
@@ -139,6 +153,68 @@ fn normalize_symlink_paths(profile_path: &Path, profile: &mut Profile) -> Result
         }
     }
     Ok(())
+}
+
+fn normalize_env_resource_values(profile_path: &Path, profile: &mut Profile) -> Result<()> {
+    for injection in &mut profile.injections {
+        let InjectionProfile::Env(spec) = injection else {
+            continue;
+        };
+
+        for value in spec.vars.values_mut() {
+            normalize_env_value(profile_path, value)?;
+        }
+
+        for op in &mut spec.ops {
+            match op {
+                EnvOpProfile::Set { value, .. }
+                | EnvOpProfile::SetIfAbsent { value, .. }
+                | EnvOpProfile::Prepend { value, .. }
+                | EnvOpProfile::Append { value, .. } => {
+                    normalize_env_value(profile_path, value)?;
+                }
+                EnvOpProfile::Unset { .. } => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+fn normalize_env_value(profile_path: &Path, value: &mut String) -> Result<()> {
+    if !value.starts_with("resource://") {
+        return Ok(());
+    }
+    *value = resolve_resource_uri(profile_path, value)?
+        .to_string_lossy()
+        .into_owned();
+    Ok(())
+}
+
+fn parse_resource_uri(uri: &str) -> Result<PathBuf> {
+    let Some(raw) = uri.strip_prefix("resource://") else {
+        anyhow::bail!("expected resource URI to start with resource://");
+    };
+    if raw.is_empty() {
+        anyhow::bail!("resource URI path must not be empty");
+    }
+    if raw.contains('\\') {
+        anyhow::bail!("resource URI path must use '/' separators");
+    }
+
+    let mut path = PathBuf::new();
+    for segment in raw.split('/') {
+        if segment.is_empty() {
+            anyhow::bail!("resource URI path segment must not be empty");
+        }
+        if segment == "." || segment == ".." {
+            anyhow::bail!("resource URI path must not contain '.' or '..'");
+        }
+        if segment.contains(':') {
+            anyhow::bail!("resource URI path segment must not contain ':'");
+        }
+        path.push(segment);
+    }
+    Ok(path)
 }
 
 fn normalize_path(path: &Path, base_dir: &Path) -> Result<PathBuf> {

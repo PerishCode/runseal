@@ -237,6 +237,29 @@ fn which_prints_absolute_path() {
 }
 
 #[test]
+fn resolve_prints_resource() {
+    let fx = fixture();
+
+    let output = run_in(&fx, &["@resolve", "resource://local/ssh/config"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    let printed = Path::new(stdout.trim());
+    assert!(printed.is_absolute());
+    assert!(
+        printed.ends_with(
+            Path::new(".runseal")
+                .join("resources")
+                .join("local")
+                .join("ssh")
+                .join("config")
+        ),
+        "unexpected resource path: {}",
+        printed.display()
+    );
+}
+
+#[test]
 fn which_rejects_external() {
     let fx = fixture();
 
@@ -268,6 +291,43 @@ fn internal_rejects_args() {
         (
             vec!["@which", ":a", ":b"],
             "@which requires exactly one :wrapper argument",
+        ),
+        (
+            vec!["@resolve"],
+            "@resolve requires exactly one resource:// URI argument",
+        ),
+        (
+            vec!["@resolve", "resource://a", "resource://b"],
+            "@resolve requires exactly one resource:// URI argument",
+        ),
+    ] {
+        assert_fails(&fx, &args, expected);
+    }
+}
+
+#[test]
+fn resolve_rejects_invalid() {
+    let fx = fixture();
+    for (args, expected) in [
+        (
+            vec!["@resolve", "local/ssh/config"],
+            "expected resource URI to start with resource://",
+        ),
+        (
+            vec!["@resolve", "resource://"],
+            "resource URI path must not be empty",
+        ),
+        (
+            vec!["@resolve", "resource://../secret"],
+            "resource URI path must not contain '.' or '..'",
+        ),
+        (
+            vec!["@resolve", "resource://local//config"],
+            "resource URI path segment must not be empty",
+        ),
+        (
+            vec!["@resolve", "resource://C:/config"],
+            "resource URI path segment must not contain ':'",
         ),
     ] {
         assert_fails(&fx, &args, expected);

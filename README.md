@@ -8,6 +8,7 @@ and internal command namespaces:
 - `env`: export environment variables and ordered env operations.
 - `symlink`: create symlinks for the command lifecycle, then clean them up.
 - `argv`: inject fixed arguments after a matching child command token.
+- `resource://...`: resolve profile-local resource paths inside env values.
 
 Command routing is based on the first command token:
 
@@ -55,6 +56,7 @@ type = "env"
 
 [injections.vars]
 RUNSEAL_ENV = "dev"
+SSH_CONFIG = "resource://local/ssh/config"
 
 [[injections]]
 type = "env"
@@ -78,6 +80,20 @@ type = "argv"
 command = "ssh"
 args = ["-F", ".local/ssh/config"]
 ```
+
+`resource://path/to/file` is a profile-only path literal. In env injection
+values, runseal rewrites it to an absolute path under:
+
+```text
+<profile-dir>/.runseal/resources/path/to/file
+```
+
+Child commands receive only the resolved absolute path. They do not receive
+or need to understand `resource://`.
+
+Resource paths must be relative URI-style paths. Empty paths, empty path
+segments, `.`, `..`, backslash separators, and `:` inside path segments are
+rejected. Resource paths are resolved without checking whether the file exists.
 
 ## Wrappers
 
@@ -110,6 +126,7 @@ command instead of a literal program name:
 
 ```bash
 runseal @profile
+runseal @resolve resource://local/ssh/config
 runseal @wrappers
 runseal @which :ssh-run
 ```
@@ -117,6 +134,7 @@ runseal @which :ssh-run
 Internal commands are read-only and do not run profile injections.
 
 - `@profile` prints the resolved runseal runtime paths.
+- `@resolve resource://...` prints the resolved absolute resource path.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
 
