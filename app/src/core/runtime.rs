@@ -20,6 +20,7 @@ pub struct RunResult {
 
 enum InternalCommand {
     Profile,
+    ResolveResource(String),
     Wrappers,
     WhichWrapper(String),
 }
@@ -107,6 +108,12 @@ fn resolve_internal_command(name: &str, args: &[String]) -> Result<InternalComma
                 bail!("@profile does not accept arguments");
             }
             Ok(InternalCommand::Profile)
+        }
+        "resolve" => {
+            if args.len() != 1 {
+                bail!("@resolve requires exactly one resource:// URI argument");
+            }
+            Ok(InternalCommand::ResolveResource(args[0].clone()))
         }
         "wrappers" => {
             if !args.is_empty() {
@@ -231,6 +238,7 @@ fn wrapper_is_executable(path: &Path) -> bool {
 fn run_internal(config: &RuntimeConfig, command: InternalCommand) -> Result<()> {
     match command {
         InternalCommand::Profile => print_profile(config)?,
+        InternalCommand::ResolveResource(uri) => print_resolve_resource(config, &uri)?,
         InternalCommand::Wrappers => print_wrappers(config)?,
         InternalCommand::WhichWrapper(name) => print_which_wrapper(config, &name)?,
     }
@@ -258,6 +266,12 @@ fn print_wrappers(config: &RuntimeConfig) -> Result<()> {
             wrapper.file.display()
         );
     }
+    Ok(())
+}
+
+fn print_resolve_resource(config: &RuntimeConfig, uri: &str) -> Result<()> {
+    let path = profile::resolve_resource_uri(&config.profile_path, uri)?;
+    println!("{}", path.display());
     Ok(())
 }
 
