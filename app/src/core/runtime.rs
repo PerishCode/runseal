@@ -20,7 +20,7 @@ pub struct RunResult {
 
 enum InternalCommand {
     Profile,
-    ResolveResource(String),
+    ResolveResource(Vec<String>),
     Resources,
     Wrappers,
     WhichWrapper(String),
@@ -111,10 +111,10 @@ fn resolve_internal_command(name: &str, args: &[String]) -> Result<InternalComma
             Ok(InternalCommand::Profile)
         }
         "resolve" => {
-            if args.len() != 1 {
-                bail!("@resolve requires exactly one resource:// URI argument");
+            if args.is_empty() {
+                bail!("@resolve requires at least one resource:// URI argument");
             }
-            Ok(InternalCommand::ResolveResource(args[0].clone()))
+            Ok(InternalCommand::ResolveResource(args.to_vec()))
         }
         "resources" => {
             if !args.is_empty() {
@@ -245,7 +245,7 @@ fn wrapper_is_executable(path: &Path) -> bool {
 fn run_internal(config: &RuntimeConfig, command: InternalCommand) -> Result<()> {
     match command {
         InternalCommand::Profile => print_profile(config)?,
-        InternalCommand::ResolveResource(uri) => print_resolve_resource(config, &uri)?,
+        InternalCommand::ResolveResource(uris) => print_resolve_resources(config, &uris)?,
         InternalCommand::Resources => print_resources(config)?,
         InternalCommand::Wrappers => print_wrappers(config)?,
         InternalCommand::WhichWrapper(name) => print_which_wrapper(config, &name)?,
@@ -258,6 +258,11 @@ fn print_profile(config: &RuntimeConfig) -> Result<()> {
     println!("RUNSEAL_HOME={}", config.runseal_home.display());
     println!("RUNSEAL_PROFILE_HOME={}", config.profile_home.display());
     println!("RUNSEAL_PROFILE_PATH={}", config.profile_path.display());
+    if let Ok(Some(resources)) = profile::load_resources(&config.profile_path)
+        && let Ok(root) = profile::resolve_resource_root(&config.profile_path, Some(&resources))
+    {
+        println!("RUNSEAL_RESOURCE_ROOT={}", root.display());
+    }
     println!(
         "RUNSEAL_WRAPPER_PATH={}",
         wrapper_path_env(config)?.to_string_lossy()
@@ -277,11 +282,13 @@ fn print_wrappers(config: &RuntimeConfig) -> Result<()> {
     Ok(())
 }
 
-fn print_resolve_resource(config: &RuntimeConfig, uri: &str) -> Result<()> {
+fn print_resolve_resources(config: &RuntimeConfig, uris: &[String]) -> Result<()> {
     let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
-    let path =
-        profile::resolve_resource_uri(&config.profile_path, profile.resources.as_ref(), uri)?;
-    println!("{}", path.display());
+    for uri in uris {
+        let path =
+            profile::resolve_resource_uri(&config.profile_path, profile.resources.as_ref(), uri)?;
+        println!("{}", path.display());
+    }
     Ok(())
 }
 

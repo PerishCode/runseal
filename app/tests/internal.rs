@@ -279,11 +279,7 @@ fn internal_rejects_args() {
         ),
         (
             vec!["@resolve"],
-            "@resolve requires exactly one resource:// URI argument",
-        ),
-        (
-            vec!["@resolve", "resource://a", "resource://b"],
-            "@resolve requires exactly one resource:// URI argument",
+            "@resolve requires at least one resource:// URI argument",
         ),
     ] {
         assert_fails(&fx, &args, expected);

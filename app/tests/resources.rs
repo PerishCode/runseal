@@ -173,6 +173,15 @@ fn env_values_resolve() {
 fn internal_prints_resources() {
     let fx = resource_profile();
 
+    let output = run_in(&fx, &["@profile"]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    let value = stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("RUNSEAL_RESOURCE_ROOT="))
+        .expect("@profile should include resource root");
+    assert_resource_root(value);
+
     let output = run_in(&fx, &["@resources"]);
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
@@ -187,11 +196,17 @@ fn internal_prints_resources() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     assert_resource_root(stdout.trim());
 
-    let output = run_in(&fx, &["@resolve", "resource://local/ssh/config"]);
+    let output = run_in(
+        &fx,
+        &["@resolve", "resource://", "resource://local/ssh/config"],
+    );
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    let lines = stdout.lines().collect::<Vec<_>>();
+    assert_eq!(lines.len(), 2);
+    assert_resource_root(lines[0]);
     assert!(
-        Path::new(stdout.trim()).ends_with(
+        Path::new(lines[1]).ends_with(
             Path::new(".resource")
                 .join("local")
                 .join("ssh")
@@ -217,6 +232,7 @@ RUNSEAL_RESOURCE_A = "resource://local/ssh/config"
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
     assert!(stderr.contains("resource root is not configured"));
+    assert!(stderr.contains(fx.profile.to_str().expect("path should be UTF-8")));
 }
 
 #[test]

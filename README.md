@@ -141,20 +141,51 @@ command instead of a literal program name:
 ```bash
 runseal @profile
 runseal @resources
-runseal @resolve resource://ssh/config
+runseal @resolve resource:// resource://ssh/config
 runseal @wrappers
 runseal @which :ssh-run
 ```
 
 Internal commands are read-only and do not run profile injections.
 
-- `@profile` prints the resolved runseal runtime paths.
+- `@profile` prints the resolved runseal runtime paths. If resources are
+  configured, it also prints `RUNSEAL_RESOURCE_ROOT`.
 - `@resources` prints the resolved resource root.
-- `@resolve resource://...` prints the resolved absolute resource path.
+- `@resolve resource://...` prints resolved absolute resource paths, one per
+  argument.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
 
 Use `runseal profile` without `@` to run an external command named `profile`.
+
+YAML and JSON profiles use the same structure:
+
+```yaml
+resources:
+  root: .local
+injections:
+  - type: env
+    vars:
+      LOCAL_ROOT: resource://
+      SSH_CONFIG: resource://ssh/config
+```
+
+```json
+{
+  "resources": {
+    "root": ".local"
+  },
+  "injections": [
+    {
+      "type": "env",
+      "vars": {
+        "LOCAL_ROOT": "resource://",
+        "SSH_CONFIG": "resource://ssh/config"
+      }
+    }
+  ]
+}
+```
 
 ## Validation
 
