@@ -12,7 +12,23 @@ use runseal::run;
     name = "runseal",
     version = build_version(),
     about = "Run a command inside an env, symlink, argv, and wrapper profile.",
-    after_help = "Profile discovery: --profile, ./runseal.toml|yaml|yml|json, then $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json."
+    after_help = "\
+Command model:
+  runseal <cmd>       run an external command inside the profile
+  runseal :<name>     run a profile wrapper
+  runseal @<name>     run a read-only internal command
+
+Internal commands:
+  @profile            print resolved runtime paths
+  @resources          print the resolved resource root
+  @resolve <uri>...   resolve resource:// paths
+  @wrappers           list visible wrappers
+  @which :<name>      print a wrapper path
+
+Profile discovery walks from the current directory upward for runseal.toml|yaml|yml|json,
+then falls back to $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json.
+
+Run runseal @profile --help, @resolve --help, @wrappers --help, or @which --help for details."
 )]
 struct Cli {
     #[arg(short = 'p', long = "profile")]

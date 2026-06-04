@@ -131,6 +131,53 @@ fn assert_fails(fx: &Fixture, args: &[&str], expected: &str) {
 }
 
 #[test]
+fn help_explains_model() {
+    let output = bin().arg("--help").output().expect("runseal should run");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("runseal <cmd>"));
+    assert!(stdout.contains("runseal :<name>"));
+    assert!(stdout.contains("runseal @<name>"));
+    assert!(stdout.contains("@profile"));
+    assert!(stdout.contains("@resolve"));
+    assert!(stdout.contains("current directory upward"));
+}
+
+#[test]
+fn internal_help_topics() {
+    let fx = fixture();
+    for (args, expected) in [
+        (vec!["@profile", "--help"], "Usage: runseal @profile"),
+        (vec!["@profile", "-h"], "RUNSEAL_PROFILE_PATH"),
+        (vec!["@profile", "help"], "Profile discovery"),
+        (vec!["@resources", "--help"], "Usage: runseal @resources"),
+        (vec!["@resolve", "--help"], "Usage: runseal @resolve"),
+        (vec!["@wrappers", "--help"], "Lookup order"),
+        (vec!["@which", "--help"], "Usage: runseal @which :<wrapper>"),
+    ] {
+        let output = run_in(&fx, &args);
+        assert!(output.status.success(), "{args:?} should succeed");
+        let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+        assert!(
+            stdout.contains(expected),
+            "expected stdout for {args:?} to contain {expected:?}, got {stdout:?}"
+        );
+    }
+}
+
+#[test]
+fn unknown_help_fails() {
+    let fx = fixture();
+
+    assert_fails(
+        &fx,
+        &["@unknown", "--help"],
+        "unknown internal command: @unknown",
+    );
+}
+
+#[test]
 fn profile_prints_paths() {
     let fx = fixture();
     std::fs::write(&fx.profile, "not valid profile toml").expect("profile should be written");
@@ -331,6 +378,35 @@ cleanup = false
 
     assert!(output.status.success());
     assert!(!target.exists(), "@profile must not run injections");
+}
+
+#[cfg(unix)]
+#[test]
+fn internal_help_skips_injections() {
+    let fx = fixture();
+    let source = fx.project.join("source.txt");
+    let target = fx.project.join("target.txt");
+    std::fs::write(&source, "sealed").expect("source should be written");
+    std::fs::write(
+        &fx.profile,
+        format!(
+            r#"
+[[injections]]
+type = "symlink"
+source = "{}"
+target = "{}"
+cleanup = false
+"#,
+            source.display(),
+            target.display()
+        ),
+    )
+    .expect("profile should be written");
+
+    let output = run_in(&fx, &["@profile", "--help"]);
+
+    assert!(output.status.success());
+    assert!(!target.exists(), "internal help must not run injections");
 }
 
 #[cfg(windows)]
