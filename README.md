@@ -52,14 +52,15 @@ Each child command receives:
 
 ```toml
 [resources]
-path = ".local"
+root = ".local"
 
 [[injections]]
 type = "env"
 
 [injections.vars]
 RUNSEAL_ENV = "dev"
-SSH_CONFIG = "resource://local/ssh/config"
+LOCAL_ROOT = "resource://"
+SSH_CONFIG = "resource://ssh/config"
 
 [[injections]]
 type = "env"
@@ -89,16 +90,20 @@ resource URIs must declare:
 
 ```toml
 [resources]
-path = ".local"
+root = ".local"
 ```
 
-The resource path may be relative to the profile directory, absolute, or `~`
+The resource root may be relative to the profile directory, absolute, or `~`
 expanded. In env injection values, runseal rewrites resource URIs to absolute
-paths under that configured root. For example, with `path = ".local"`,
+paths under that configured root. For example, with `root = ".local"`,
 `resource://ssh/config` resolves to `<profile-dir>/.local/ssh/config`.
+`resource://` and `resource://.` resolve to the resource root itself.
 
 Child commands receive only the resolved absolute path. They do not receive
 or need to understand `resource://`.
+
+Resource URIs are resolved only when the env value is exactly the URI. runseal
+does not perform partial string interpolation inside env values.
 
 Resource paths must be relative URI-style paths. Empty paths, empty path
 segments, `.`, `..`, backslash separators, and `:` inside path segments are
@@ -135,7 +140,8 @@ command instead of a literal program name:
 
 ```bash
 runseal @profile
-runseal @resolve resource://local/ssh/config
+runseal @resources
+runseal @resolve resource://ssh/config
 runseal @wrappers
 runseal @which :ssh-run
 ```
@@ -143,6 +149,7 @@ runseal @which :ssh-run
 Internal commands are read-only and do not run profile injections.
 
 - `@profile` prints the resolved runseal runtime paths.
+- `@resources` prints the resolved resource root.
 - `@resolve resource://...` prints the resolved absolute resource path.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
