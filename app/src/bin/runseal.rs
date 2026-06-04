@@ -28,7 +28,9 @@ Internal commands:
 Profile discovery walks from the current directory upward for runseal.toml|yaml|yml|json,
 then falls back to $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json.
 
-Run runseal @profile --help, @resolve --help, @wrappers --help, or @which --help for details."
+Run runseal @profile --help, @resolve --help, @wrappers --help, or @which --help for details.
+
+Repository: https://github.com/PerishCode/runseal"
 )]
 struct Cli {
     #[arg(short = 'p', long = "profile")]
