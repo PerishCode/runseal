@@ -1,4 +1,7 @@
-use std::process::Command;
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use tempfile::TempDir;
 
@@ -7,17 +10,17 @@ fn bin() -> Command {
 }
 
 #[cfg(unix)]
-fn wrapper_file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+fn wrapper_file(dir: &Path, name: &str) -> PathBuf {
     dir.join(name)
 }
 
 #[cfg(windows)]
-fn wrapper_file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+fn wrapper_file(dir: &Path, name: &str) -> PathBuf {
     dir.join(format!("{name}.cmd"))
 }
 
 #[cfg(unix)]
-fn make_wrapper(path: &std::path::Path, label: &str) {
+fn make_wrapper(path: &Path, label: &str) {
     use std::os::unix::fs::PermissionsExt;
 
     std::fs::write(path, format!("#!/usr/bin/env sh\nprintf '{}'\n", label))
@@ -30,7 +33,12 @@ fn make_wrapper(path: &std::path::Path, label: &str) {
 }
 
 #[cfg(windows)]
-fn make_wrapper(path: &std::path::Path, label: &str) {
+fn make_wrapper(path: &Path, label: &str) {
+    make_cmdlike(path, label);
+}
+
+#[cfg(windows)]
+fn make_cmdlike(path: &Path, label: &str) {
     std::fs::write(
         path,
         format!("@echo off\r\n<nul set /p=\"{}\"\r\nexit /b 0\r\n", label),
@@ -39,7 +47,7 @@ fn make_wrapper(path: &std::path::Path, label: &str) {
 }
 
 #[cfg(unix)]
-fn make_probe(path: &std::path::Path) {
+fn make_probe(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
 
     std::fs::write(path, "#!/usr/bin/env sh\nprintf '%s|' \"$@\"\n")
@@ -51,7 +59,45 @@ fn make_probe(path: &std::path::Path) {
     std::fs::set_permissions(path, permissions).expect("probe should be executable");
 }
 
-fn path_suffix(path: &std::path::Path, count: usize) -> std::path::PathBuf {
+struct Fixture {
+    _temp: TempDir,
+    project: PathBuf,
+    profile: PathBuf,
+    home: PathBuf,
+    project_wrappers: PathBuf,
+    home_wrappers: PathBuf,
+}
+
+fn fixture() -> Fixture {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let project = temp.path().join("project");
+    let profile = project.join("runseal.toml");
+    let home = temp.path().join("home");
+    let project_wrappers = project.join(".runseal").join("wrappers");
+    let home_wrappers = home.join("wrappers");
+    std::fs::create_dir_all(&project_wrappers).expect("project wrappers should be created");
+    std::fs::create_dir_all(&home_wrappers).expect("home wrappers should be created");
+    std::fs::write(&profile, "injections = []\n").expect("profile should be written");
+    Fixture {
+        _temp: temp,
+        project,
+        profile,
+        home,
+        project_wrappers,
+        home_wrappers,
+    }
+}
+
+fn run_in(fx: &Fixture, args: &[&str]) -> std::process::Output {
+    bin()
+        .current_dir(&fx.project)
+        .env("RUNSEAL_HOME", &fx.home)
+        .args(args)
+        .output()
+        .expect("runseal should run")
+}
+
+fn path_suffix(path: &Path, count: usize) -> PathBuf {
     path.components()
         .rev()
         .take(count)
@@ -61,21 +107,31 @@ fn path_suffix(path: &std::path::Path, count: usize) -> std::path::PathBuf {
         .collect()
 }
 
+fn assert_path_ends_with(actual: &str, expected: &Path) {
+    let expected_suffix = path_suffix(expected, 4);
+    assert!(
+        Path::new(actual).ends_with(&expected_suffix),
+        "expected {actual:?} to end with {}",
+        expected_suffix.display()
+    );
+}
+
+fn assert_fails(fx: &Fixture, args: &[&str], expected: &str) {
+    let output = run_in(fx, args);
+    assert!(!output.status.success(), "{args:?} should fail");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(
+        stderr.contains(expected),
+        "expected stderr for {args:?} to contain {expected:?}, got {stderr:?}"
+    );
+}
+
 #[test]
 fn profile_prints_paths() {
-    let temp = TempDir::new().expect("temp dir should be created");
-    let project = temp.path().join("project");
-    let profile = project.join("runseal.toml");
-    let home = temp.path().join("home");
-    std::fs::create_dir_all(&project).expect("project should be created");
-    std::fs::write(&profile, "not valid profile toml").expect("profile should be written");
+    let fx = fixture();
+    std::fs::write(&fx.profile, "not valid profile toml").expect("profile should be written");
 
-    let output = bin()
-        .current_dir(&project)
-        .env("RUNSEAL_HOME", &home)
-        .args(["@profile"])
-        .output()
-        .expect("runseal should run");
+    let output = run_in(&fx, &["@profile"]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
@@ -83,30 +139,17 @@ fn profile_prints_paths() {
     assert!(stdout.contains("RUNSEAL_PROFILE_HOME="));
     assert!(stdout.contains("RUNSEAL_PROFILE_PATH="));
     assert!(stdout.contains("RUNSEAL_WRAPPER_PATH="));
-    assert!(stdout.contains(profile.to_str().expect("path should be UTF-8")));
+    assert!(stdout.contains(fx.profile.to_str().expect("path should be UTF-8")));
 }
 
 #[test]
 fn wrappers_show_effective() {
-    let temp = TempDir::new().expect("temp dir should be created");
-    let project = temp.path().join("project");
-    let project_wrappers = project.join(".runseal/wrappers");
-    let home = temp.path().join("home");
-    let home_wrappers = home.join("wrappers");
-    std::fs::create_dir_all(&project_wrappers).expect("project wrappers should be created");
-    std::fs::create_dir_all(&home_wrappers).expect("home wrappers should be created");
-    std::fs::write(project.join("runseal.toml"), "injections = []\n")
-        .expect("profile should be written");
-    make_wrapper(&wrapper_file(&project_wrappers, "wrap"), "project");
-    make_wrapper(&wrapper_file(&home_wrappers, "wrap"), "home");
-    make_wrapper(&wrapper_file(&home_wrappers, "home-only"), "home");
+    let fx = fixture();
+    make_wrapper(&wrapper_file(&fx.project_wrappers, "wrap"), "project");
+    make_wrapper(&wrapper_file(&fx.home_wrappers, "wrap"), "home");
+    make_wrapper(&wrapper_file(&fx.home_wrappers, "home-only"), "home");
 
-    let output = bin()
-        .current_dir(&project)
-        .env("RUNSEAL_HOME", &home)
-        .args(["@wrappers"])
-        .output()
-        .expect("runseal should run");
+    let output = run_in(&fx, &["@wrappers"]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
@@ -125,58 +168,172 @@ fn wrappers_show_effective() {
     assert!(wrap_line.contains("profile"));
     assert!(
         std::path::Path::new(wrap_file)
-            .ends_with(path_suffix(&wrapper_file(&project_wrappers, "wrap"), 4)),
+            .ends_with(path_suffix(&wrapper_file(&fx.project_wrappers, "wrap"), 4)),
         "expected {wrap_file} to point at the profile wrapper"
     );
 }
 
 #[test]
+fn wrappers_hide_shadow() {
+    let fx = fixture();
+    let project_wrapper = wrapper_file(&fx.project_wrappers, "wrap");
+    make_wrapper(&project_wrapper, "project");
+    make_wrapper(&wrapper_file(&fx.home_wrappers, "wrap"), "home");
+
+    let which = run_in(&fx, &["@which", ":wrap"]);
+    assert!(which.status.success());
+    let stdout = String::from_utf8(which.stdout).expect("stdout should be UTF-8");
+    assert_path_ends_with(stdout.trim(), &project_wrapper);
+
+    let output = run_in(&fx, &["@wrappers"]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    let wrap_lines = stdout
+        .lines()
+        .filter(|line| line.starts_with(":wrap "))
+        .collect::<Vec<_>>();
+    assert_eq!(wrap_lines.len(), 1);
+    assert!(wrap_lines[0].contains("profile"));
+}
+
+#[test]
 fn which_resolves_wrapper() {
-    let temp = TempDir::new().expect("temp dir should be created");
-    let project = temp.path().join("project");
-    let project_wrappers = project.join(".runseal/wrappers");
-    let home = temp.path().join("home");
-    std::fs::create_dir_all(&project_wrappers).expect("project wrappers should be created");
-    std::fs::write(project.join("runseal.toml"), "injections = []\n")
-        .expect("profile should be written");
-    let wrapper = wrapper_file(&project_wrappers, "wrap");
+    let fx = fixture();
+    let wrapper = wrapper_file(&fx.project_wrappers, "wrap");
     make_wrapper(&wrapper, "project");
 
-    let output = bin()
-        .current_dir(&project)
-        .env("RUNSEAL_HOME", &home)
-        .args(["@which", ":wrap"])
-        .output()
-        .expect("runseal should run");
+    let output = run_in(&fx, &["@which", ":wrap"]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    let expected_suffix = path_suffix(&wrapper, 4);
-    assert!(
-        std::path::Path::new(stdout.trim()).ends_with(&expected_suffix),
-        "expected {stdout:?} to end with {}",
-        expected_suffix.display()
-    );
+    assert_path_ends_with(stdout.trim(), &wrapper);
 }
 
 #[test]
 fn which_rejects_external() {
-    let temp = TempDir::new().expect("temp dir should be created");
-    let project = temp.path().join("project");
-    std::fs::create_dir_all(&project).expect("project should be created");
-    std::fs::write(project.join("runseal.toml"), "injections = []\n")
-        .expect("profile should be written");
+    let fx = fixture();
 
-    let output = bin()
-        .current_dir(&project)
-        .env("RUNSEAL_HOME", temp.path().join("home"))
-        .args(["@which", "ssh"])
-        .output()
-        .expect("runseal should run");
+    let output = run_in(&fx, &["@which", "ssh"]);
 
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
     assert!(stderr.contains("@which currently supports only :wrapper arguments"));
+}
+
+#[test]
+fn internal_rejects_args() {
+    let fx = fixture();
+    for (args, expected) in [
+        (vec!["@"], "internal command name must not be empty"),
+        (vec!["@unknown"], "unknown internal command: @unknown"),
+        (
+            vec!["@profile", "extra"],
+            "@profile does not accept arguments",
+        ),
+        (
+            vec!["@wrappers", "extra"],
+            "@wrappers does not accept arguments",
+        ),
+        (
+            vec!["@which"],
+            "@which requires exactly one :wrapper argument",
+        ),
+        (
+            vec!["@which", ":a", ":b"],
+            "@which requires exactly one :wrapper argument",
+        ),
+    ] {
+        assert_fails(&fx, &args, expected);
+    }
+}
+
+#[test]
+fn names_reject_invalid() {
+    let fx = fixture();
+    for (args, expected) in [
+        (vec![":"], "wrapper name must not be empty"),
+        (vec![":.."], "invalid wrapper name: :.."),
+        (vec![":bad/name"], "invalid wrapper name: :bad/name"),
+        (vec!["@"], "internal command name must not be empty"),
+        (vec!["@.."], "invalid internal command name: @.."),
+        (
+            vec!["@bad/name"],
+            "invalid internal command name: @bad/name",
+        ),
+    ] {
+        assert_fails(&fx, &args, expected);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn profile_skips_injections() {
+    let fx = fixture();
+    let source = fx.project.join("source.txt");
+    let target = fx.project.join("target.txt");
+    std::fs::write(&source, "sealed").expect("source should be written");
+    std::fs::write(
+        &fx.profile,
+        format!(
+            r#"
+[[injections]]
+type = "symlink"
+source = "{}"
+target = "{}"
+cleanup = false
+"#,
+            source.display(),
+            target.display()
+        ),
+    )
+    .expect("profile should be written");
+
+    let output = run_in(&fx, &["@profile"]);
+
+    assert!(output.status.success());
+    assert!(!target.exists(), "@profile must not run injections");
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_ext_priority() {
+    let fx = fixture();
+    let exact = fx.project_wrappers.join("tool");
+    let exe = fx.project_wrappers.join("tool.exe");
+    let cmd = fx.project_wrappers.join("tool.cmd");
+    let bat = fx.project_wrappers.join("tool.bat");
+    std::fs::write(&exact, "exact").expect("exact wrapper should be written");
+    std::fs::write(&exe, "exe").expect("exe wrapper should be written");
+    make_cmdlike(&cmd, "cmd");
+    make_cmdlike(&bat, "bat");
+
+    for expected in [&exact, &exe, &cmd, &bat] {
+        let output = run_in(&fx, &["@which", ":tool"]);
+        assert!(output.status.success());
+        let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+        assert_path_ends_with(stdout.trim(), expected);
+        std::fs::remove_file(expected).expect("wrapper candidate should be removed");
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_cmd_exec() {
+    let fx = fixture();
+    let cmd = fx.project_wrappers.join("tool.cmd");
+    let bat = fx.project_wrappers.join("tool.bat");
+    make_cmdlike(&cmd, "cmd");
+    make_cmdlike(&bat, "bat");
+
+    let which = run_in(&fx, &["@which", ":tool"]);
+    assert!(which.status.success());
+    let stdout = String::from_utf8(which.stdout).expect("stdout should be UTF-8");
+    assert_path_ends_with(stdout.trim(), &cmd);
+
+    let output = run_in(&fx, &[":tool"]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout, "cmd");
 }
 
 #[cfg(unix)]
