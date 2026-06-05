@@ -6,9 +6,11 @@ mod ast;
 mod emit;
 mod lower;
 mod parse;
+mod powershell;
 
 use emit::{emit_bash, emit_powershell, emit_seal};
 use parse::parse_seal;
+use powershell::parse_powershell;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
@@ -105,11 +107,9 @@ pub fn transpile_source(
     source_name: Option<&str>,
 ) -> Result<String> {
     let program = match input_lang {
-        Lang::Seal => parse_seal(source)?,
+        Lang::Seal | Lang::Bash => parse_seal(source)?,
+        Lang::PowerShell => parse_powershell(source)?,
         Lang::SealIr => serde_json::from_str(source)?,
-        Lang::Bash | Lang::PowerShell => {
-            bail!("{input_lang:?} input is not supported in the cold-start transpiler")
-        }
     };
     match output_lang {
         Lang::SealIr => Ok(serde_json::to_string_pretty(&program)? + "\n"),

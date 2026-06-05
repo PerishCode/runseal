@@ -106,13 +106,15 @@ if command -v pwsh >/dev/null 2>&1; then
   pwsh -NoProfile -NonInteractive -Command \\
     '
 $ErrorActionPreference = "Stop"
-foreach ($path in $args) {{
+$paths = @(
+  "manage.ps1",
+  ".github/scripts/release/assets/package.ps1",
+  ".github/scripts/release/smoke/smoke.ps1"
+)
+foreach ($path in $paths) {{
   [scriptblock]::Create((Get-Content -Raw $path)) | Out-Null
 }}
-' \\
-    manage.ps1 \\
-    .github/scripts/release/assets/package.ps1 \\
-    .github/scripts/release/smoke/smoke.ps1
+'
 else
   echo "==> PowerShell syntax"
   echo "skip: pwsh not found"

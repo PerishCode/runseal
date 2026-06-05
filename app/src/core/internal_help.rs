@@ -81,9 +81,15 @@ Languages:
   powershell  PowerShell output target
 
 Cold-start supported paths:
+  bash -> sealir
+  bash -> seal
+  bash -> powershell
   seal -> sealir
   seal -> bash
   seal -> powershell
+  powershell -> sealir
+  powershell -> seal
+  powershell -> bash
   sealir -> seal
   sealir -> bash
   sealir -> powershell

@@ -57,6 +57,33 @@ esac
 "#
 }
 
+fn powershell_source() -> &'static str {
+    r#"
+$channel = $(if ($env:RUNSEAL_CHANNEL) { $env:RUNSEAL_CHANNEL } else { 'stable' })
+function release_run {
+    if ([string]::IsNullOrEmpty($channel)) {
+        throw 'channel missing'
+    }
+    & 'gh' 'workflow' 'run' 'release.yml' '--ref' 'main' '-f' ('channel=' + $channel)
+}
+
+switch ($channel) {
+    'stable' {
+        Write-Output 'stable release'
+        break
+    }
+    'beta' {
+        release_run
+        break
+    }
+    Default {
+        throw ('unknown channel: ' + $channel)
+        break
+    }
+}
+"#
+}
+
 #[test]
 fn help_without_profile() {
     let fx = fixture("");
@@ -86,6 +113,44 @@ fn sealir_without_profile() {
     assert_eq!(payload["version"], 1);
     assert!(stdout.contains("env_default"));
     assert!(stdout.contains("exec_checked"));
+}
+
+#[test]
+fn bash_frontend_sealir() {
+    let fx = fixture(sample_source());
+
+    let output = run_transpile(&fx, "bash", "sealir");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("env_default"));
+    assert!(stdout.contains("exec_checked"));
+}
+
+#[test]
+fn powershell_frontend_sealir() {
+    let fx = fixture(powershell_source());
+
+    let output = run_transpile(&fx, "powershell", "sealir");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("env_default"));
+    assert!(stdout.contains("call_function"));
+    assert!(stdout.contains("exec_checked"));
+}
+
+#[test]
+fn powershell_to_bash() {
+    let fx = fixture(powershell_source());
+
+    let output = run_transpile(&fx, "powershell", "bash");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("release_run() {"));
+    assert!(stdout.contains("gh workflow run release.yml --ref main -f \"channel=$channel\""));
+    assert_bash_syntax(&stdout);
 }
 
 #[test]
@@ -146,11 +211,11 @@ fn sealir_to_seal() {
 fn unsupported_input_fails() {
     let fx = fixture("print ok\n");
 
-    let output = run_transpile(&fx, "bash", "powershell");
+    let output = run_transpile(&fx, "python", "powershell");
 
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
-    assert!(stderr.contains("Bash input is not supported"));
+    assert!(stderr.contains("invalid --input-lang"));
 }
 
 #[test]

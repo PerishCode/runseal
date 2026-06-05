@@ -267,7 +267,8 @@ Internal commands are read-only and do not run profile injections.
   argument.
 - `@transpile --input-lang=<lang> --output-lang=<lang> <source>` transpiles
   explicit glue languages and prints the generated output. Cold start supports
-  `seal`/`sealir` input and `seal`, `sealir`, `bash`, or `powershell` output.
+  `bash`, `seal`, `powershell`, and `sealir` inputs and outputs for the
+  currently recognized intersection.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
 
