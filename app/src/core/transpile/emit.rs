@@ -1,4 +1,5 @@
 use super::ast::{Item, Predicate, Program, Statement, Value};
+use super::guards::{bash_required_tools, emit_bash_guards};
 
 pub(crate) fn emit_seal(program: &Program) -> String {
     let mut out = String::new();
@@ -39,6 +40,12 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str("=$(");
             out.push_str(&join_values(argv, seal_value));
             out.push_str(")\n");
+        }
+        Statement::StringTrim { name, value } => {
+            out.push_str(&format!(
+                "{pad}{name}=$(seal string trim {})\n",
+                seal_value(value)
+            ));
         }
         Statement::If {
             predicate,
@@ -83,6 +90,7 @@ pub(crate) fn emit_bash(program: &Program, source_name: Option<&str>) -> String 
     let mut out = generated_header("bash", source_name);
     out.push_str("set -euo pipefail\n\n");
     out.push_str("seal_fail() {\n  printf '%s\\n' \"$1\" >&2\n  exit 1\n}\n\n");
+    emit_bash_guards(&mut out, &bash_required_tools(program));
     emit_bash_items(&mut out, program);
     out
 }
@@ -124,6 +132,12 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str("=$(");
             out.push_str(&join_values(argv, bash_value));
             out.push_str(")\n");
+        }
+        Statement::StringTrim { name, value } => {
+            out.push_str(&format!(
+                "{pad}{name}=$(printf '%s' {} | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')\n",
+                bash_value(value)
+            ));
         }
         Statement::If {
             predicate,
@@ -213,6 +227,12 @@ fn emit_powershell_statement(out: &mut String, statement: &Statement, indent: us
             out.push_str(&format!("${name} = & "));
             out.push_str(&join_values(argv, powershell_value));
             out.push('\n');
+        }
+        Statement::StringTrim { name, value } => {
+            out.push_str(&format!(
+                "{pad}${name} = ({}).Trim()\n",
+                powershell_value(value)
+            ));
         }
         Statement::If {
             predicate,

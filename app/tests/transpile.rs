@@ -98,6 +98,22 @@ Write-Output $raw
 "#
 }
 
+fn trim_source() -> &'static str {
+    r#"
+raw="  value  "
+trimmed=$(seal string trim "$raw")
+print "$trimmed"
+"#
+}
+
+fn powershell_trim_source() -> &'static str {
+    r#"
+$raw = '  value  '
+$trimmed = seal string trim $raw
+Write-Output $trimmed
+"#
+}
+
 #[test]
 fn help_without_profile() {
     let fx = fixture("");
@@ -204,6 +220,43 @@ fn capture_to_targets() {
     let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
     assert!(bash.contains("raw=$(gh run list --json databaseId)"));
     assert!(powershell.contains("$raw = & 'gh' 'run' 'list' '--json' 'databaseId'"));
+    assert_bash_syntax(&bash);
+    assert_pwsh_syntax(&powershell);
+}
+
+#[test]
+fn string_trim_helper_roundtrip() {
+    for input_lang in ["seal", "bash"] {
+        let fx = fixture(trim_source());
+        let output = run_transpile(&fx, input_lang, "sealir");
+
+        assert!(output.status.success());
+        let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+        assert!(stdout.contains("string_trim"));
+    }
+
+    let fx = fixture(powershell_trim_source());
+    let output = run_transpile(&fx, "powershell", "sealir");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("string_trim"));
+}
+
+#[test]
+fn string_trim_emits_native() {
+    let fx = fixture(trim_source());
+
+    let bash = run_transpile(&fx, "seal", "bash");
+    let powershell = run_transpile(&fx, "seal", "powershell");
+
+    assert!(bash.status.success());
+    assert!(powershell.status.success());
+    let bash = String::from_utf8(bash.stdout).expect("stdout should be UTF-8");
+    let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
+    assert!(bash.contains("command -v sed"));
+    assert!(bash.contains("trimmed=$(printf '%s' \"$raw\" | sed"));
+    assert!(powershell.contains("$trimmed = ($raw).Trim()"));
     assert_bash_syntax(&bash);
     assert_pwsh_syntax(&powershell);
 }

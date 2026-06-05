@@ -4,6 +4,7 @@ use anyhow::{Result, bail};
 
 mod ast;
 mod emit;
+mod guards;
 mod lower;
 mod parse;
 mod powershell;

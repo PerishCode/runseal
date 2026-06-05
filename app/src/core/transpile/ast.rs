@@ -25,6 +25,10 @@ pub enum Statement {
         name: String,
         argv: Vec<Value>,
     },
+    StringTrim {
+        name: String,
+        value: Value,
+    },
     If {
         predicate: Predicate,
         then_body: Vec<Statement>,

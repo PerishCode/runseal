@@ -186,13 +186,17 @@ impl Parser {
 fn parse_simple_statement(line: &Line) -> Result<Statement> {
     if let Some((name, value)) = assignment(&line.text) {
         if let Some(argv) = value.strip_prefix("& ") {
-            return Ok(Statement::CaptureChecked {
-                name,
-                argv: split_exprs(argv, line.number)?
-                    .iter()
-                    .map(|arg| parse_value(arg, line.number))
-                    .collect::<Result<Vec<_>>>()?,
-            });
+            let argv = parse_argv(argv, line.number)?;
+            if let Some(statement) = helper_capture_statement(&name, &argv) {
+                return Ok(statement);
+            }
+            return Ok(Statement::CaptureChecked { name, argv });
+        }
+        if value.starts_with("seal ") {
+            let argv = parse_argv(value, line.number)?;
+            if let Some(statement) = helper_capture_statement(&name, &argv) {
+                return Ok(statement);
+            }
         }
         return Ok(Statement::Assign {
             name,
@@ -229,6 +233,42 @@ fn parse_simple_statement(line: &Line) -> Result<Statement> {
         line.number,
         line.text
     )
+}
+
+fn parse_argv(text: &str, line: usize) -> Result<Vec<Value>> {
+    split_exprs(text, line)?
+        .iter()
+        .map(|arg| parse_argv_value(arg, line))
+        .collect::<Result<Vec<_>>>()
+}
+
+fn parse_argv_value(text: &str, line: usize) -> Result<Value> {
+    parse_value(text, line).or_else(|_| {
+        if is_valid_name(text) {
+            Ok(Value::Literal {
+                text: text.to_string(),
+            })
+        } else {
+            bail!("{line}: unsupported PowerShell argv value: {text}")
+        }
+    })
+}
+
+fn helper_capture_statement(name: &str, argv: &[Value]) -> Option<Statement> {
+    match argv {
+        [
+            Value::Literal { text: seal },
+            Value::Literal { text: string },
+            Value::Literal { text: trim },
+            value,
+        ] if seal == "seal" && string == "string" && trim == "trim" => {
+            Some(Statement::StringTrim {
+                name: name.to_string(),
+                value: value.clone(),
+            })
+        }
+        _ => None,
+    }
 }
 
 fn assignment(text: &str) -> Option<(String, &str)> {

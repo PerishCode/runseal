@@ -202,6 +202,9 @@ fn function_header(text: &str) -> Option<&str> {
 fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
     if let Some((name, value)) = assignment(&line.text) {
         if let Some(argv) = capture_argv(value, line.number)? {
+            if let Some(statement) = helper_capture_statement(name, &argv) {
+                return Ok(statement);
+            }
             return Ok(Statement::CaptureChecked {
                 name: name.to_string(),
                 argv,
@@ -298,6 +301,23 @@ fn capture_argv(value: &str, line: usize) -> Result<Option<Vec<Value>>> {
             .map(|arg| parse_value_text(arg, line))
             .collect::<Result<Vec<_>>>()?,
     ))
+}
+
+fn helper_capture_statement(name: &str, argv: &[Value]) -> Option<Statement> {
+    match argv {
+        [
+            Value::Literal { text: seal },
+            Value::Literal { text: string },
+            Value::Literal { text: trim },
+            value,
+        ] if seal == "seal" && string == "string" && trim == "trim" => {
+            Some(Statement::StringTrim {
+                name: name.to_string(),
+                value: value.clone(),
+            })
+        }
+        _ => None,
+    }
 }
 
 fn one_value(args: &[String], line: usize, command: &str) -> Result<Value> {
