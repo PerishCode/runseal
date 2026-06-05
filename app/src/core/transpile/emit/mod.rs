@@ -73,6 +73,18 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
                 sh_quote(&json_path(path))
             ));
         }
+        Statement::RegexCapture {
+            name,
+            value,
+            pattern,
+            group,
+        } => {
+            out.push_str(&format!(
+                "{pad}{name}=$(seal regex capture {} {} {group})\n",
+                seal_value(value),
+                sh_quote(pattern)
+            ));
+        }
         Statement::IntAdd { name, left, right } => {
             out.push_str(&format!(
                 "{pad}{name}=$(seal int add {} {})\n",
@@ -186,6 +198,18 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
                 sh_quote(&json_path(path))
             ));
         }
+        Statement::RegexCapture {
+            name,
+            value,
+            pattern,
+            group,
+        } => {
+            out.push_str(&format!(
+                "{pad}{name}=$(printf '%s' {} | sed -nE {})\n",
+                bash_value(value),
+                sh_quote(&sed_capture_expr(pattern, *group))
+            ));
+        }
         Statement::IntAdd { name, left, right } => {
             out.push_str(&format!(
                 "{pad}{name}=$(({} + {}))\n",
@@ -295,6 +319,21 @@ fn emit_bash_flag_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
     out.push_str(&format!("{pad}      {}=true\n", spec.name));
     out.push_str(&format!("{pad}      shift\n"));
     out.push_str(&format!("{pad}      ;;\n"));
+}
+
+fn sed_capture_expr(pattern: &str, group: usize) -> String {
+    let delimiter = sed_delimiter(pattern);
+    format!(
+        "s{delimiter}.*{}.*{delimiter}\\{group}{delimiter}p",
+        pattern.replace(delimiter, &format!("\\{delimiter}"))
+    )
+}
+
+fn sed_delimiter(pattern: &str) -> char {
+    ['#', '@', '%', '|', ';', ':']
+        .into_iter()
+        .find(|delimiter| !pattern.contains(*delimiter))
+        .unwrap_or('#')
 }
 
 fn argv_spec_name(spec: &ArgvSpec) -> String {

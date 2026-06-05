@@ -44,6 +44,21 @@ pub(crate) fn parse_capture_helper(
         }),
         [
             Value::Literal { text: seal },
+            Value::Literal { text: regex },
+            Value::Literal { text: capture },
+            value,
+            Value::Literal { text: pattern },
+            Value::Literal { text: group },
+        ] if seal == "seal" && regex == "regex" && capture == "capture" => {
+            Some(Statement::RegexCapture {
+                name: name.to_string(),
+                value: value.clone(),
+                pattern: pattern.clone(),
+                group: parse_group(group, line)?,
+            })
+        }
+        [
+            Value::Literal { text: seal },
             Value::Literal { text: int },
             Value::Literal { text: add },
             left,
@@ -56,6 +71,16 @@ pub(crate) fn parse_capture_helper(
         _ => None,
     };
     Ok(statement)
+}
+
+fn parse_group(group: &str, line: usize) -> Result<usize> {
+    let group = group
+        .parse()
+        .map_err(|_| anyhow::anyhow!("{line}: invalid regex capture group: {group}"))?;
+    if !(1..=9).contains(&group) {
+        bail!("{line}: regex capture group must be between 1 and 9");
+    }
+    Ok(group)
 }
 
 fn parse_argv_specs(args: &[String], line: usize) -> Result<Vec<ArgvSpec>> {

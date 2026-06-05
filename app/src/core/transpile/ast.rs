@@ -37,6 +37,12 @@ pub enum Statement {
         json: Value,
         path: JsonPath,
     },
+    RegexCapture {
+        name: String,
+        value: Value,
+        pattern: String,
+        group: usize,
+    },
     IntAdd {
         name: String,
         left: Value,

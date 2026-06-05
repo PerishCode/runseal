@@ -59,6 +59,12 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize) {
                 powershell_json_get(&powershell_value(json), path)
             ));
         }
+        Statement::RegexCapture {
+            name,
+            value,
+            pattern,
+            group,
+        } => emit_regex_capture(out, &pad, name, value, pattern, *group),
         Statement::IntAdd { name, left, right } => {
             out.push_str(&format!(
                 "{pad}${name} = [int]{} + {}\n",
@@ -189,6 +195,25 @@ fn emit_flag_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
 
 fn regex_quote(value: &str) -> String {
     value.replace('-', "\\-")
+}
+
+fn emit_regex_capture(
+    out: &mut String,
+    pad: &str,
+    name: &str,
+    value: &Value,
+    pattern: &str,
+    group: usize,
+) {
+    let match_name = format!("__seal_match_{name}");
+    out.push_str(&format!(
+        "{pad}${match_name} = [regex]::Match({}, {})\n",
+        powershell_value(value),
+        powershell_quote(pattern)
+    ));
+    out.push_str(&format!(
+        "{pad}${name} = if (${match_name}.Success -and ${match_name}.Groups.Count -gt {group}) {{ [string]${match_name}.Groups[{group}].Value }} else {{ '' }}\n"
+    ));
 }
 
 fn emit_if(
