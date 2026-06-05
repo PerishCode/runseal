@@ -2,13 +2,62 @@
 
 Run a command inside a small, explicit profile.
 
-`runseal` currently supports three profile capabilities plus explicit wrapper
-and internal command namespaces:
+Use `runseal` when a repository needs explicit local resources, named wrappers,
+and env/argv/symlink setup without becoming a task runner, secret manager, or
+deployment orchestrator.
 
-- `env`: export environment variables and ordered env operations.
-- `symlink`: create symlinks for the command lifecycle, then clean them up.
-- `argv`: inject fixed arguments after a matching child command token.
-- `resource://...`: resolve profile-local resource paths inside env values.
+It is designed for repos that carry private local paths such as `.local`,
+kubeconfig files, SSH config, tool directories, or wrapper scripts, and need
+one command to expose those paths to child tools predictably.
+
+## 30-second Example
+
+Declare profile-local resources:
+
+```toml
+[resources]
+root = ".local"
+
+[[injections]]
+type = "env"
+
+[injections.vars]
+APP_SSH_CONFIG = "resource://ssh/config"
+APP_SECRET_DIR = "resource://secrets"
+```
+
+Inspect what runseal resolved:
+
+```bash
+runseal @profile
+runseal @resources
+runseal @resolve resource://ssh/config
+```
+
+Run an external command or a named wrapper inside the profile:
+
+```bash
+runseal bash -lc 'echo "$APP_SSH_CONFIG"'
+runseal :ssh-run host
+```
+
+## Inspect What Runseal Sees
+
+Internal commands are read-only and do not run profile injections:
+
+```bash
+runseal @profile
+runseal @resources
+runseal @resolve resource:// resource://ssh/config
+runseal @wrappers
+runseal @which :ssh-run
+```
+
+These commands answer the first debugging questions: which profile was selected,
+where resources resolve, which wrappers are visible, and which wrapper file a
+`:name` command will execute.
+
+## Command Routing
 
 Command routing is based on the first command token:
 
@@ -16,11 +65,40 @@ Command routing is based on the first command token:
 - `runseal :<cmd>` runs a profile wrapper.
 - `runseal @<cmd>` runs a read-only runseal internal command.
 
-## Usage
+For example:
 
 ```bash
-runseal --profile ./runseal.toml bash -- -lc 'echo "$RUNSEAL_PROFILE_PATH"'
+runseal --profile ./runseal.toml bash -lc 'echo "$RUNSEAL_PROFILE_PATH"'
 ```
+
+Use `runseal profile` without `@` to run an external command named `profile`.
+
+## Fit
+
+Fits well:
+
+- repo-local private resources
+- explicit one-command execution environments
+- named wrappers with discoverability
+- passing profile-scoped paths to tools like `ssh`, `kubectl`, `uv`, or
+  `terraform`
+
+Not trying to be:
+
+- a task dependency graph
+- a secret lifecycle manager
+- a deployment orchestrator
+- a shell auto-activation tool
+
+## Capabilities
+
+`runseal` currently supports three profile capabilities plus explicit wrapper
+and internal command namespaces:
+
+- `env`: export environment variables and ordered env operations.
+- `symlink`: create symlinks for the command lifecycle, then clean them up.
+- `argv`: inject fixed arguments after a matching child command token.
+- `resource://...`: resolve profile-local resource paths inside env values.
 
 ## Install
 
@@ -187,8 +265,6 @@ Internal commands are read-only and do not run profile injections.
   argument.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
-
-Use `runseal profile` without `@` to run an external command named `profile`.
 
 YAML and JSON profiles use the same structure:
 
