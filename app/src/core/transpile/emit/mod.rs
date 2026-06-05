@@ -1,4 +1,4 @@
-use super::ast::{Item, Predicate, Program, Statement, Value};
+use super::ast::{ArgvKind, ArgvSpec, Item, Predicate, Program, Statement, Value};
 use super::guards::{bash_required_tools, emit_bash_guards};
 use super::json_path::json_path;
 
@@ -37,6 +37,20 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
         Statement::ExecChecked { argv } => {
             out.push_str(&pad);
             out.push_str(&join_values(argv, seal_value));
+            out.push('\n');
+        }
+        Statement::ArgvParse { specs } => {
+            out.push_str(&pad);
+            out.push_str("seal argv parse");
+            for spec in specs {
+                out.push(' ');
+                out.push_str(match spec.kind {
+                    ArgvKind::String => "--string",
+                    ArgvKind::Flag => "--flag",
+                });
+                out.push(' ');
+                out.push_str(&argv_spec_name(spec));
+            }
             out.push('\n');
         }
         Statement::CaptureChecked { name, argv } => {
@@ -151,6 +165,7 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, bash_value));
             out.push('\n');
         }
+        Statement::ArgvParse { specs } => emit_bash_argv_parse(out, specs, indent),
         Statement::CaptureChecked { name, argv } => {
             out.push_str(&pad);
             out.push_str(name);
@@ -227,6 +242,70 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
         Statement::Break => out.push_str(&format!("{pad}break\n")),
         Statement::Sleep { seconds } => out.push_str(&format!("{pad}sleep {seconds}\n")),
     }
+}
+
+fn emit_bash_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
+    let pad = "  ".repeat(indent);
+    for spec in specs {
+        let value = match spec.kind {
+            ArgvKind::String => sh_quote(spec.default.as_deref().unwrap_or("")),
+            ArgvKind::Flag => "false".to_string(),
+        };
+        out.push_str(&format!("{pad}{}={value}\n", spec.name));
+    }
+    out.push_str(&format!("{pad}while [ \"$#\" -gt 0 ]; do\n"));
+    out.push_str(&format!("{pad}  case \"$1\" in\n"));
+    for spec in specs {
+        match spec.kind {
+            ArgvKind::String => emit_bash_string_option(out, spec, indent),
+            ArgvKind::Flag => emit_bash_flag_option(out, spec, indent),
+        }
+    }
+    out.push_str(&format!("{pad}    --)\n"));
+    out.push_str(&format!("{pad}      shift\n"));
+    out.push_str(&format!("{pad}      break\n"));
+    out.push_str(&format!("{pad}      ;;\n"));
+    out.push_str(&format!(
+        "{pad}    *) seal_fail \"unknown option: $1\" ;;\n"
+    ));
+    out.push_str(&format!("{pad}  esac\n"));
+    out.push_str(&format!("{pad}done\n"));
+}
+
+fn emit_bash_string_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
+    let pad = "  ".repeat(indent);
+    let option = option_name(&spec.name);
+    out.push_str(&format!("{pad}    {option})\n"));
+    out.push_str(&format!(
+        "{pad}      if [ \"$#\" -lt 2 ]; then seal_fail 'missing value for {option}'; fi\n"
+    ));
+    out.push_str(&format!("{pad}      {}=$2\n", spec.name));
+    out.push_str(&format!("{pad}      shift 2\n"));
+    out.push_str(&format!("{pad}      ;;\n"));
+    out.push_str(&format!("{pad}    {option}=*)\n"));
+    out.push_str(&format!("{pad}      {}=${{1#{option}=}}\n", spec.name));
+    out.push_str(&format!("{pad}      shift\n"));
+    out.push_str(&format!("{pad}      ;;\n"));
+}
+
+fn emit_bash_flag_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
+    let pad = "  ".repeat(indent);
+    let option = option_name(&spec.name);
+    out.push_str(&format!("{pad}    {option})\n"));
+    out.push_str(&format!("{pad}      {}=true\n", spec.name));
+    out.push_str(&format!("{pad}      shift\n"));
+    out.push_str(&format!("{pad}      ;;\n"));
+}
+
+fn argv_spec_name(spec: &ArgvSpec) -> String {
+    match &spec.default {
+        Some(default) => format!("{}={default}", spec.name),
+        None => spec.name.clone(),
+    }
+}
+
+pub(super) fn option_name(name: &str) -> String {
+    format!("--{}", name.replace('_', "-"))
 }
 
 fn join_values(values: &[Value], format: fn(&Value) -> String) -> String {

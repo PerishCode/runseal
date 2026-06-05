@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 
 use super::ast::{CaseArm, Item, Program, Statement, Value};
-use super::json_path::parse_json_path;
+use super::helpers::{parse_capture_helper, parse_statement_helper};
 use super::lower::lower_functions;
 use super::powershell_predicate::parse_powershell_predicate;
 
@@ -203,17 +203,22 @@ impl Parser {
 }
 
 fn parse_simple_statement(line: &Line) -> Result<Statement> {
+    if let Some(rest) = line.text.strip_prefix("seal argv parse ") {
+        let mut args = vec!["argv".to_string(), "parse".to_string()];
+        args.extend(split_exprs(rest, line.number)?);
+        return parse_statement_helper(&args, line.number);
+    }
     if let Some((name, value)) = assignment(&line.text) {
         if let Some(argv) = value.strip_prefix("& ") {
             let argv = parse_argv(argv, line.number)?;
-            if let Some(statement) = helper_capture_statement(&name, &argv, line.number)? {
+            if let Some(statement) = parse_capture_helper(&name, &argv, line.number)? {
                 return Ok(statement);
             }
             return Ok(Statement::CaptureChecked { name, argv });
         }
         if value.starts_with("seal ") {
             let argv = parse_argv(value, line.number)?;
-            if let Some(statement) = helper_capture_statement(&name, &argv, line.number)? {
+            if let Some(statement) = parse_capture_helper(&name, &argv, line.number)? {
                 return Ok(statement);
             }
         }
@@ -284,46 +289,6 @@ fn parse_argv_value(text: &str, line: usize) -> Result<Value> {
             bail!("{line}: unsupported PowerShell argv value: {text}")
         }
     })
-}
-
-fn helper_capture_statement(name: &str, argv: &[Value], line: usize) -> Result<Option<Statement>> {
-    let statement = match argv {
-        [
-            Value::Literal { text: seal },
-            Value::Literal { text: string },
-            Value::Literal { text: trim },
-            value,
-        ] if seal == "seal" && string == "string" && trim == "trim" => {
-            Some(Statement::StringTrim {
-                name: name.to_string(),
-                value: value.clone(),
-            })
-        }
-        [
-            Value::Literal { text: seal },
-            Value::Literal { text: json },
-            Value::Literal { text: get },
-            value,
-            Value::Literal { text: path },
-        ] if seal == "seal" && json == "json" && get == "get" => Some(Statement::JsonGet {
-            name: name.to_string(),
-            json: value.clone(),
-            path: parse_json_path(path, line)?,
-        }),
-        [
-            Value::Literal { text: seal },
-            Value::Literal { text: int },
-            Value::Literal { text: add },
-            left,
-            right,
-        ] if seal == "seal" && int == "int" && add == "add" => Some(Statement::IntAdd {
-            name: name.to_string(),
-            left: left.clone(),
-            right: right.clone(),
-        }),
-        _ => None,
-    };
-    Ok(statement)
 }
 
 fn int_add_assignment(name: &str, value: &str, line: usize) -> Result<Option<Statement>> {

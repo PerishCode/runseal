@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 
 use super::ast::{CaseArm, Item, Predicate, Program, Statement, Value};
-use super::json_path::parse_json_path;
+use super::helpers::{parse_capture_helper, parse_statement_helper};
 use super::lower::lower_functions;
 use super::value::parse_value_text;
 
@@ -218,7 +218,7 @@ fn function_header(text: &str) -> Option<&str> {
 fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
     if let Some((name, value)) = assignment(&line.text) {
         if let Some(argv) = capture_argv(value, line.number)? {
-            if let Some(statement) = helper_capture_statement(name, &argv, line.number)? {
+            if let Some(statement) = parse_capture_helper(name, &argv, line.number)? {
                 return Ok(statement);
             }
             return Ok(Statement::CaptureChecked {
@@ -237,6 +237,7 @@ fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
     };
     match command.as_str() {
         "eval" => bail!("{}: unsupported statement: eval", line.number),
+        "seal" => parse_statement_helper(args, line.number),
         "print" => Ok(Statement::Print {
             value: one_value(args, line.number, "print")?,
         }),
@@ -323,46 +324,6 @@ fn capture_argv(value: &str, line: usize) -> Result<Option<Vec<Value>>> {
             .map(|arg| parse_value_text(arg, line))
             .collect::<Result<Vec<_>>>()?,
     ))
-}
-
-fn helper_capture_statement(name: &str, argv: &[Value], line: usize) -> Result<Option<Statement>> {
-    let statement = match argv {
-        [
-            Value::Literal { text: seal },
-            Value::Literal { text: string },
-            Value::Literal { text: trim },
-            value,
-        ] if seal == "seal" && string == "string" && trim == "trim" => {
-            Some(Statement::StringTrim {
-                name: name.to_string(),
-                value: value.clone(),
-            })
-        }
-        [
-            Value::Literal { text: seal },
-            Value::Literal { text: json },
-            Value::Literal { text: get },
-            value,
-            Value::Literal { text: path },
-        ] if seal == "seal" && json == "json" && get == "get" => Some(Statement::JsonGet {
-            name: name.to_string(),
-            json: value.clone(),
-            path: parse_json_path(path, line)?,
-        }),
-        [
-            Value::Literal { text: seal },
-            Value::Literal { text: int },
-            Value::Literal { text: add },
-            left,
-            right,
-        ] if seal == "seal" && int == "int" && add == "add" => Some(Statement::IntAdd {
-            name: name.to_string(),
-            left: left.clone(),
-            right: right.clone(),
-        }),
-        _ => None,
-    };
-    Ok(statement)
 }
 
 fn one_value(args: &[String], line: usize, command: &str) -> Result<Value> {
