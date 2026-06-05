@@ -114,6 +114,22 @@ Write-Output $trimmed
 "#
 }
 
+fn json_get_source() -> &'static str {
+    r#"
+raw='[{"databaseId":123}]'
+run_id=$(seal json get "$raw" '.[0].databaseId')
+print "$run_id"
+"#
+}
+
+fn powershell_json_get_source() -> &'static str {
+    r#"
+$raw = '[{"databaseId":123}]'
+$run_id = seal json get $raw '.[0].databaseId'
+Write-Output $run_id
+"#
+}
+
 #[test]
 fn help_without_profile() {
     let fx = fixture("");
@@ -257,6 +273,45 @@ fn string_trim_emits_native() {
     assert!(bash.contains("command -v sed"));
     assert!(bash.contains("trimmed=$(printf '%s' \"$raw\" | sed"));
     assert!(powershell.contains("$trimmed = ($raw).Trim()"));
+    assert_bash_syntax(&bash);
+    assert_pwsh_syntax(&powershell);
+}
+
+#[test]
+fn json_get_helper_roundtrip() {
+    for input_lang in ["seal", "bash"] {
+        let fx = fixture(json_get_source());
+        let output = run_transpile(&fx, input_lang, "sealir");
+
+        assert!(output.status.success());
+        let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+        assert!(stdout.contains("json_get"));
+        assert!(stdout.contains("databaseId"));
+    }
+
+    let fx = fixture(powershell_json_get_source());
+    let output = run_transpile(&fx, "powershell", "sealir");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("json_get"));
+    assert!(stdout.contains("databaseId"));
+}
+
+#[test]
+fn json_get_emits_native() {
+    let fx = fixture(json_get_source());
+
+    let bash = run_transpile(&fx, "seal", "bash");
+    let powershell = run_transpile(&fx, "seal", "powershell");
+
+    assert!(bash.status.success());
+    assert!(powershell.status.success());
+    let bash = String::from_utf8(bash.stdout).expect("stdout should be UTF-8");
+    let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
+    assert!(bash.contains("command -v jq"));
+    assert!(bash.contains("run_id=$(printf '%s' \"$raw\" | jq -r '.[0].databaseId')"));
+    assert!(powershell.contains("$run_id = [string](($raw | ConvertFrom-Json)[0].databaseId)"));
     assert_bash_syntax(&bash);
     assert_pwsh_syntax(&powershell);
 }

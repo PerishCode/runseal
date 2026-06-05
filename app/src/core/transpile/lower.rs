@@ -54,6 +54,7 @@ fn lower_statement(statement: &mut Statement, functions: &BTreeSet<String>) {
         Statement::Assign { .. }
         | Statement::CaptureChecked { .. }
         | Statement::StringTrim { .. }
+        | Statement::JsonGet { .. }
         | Statement::CallFunction { .. }
         | Statement::Print { .. }
         | Statement::Error { .. }

@@ -1,5 +1,6 @@
 use super::ast::{Item, Predicate, Program, Statement, Value};
 use super::guards::{bash_required_tools, emit_bash_guards};
+use super::json_path::{json_path, powershell_json_get};
 
 pub(crate) fn emit_seal(program: &Program) -> String {
     let mut out = String::new();
@@ -45,6 +46,13 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&format!(
                 "{pad}{name}=$(seal string trim {})\n",
                 seal_value(value)
+            ));
+        }
+        Statement::JsonGet { name, json, path } => {
+            out.push_str(&format!(
+                "{pad}{name}=$(seal json get {} {})\n",
+                seal_value(json),
+                sh_quote(&json_path(path))
             ));
         }
         Statement::If {
@@ -137,6 +145,13 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&format!(
                 "{pad}{name}=$(printf '%s' {} | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')\n",
                 bash_value(value)
+            ));
+        }
+        Statement::JsonGet { name, json, path } => {
+            out.push_str(&format!(
+                "{pad}{name}=$(printf '%s' {} | jq -r {})\n",
+                bash_value(json),
+                sh_quote(&json_path(path))
             ));
         }
         Statement::If {
@@ -232,6 +247,12 @@ fn emit_powershell_statement(out: &mut String, statement: &Statement, indent: us
             out.push_str(&format!(
                 "{pad}${name} = ({}).Trim()\n",
                 powershell_value(value)
+            ));
+        }
+        Statement::JsonGet { name, json, path } => {
+            out.push_str(&format!(
+                "{pad}${name} = [string]({})\n",
+                powershell_json_get(&powershell_value(json), path)
             ));
         }
         Statement::If {

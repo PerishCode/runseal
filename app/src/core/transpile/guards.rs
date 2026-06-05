@@ -32,6 +32,9 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         Statement::StringTrim { .. } => {
             tools.insert("sed");
         }
+        Statement::JsonGet { .. } => {
+            tools.insert("jq");
+        }
         Statement::If {
             then_body,
             else_body,
