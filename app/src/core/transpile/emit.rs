@@ -33,6 +33,13 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, seal_value));
             out.push('\n');
         }
+        Statement::CaptureChecked { name, argv } => {
+            out.push_str(&pad);
+            out.push_str(name);
+            out.push_str("=$(");
+            out.push_str(&join_values(argv, seal_value));
+            out.push_str(")\n");
+        }
         Statement::If {
             predicate,
             then_body,
@@ -110,6 +117,13 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&pad);
             out.push_str(&join_values(argv, bash_value));
             out.push('\n');
+        }
+        Statement::CaptureChecked { name, argv } => {
+            out.push_str(&pad);
+            out.push_str(name);
+            out.push_str("=$(");
+            out.push_str(&join_values(argv, bash_value));
+            out.push_str(")\n");
         }
         Statement::If {
             predicate,
@@ -191,6 +205,12 @@ fn emit_powershell_statement(out: &mut String, statement: &Statement, indent: us
         Statement::ExecChecked { argv } => {
             out.push_str(&pad);
             out.push_str("& ");
+            out.push_str(&join_values(argv, powershell_value));
+            out.push('\n');
+        }
+        Statement::CaptureChecked { name, argv } => {
+            out.push_str(&pad);
+            out.push_str(&format!("${name} = & "));
             out.push_str(&join_values(argv, powershell_value));
             out.push('\n');
         }

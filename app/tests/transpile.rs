@@ -84,6 +84,20 @@ switch ($channel) {
 "#
 }
 
+fn capture_source() -> &'static str {
+    r#"
+raw=$(gh run list --json databaseId)
+print "$raw"
+"#
+}
+
+fn powershell_capture_source() -> &'static str {
+    r#"
+$raw = & 'gh' 'run' 'list' '--json' 'databaseId'
+Write-Output $raw
+"#
+}
+
 #[test]
 fn help_without_profile() {
     let fx = fixture("");
@@ -151,6 +165,47 @@ fn powershell_to_bash() {
     assert!(stdout.contains("release_run() {"));
     assert!(stdout.contains("gh workflow run release.yml --ref main -f \"channel=$channel\""));
     assert_bash_syntax(&stdout);
+}
+
+#[test]
+fn bash_capture_ir() {
+    let fx = fixture(capture_source());
+
+    let output = run_transpile(&fx, "bash", "sealir");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("capture_checked"));
+    assert!(stdout.contains("databaseId"));
+}
+
+#[test]
+fn powershell_capture_ir() {
+    let fx = fixture(powershell_capture_source());
+
+    let output = run_transpile(&fx, "powershell", "sealir");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("capture_checked"));
+    assert!(stdout.contains("databaseId"));
+}
+
+#[test]
+fn capture_to_targets() {
+    let fx = fixture(capture_source());
+
+    let bash = run_transpile(&fx, "bash", "bash");
+    let powershell = run_transpile(&fx, "bash", "powershell");
+
+    assert!(bash.status.success());
+    assert!(powershell.status.success());
+    let bash = String::from_utf8(bash.stdout).expect("stdout should be UTF-8");
+    let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
+    assert!(bash.contains("raw=$(gh run list --json databaseId)"));
+    assert!(powershell.contains("$raw = & 'gh' 'run' 'list' '--json' 'databaseId'"));
+    assert_bash_syntax(&bash);
+    assert_pwsh_syntax(&powershell);
 }
 
 #[test]

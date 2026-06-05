@@ -21,6 +21,10 @@ pub enum Statement {
     ExecChecked {
         argv: Vec<Value>,
     },
+    CaptureChecked {
+        name: String,
+        argv: Vec<Value>,
+    },
     If {
         predicate: Predicate,
         then_body: Vec<Statement>,

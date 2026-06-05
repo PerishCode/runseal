@@ -185,6 +185,15 @@ impl Parser {
 
 fn parse_simple_statement(line: &Line) -> Result<Statement> {
     if let Some((name, value)) = assignment(&line.text) {
+        if let Some(argv) = value.strip_prefix("& ") {
+            return Ok(Statement::CaptureChecked {
+                name,
+                argv: split_exprs(argv, line.number)?
+                    .iter()
+                    .map(|arg| parse_value(arg, line.number))
+                    .collect::<Result<Vec<_>>>()?,
+            });
+        }
         return Ok(Statement::Assign {
             name,
             value: parse_value(value, line.number)?,

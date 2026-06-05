@@ -52,6 +52,7 @@ fn lower_statement(statement: &mut Statement, functions: &BTreeSet<String>) {
             }
         }
         Statement::Assign { .. }
+        | Statement::CaptureChecked { .. }
         | Statement::CallFunction { .. }
         | Statement::Print { .. }
         | Statement::Error { .. }

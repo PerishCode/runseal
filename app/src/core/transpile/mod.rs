@@ -7,6 +7,7 @@ mod emit;
 mod lower;
 mod parse;
 mod powershell;
+mod value;
 
 use emit::{emit_bash, emit_powershell, emit_seal};
 use parse::parse_seal;
