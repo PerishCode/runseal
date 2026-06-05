@@ -5,3 +5,4 @@ pub mod injections;
 pub mod internal_help;
 pub mod profile;
 pub mod runtime;
+pub mod transpile;

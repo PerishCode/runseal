@@ -49,6 +49,7 @@ Internal commands are read-only and do not run profile injections:
 runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
+runseal @transpile --input-lang=seal --output-lang=bash ./operator.seal
 runseal @wrappers
 runseal @which :ssh-run
 ```
@@ -252,6 +253,7 @@ command instead of a literal program name:
 runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
+runseal @transpile --input-lang=seal --output-lang=sealir ./operator.seal
 runseal @wrappers
 runseal @which :ssh-run
 ```
@@ -263,6 +265,9 @@ Internal commands are read-only and do not run profile injections.
 - `@resources` prints the resolved resource root.
 - `@resolve resource://...` prints resolved absolute resource paths, one per
   argument.
+- `@transpile --input-lang=<lang> --output-lang=<lang> <source>` transpiles
+  explicit glue languages and prints the generated output. Cold start supports
+  `seal`/`sealir` input and `seal`, `sealir`, `bash`, or `powershell` output.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
 

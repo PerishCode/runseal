@@ -12,6 +12,7 @@ fn text(name: &str) -> Result<&'static str> {
         "profile" => Ok(PROFILE),
         "resolve" => Ok(RESOLVE),
         "resources" => Ok(RESOURCES),
+        "transpile" => Ok(TRANSPILE),
         "wrappers" => Ok(WRAPPERS),
         "which" => Ok(WHICH),
         _ => bail!("unknown internal command: @{name}"),
@@ -66,6 +67,34 @@ absolute paths from env injection values; scripts do not need to understand reso
 
 Invalid resource paths include empty segments, '.', '..', backslashes, and ':' inside
 path segments. Resolved paths are printed even when the target file does not exist.
+";
+
+const TRANSPILE: &str = "\
+Usage: runseal @transpile --input-lang=<lang> --output-lang=<lang> <source>
+
+Transpile one explicit glue language into another and print the result to stdout.
+
+Languages:
+  seal        POSIX-shaped Seal source
+  sealir      JSON SealIR semantic form
+  bash        bash output target
+  powershell  PowerShell output target
+
+Cold-start supported paths:
+  seal -> sealir
+  seal -> bash
+  seal -> powershell
+  sealir -> seal
+  sealir -> bash
+  sealir -> powershell
+
+Examples:
+  runseal @transpile --input-lang=seal --output-lang=bash manage.seal
+  runseal @transpile --input-lang=seal --output-lang=powershell manage.seal
+  runseal @transpile --input-lang=seal --output-lang=sealir manage.seal
+
+@transpile is explicit code generation only. It does not infer languages, write
+files, execute generated code, or run profile injections.
 ";
 
 const WRAPPERS: &str = "\
