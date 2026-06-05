@@ -1,6 +1,10 @@
 use super::ast::{Item, Predicate, Program, Statement, Value};
 use super::guards::{bash_required_tools, emit_bash_guards};
-use super::json_path::{json_path, powershell_json_get};
+use super::json_path::json_path;
+
+mod powershell;
+
+pub(crate) use powershell::emit_powershell;
 
 pub(crate) fn emit_seal(program: &Program) -> String {
     let mut out = String::new();
@@ -55,6 +59,13 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
                 sh_quote(&json_path(path))
             ));
         }
+        Statement::IntAdd { name, left, right } => {
+            out.push_str(&format!(
+                "{pad}{name}=$(seal int add {} {})\n",
+                seal_value(left),
+                seal_value(right)
+            ));
+        }
         Statement::If {
             predicate,
             then_body,
@@ -67,6 +78,11 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
                 emit_seal_statements(out, else_body, indent + 1);
             }
             out.push_str(&format!("{pad}fi\n"));
+        }
+        Statement::While { predicate, body } => {
+            out.push_str(&format!("{pad}while {}; do\n", seal_predicate(predicate)));
+            emit_seal_statements(out, body, indent + 1);
+            out.push_str(&format!("{pad}done\n"));
         }
         Statement::Case { value, arms } => {
             out.push_str(&format!("{pad}case {} in\n", seal_value(value)));
@@ -90,6 +106,7 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
         Statement::Error { value } => out.push_str(&format!("{pad}error {}\n", seal_value(value))),
         Statement::Fail { value } => out.push_str(&format!("{pad}fail {}\n", seal_value(value))),
         Statement::Exit { code } => out.push_str(&format!("{pad}exit {code}\n")),
+        Statement::Break => out.push_str(&format!("{pad}break\n")),
         Statement::Sleep { seconds } => out.push_str(&format!("{pad}sleep {seconds}\n")),
     }
 }
@@ -154,6 +171,13 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
                 sh_quote(&json_path(path))
             ));
         }
+        Statement::IntAdd { name, left, right } => {
+            out.push_str(&format!(
+                "{pad}{name}=$(({} + {}))\n",
+                bash_int_value(left),
+                bash_int_value(right)
+            ));
+        }
         Statement::If {
             predicate,
             then_body,
@@ -166,6 +190,11 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
                 emit_bash_statements(out, else_body, indent + 1);
             }
             out.push_str(&format!("{pad}fi\n"));
+        }
+        Statement::While { predicate, body } => {
+            out.push_str(&format!("{pad}while {}; do\n", bash_predicate(predicate)));
+            emit_bash_statements(out, body, indent + 1);
+            out.push_str(&format!("{pad}done\n"));
         }
         Statement::Case { value, arms } => {
             out.push_str(&format!("{pad}case {} in\n", bash_value(value)));
@@ -195,126 +224,8 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&format!("{pad}seal_fail {}\n", bash_value(value)));
         }
         Statement::Exit { code } => out.push_str(&format!("{pad}exit {code}\n")),
+        Statement::Break => out.push_str(&format!("{pad}break\n")),
         Statement::Sleep { seconds } => out.push_str(&format!("{pad}sleep {seconds}\n")),
-    }
-}
-
-pub(crate) fn emit_powershell(program: &Program, source_name: Option<&str>) -> String {
-    let mut out = generated_header("powershell", source_name);
-    out.push_str("$ErrorActionPreference = 'Stop'\n\n");
-    emit_powershell_items(&mut out, program);
-    out
-}
-
-fn emit_powershell_items(out: &mut String, program: &Program) {
-    for item in &program.items {
-        match item {
-            Item::Function { name, body } => {
-                out.push_str(&format!("function {name} {{\n"));
-                emit_powershell_statements(out, body, 1);
-                out.push_str("}\n\n");
-            }
-            Item::Statement { statement } => emit_powershell_statement(out, statement, 0),
-        }
-    }
-}
-
-fn emit_powershell_statements(out: &mut String, statements: &[Statement], indent: usize) {
-    for statement in statements {
-        emit_powershell_statement(out, statement, indent);
-    }
-}
-
-fn emit_powershell_statement(out: &mut String, statement: &Statement, indent: usize) {
-    let pad = "    ".repeat(indent);
-    match statement {
-        Statement::Assign { name, value } => {
-            out.push_str(&format!("{pad}${name} = {}\n", powershell_value(value)));
-        }
-        Statement::ExecChecked { argv } => {
-            out.push_str(&pad);
-            out.push_str("& ");
-            out.push_str(&join_values(argv, powershell_value));
-            out.push('\n');
-        }
-        Statement::CaptureChecked { name, argv } => {
-            out.push_str(&pad);
-            out.push_str(&format!("${name} = & "));
-            out.push_str(&join_values(argv, powershell_value));
-            out.push('\n');
-        }
-        Statement::StringTrim { name, value } => {
-            out.push_str(&format!(
-                "{pad}${name} = ({}).Trim()\n",
-                powershell_value(value)
-            ));
-        }
-        Statement::JsonGet { name, json, path } => {
-            out.push_str(&format!(
-                "{pad}${name} = [string]({})\n",
-                powershell_json_get(&powershell_value(json), path)
-            ));
-        }
-        Statement::If {
-            predicate,
-            then_body,
-            else_body,
-        } => {
-            out.push_str(&format!(
-                "{pad}if ({}) {{\n",
-                powershell_predicate(predicate)
-            ));
-            emit_powershell_statements(out, then_body, indent + 1);
-            if else_body.is_empty() {
-                out.push_str(&format!("{pad}}}\n"));
-            } else {
-                out.push_str(&format!("{pad}}} else {{\n"));
-                emit_powershell_statements(out, else_body, indent + 1);
-                out.push_str(&format!("{pad}}}\n"));
-            }
-        }
-        Statement::Case { value, arms } => {
-            out.push_str(&format!("{pad}switch ({}) {{\n", powershell_value(value)));
-            for arm in arms {
-                for pattern in &arm.patterns {
-                    let pattern = if pattern == "*" {
-                        "Default".to_string()
-                    } else {
-                        powershell_quote(pattern)
-                    };
-                    out.push_str(&format!("{pad}    {pattern} {{\n"));
-                    emit_powershell_statements(out, &arm.body, indent + 2);
-                    out.push_str(&format!("{pad}        break\n"));
-                    out.push_str(&format!("{pad}    }}\n"));
-                }
-            }
-            out.push_str(&format!("{pad}}}\n"));
-        }
-        Statement::CallFunction { name, argv } => {
-            out.push_str(&pad);
-            out.push_str(name);
-            if !argv.is_empty() {
-                out.push(' ');
-                out.push_str(&join_values(argv, powershell_value));
-            }
-            out.push('\n');
-        }
-        Statement::Print { value } => {
-            out.push_str(&format!("{pad}Write-Output {}\n", powershell_value(value)));
-        }
-        Statement::Error { value } => {
-            out.push_str(&format!(
-                "{pad}[Console]::Error.WriteLine({})\n",
-                powershell_value(value)
-            ));
-        }
-        Statement::Fail { value } => {
-            out.push_str(&format!("{pad}throw {}\n", powershell_value(value)));
-        }
-        Statement::Exit { code } => out.push_str(&format!("{pad}exit {code}\n")),
-        Statement::Sleep { seconds } => {
-            out.push_str(&format!("{pad}Start-Sleep -Seconds {seconds}\n"));
-        }
     }
 }
 
@@ -322,7 +233,7 @@ fn join_values(values: &[Value], format: fn(&Value) -> String) -> String {
     values.iter().map(format).collect::<Vec<_>>().join(" ")
 }
 
-fn generated_header(target: &str, source_name: Option<&str>) -> String {
+pub(super) fn generated_header(target: &str, source_name: Option<&str>) -> String {
     let source = source_name.unwrap_or("<memory>");
     format!("# Generated by runseal @transpile from {source} for {target}.\n")
 }
@@ -333,6 +244,20 @@ fn seal_predicate(predicate: &Predicate) -> String {
         Predicate::NotEmpty { value } => format!("not_empty {}", seal_value(value)),
         Predicate::Eq { left, right } => format!("eq {} {}", seal_value(left), seal_value(right)),
         Predicate::Neq { left, right } => format!("neq {} {}", seal_value(left), seal_value(right)),
+        Predicate::IntLt { left, right } => {
+            format!("lt {} {}", seal_value(left), seal_value(right))
+        }
+        Predicate::IntLte { left, right } => {
+            format!("lte {} {}", seal_value(left), seal_value(right))
+        }
+        Predicate::IntGt { left, right } => {
+            format!("gt {} {}", seal_value(left), seal_value(right))
+        }
+        Predicate::IntGte { left, right } => {
+            format!("gte {} {}", seal_value(left), seal_value(right))
+        }
+        Predicate::JsonEmpty { value } => format!("json_empty {}", seal_value(value)),
+        Predicate::JsonNotEmpty { value } => format!("json_not_empty {}", seal_value(value)),
         Predicate::FileExists { path } => format!("file_exists {}", seal_value(path)),
         Predicate::DirExists { path } => format!("dir_exists {}", seal_value(path)),
         Predicate::ToolExists { name } => format!("tool_exists {name}"),
@@ -349,44 +274,33 @@ fn bash_predicate(predicate: &Predicate) -> String {
         Predicate::Neq { left, right } => {
             format!("[ {} != {} ]", bash_value(left), bash_value(right))
         }
+        Predicate::IntLt { left, right } => {
+            format!("[ {} -lt {} ]", bash_int_value(left), bash_int_value(right))
+        }
+        Predicate::IntLte { left, right } => {
+            format!("[ {} -le {} ]", bash_int_value(left), bash_int_value(right))
+        }
+        Predicate::IntGt { left, right } => {
+            format!("[ {} -gt {} ]", bash_int_value(left), bash_int_value(right))
+        }
+        Predicate::IntGte { left, right } => {
+            format!("[ {} -ge {} ]", bash_int_value(left), bash_int_value(right))
+        }
+        Predicate::JsonEmpty { value } => {
+            format!(
+                "[ \"$(printf '%s' {} | jq 'length')\" -eq 0 ]",
+                bash_value(value)
+            )
+        }
+        Predicate::JsonNotEmpty { value } => {
+            format!(
+                "[ \"$(printf '%s' {} | jq 'length')\" -gt 0 ]",
+                bash_value(value)
+            )
+        }
         Predicate::FileExists { path } => format!("[ -f {} ]", bash_value(path)),
         Predicate::DirExists { path } => format!("[ -d {} ]", bash_value(path)),
         Predicate::ToolExists { name } => format!("command -v {} >/dev/null 2>&1", sh_quote(name)),
-    }
-}
-
-fn powershell_predicate(predicate: &Predicate) -> String {
-    match predicate {
-        Predicate::Empty { value } => {
-            format!("[string]::IsNullOrEmpty({})", powershell_value(value))
-        }
-        Predicate::NotEmpty { value } => {
-            format!("![string]::IsNullOrEmpty({})", powershell_value(value))
-        }
-        Predicate::Eq { left, right } => {
-            format!("{} -eq {}", powershell_value(left), powershell_value(right))
-        }
-        Predicate::Neq { left, right } => {
-            format!("{} -ne {}", powershell_value(left), powershell_value(right))
-        }
-        Predicate::FileExists { path } => {
-            format!(
-                "Test-Path -LiteralPath {} -PathType Leaf",
-                powershell_value(path)
-            )
-        }
-        Predicate::DirExists { path } => {
-            format!(
-                "Test-Path -LiteralPath {} -PathType Container",
-                powershell_value(path)
-            )
-        }
-        Predicate::ToolExists { name } => {
-            format!(
-                "$null -ne (Get-Command {} -ErrorAction SilentlyContinue)",
-                powershell_quote(name)
-            )
-        }
     }
 }
 
@@ -430,25 +344,13 @@ fn bash_value(value: &Value) -> String {
     }
 }
 
-fn powershell_value(value: &Value) -> String {
+fn bash_int_value(value: &Value) -> String {
     match value {
-        Value::Literal { text } => powershell_quote(text),
         Value::Var { name } => format!("${name}"),
-        Value::Env { name } => format!("$env:{name}"),
-        Value::EnvDefault { name, default } => {
-            format!(
-                "$(if ($env:{name}) {{ $env:{name} }} else {{ {} }})",
-                powershell_quote(default)
-            )
-        }
-        Value::Concat { parts } => {
-            let value = parts
-                .iter()
-                .map(powershell_value)
-                .collect::<Vec<_>>()
-                .join(" + ");
-            format!("({value})")
-        }
+        Value::Env { name } => format!("${{{name}}}"),
+        Value::EnvDefault { name, default } => format!("${{{name}:-{default}}}"),
+        Value::Literal { text } => sh_quote(text),
+        Value::Concat { .. } => bash_value(value),
     }
 }
 
@@ -466,8 +368,4 @@ fn sh_quote(value: &str) -> String {
 
 fn double_quote(value: &str) -> String {
     format!("\"{}\"", value.replace('"', "\\\""))
-}
-
-fn powershell_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
 }

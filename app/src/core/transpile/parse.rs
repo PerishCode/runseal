@@ -80,6 +80,9 @@ impl Parser {
         if line.text.starts_with("if ") {
             return self.parse_if();
         }
+        if line.text.starts_with("while ") {
+            return self.parse_while();
+        }
         if line.text.starts_with("case ") {
             return self.parse_case();
         }
@@ -107,6 +110,18 @@ impl Parser {
             then_body,
             else_body,
         })
+    }
+    fn parse_while(&mut self) -> Result<Statement> {
+        let line = self.next().expect("while line should exist");
+        let inner = line
+            .text
+            .strip_prefix("while ")
+            .and_then(|text| text.strip_suffix("; do"))
+            .ok_or_else(|| anyhow::anyhow!("{}: expected `while <predicate>; do`", line.number))?;
+        let predicate = parse_predicate(inner, line.number)?;
+        let body = self.parse_block(&["done"])?;
+        self.expect_exact("done")?;
+        Ok(Statement::While { predicate, body })
     }
     fn parse_case(&mut self) -> Result<Statement> {
         let line = self.next().expect("case line should exist");
@@ -231,6 +246,12 @@ fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
         "fail" => Ok(Statement::Fail {
             value: one_value(args, line.number, "fail")?,
         }),
+        "break" => {
+            if !args.is_empty() {
+                bail!("{}: break does not accept arguments", line.number);
+            }
+            Ok(Statement::Break)
+        }
         "exit" => {
             if args.len() != 1 {
                 bail!("{}: exit requires one code argument", line.number);
@@ -328,6 +349,17 @@ fn helper_capture_statement(name: &str, argv: &[Value], line: usize) -> Result<O
             json: value.clone(),
             path: parse_json_path(path, line)?,
         }),
+        [
+            Value::Literal { text: seal },
+            Value::Literal { text: int },
+            Value::Literal { text: add },
+            left,
+            right,
+        ] if seal == "seal" && int == "int" && add == "add" => Some(Statement::IntAdd {
+            name: name.to_string(),
+            left: left.clone(),
+            right: right.clone(),
+        }),
         _ => None,
     };
     Ok(statement)
@@ -359,6 +391,28 @@ fn parse_predicate(text: &str, line: usize) -> Result<Predicate> {
         ("neq", [left, right]) => Ok(Predicate::Neq {
             left: parse_value_text(left, line)?,
             right: parse_value_text(right, line)?,
+        }),
+        ("lt", [left, right]) => Ok(Predicate::IntLt {
+            left: parse_value_text(left, line)?,
+            right: parse_value_text(right, line)?,
+        }),
+        ("lte", [left, right]) => Ok(Predicate::IntLte {
+            left: parse_value_text(left, line)?,
+            right: parse_value_text(right, line)?,
+        }),
+        ("gt", [left, right]) => Ok(Predicate::IntGt {
+            left: parse_value_text(left, line)?,
+            right: parse_value_text(right, line)?,
+        }),
+        ("gte", [left, right]) => Ok(Predicate::IntGte {
+            left: parse_value_text(left, line)?,
+            right: parse_value_text(right, line)?,
+        }),
+        ("json_empty", [value]) => Ok(Predicate::JsonEmpty {
+            value: parse_value_text(value, line)?,
+        }),
+        ("json_not_empty", [value]) => Ok(Predicate::JsonNotEmpty {
+            value: parse_value_text(value, line)?,
         }),
         ("file_exists", [path]) => Ok(Predicate::FileExists {
             path: parse_value_text(path, line)?,

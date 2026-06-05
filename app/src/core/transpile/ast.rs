@@ -34,10 +34,19 @@ pub enum Statement {
         json: Value,
         path: JsonPath,
     },
+    IntAdd {
+        name: String,
+        left: Value,
+        right: Value,
+    },
     If {
         predicate: Predicate,
         then_body: Vec<Statement>,
         else_body: Vec<Statement>,
+    },
+    While {
+        predicate: Predicate,
+        body: Vec<Statement>,
     },
     Case {
         value: Value,
@@ -59,6 +68,7 @@ pub enum Statement {
     Exit {
         code: i32,
     },
+    Break,
     Sleep {
         seconds: u64,
     },
@@ -99,6 +109,12 @@ pub enum Predicate {
     NotEmpty { value: Value },
     Eq { left: Value, right: Value },
     Neq { left: Value, right: Value },
+    IntLt { left: Value, right: Value },
+    IntLte { left: Value, right: Value },
+    IntGt { left: Value, right: Value },
+    IntGte { left: Value, right: Value },
+    JsonEmpty { value: Value },
+    JsonNotEmpty { value: Value },
     FileExists { path: Value },
     DirExists { path: Value },
     ToolExists { name: String },

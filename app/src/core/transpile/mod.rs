@@ -9,6 +9,7 @@ mod json_path;
 mod lower;
 mod parse;
 mod powershell;
+mod powershell_predicate;
 mod value;
 
 use emit::{emit_bash, emit_powershell, emit_seal};

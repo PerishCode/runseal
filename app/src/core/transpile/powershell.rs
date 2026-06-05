@@ -1,8 +1,9 @@
 use anyhow::{Result, bail};
 
-use super::ast::{CaseArm, Item, Predicate, Program, Statement, Value};
+use super::ast::{CaseArm, Item, Program, Statement, Value};
 use super::json_path::parse_json_path;
 use super::lower::lower_functions;
+use super::powershell_predicate::parse_powershell_predicate;
 
 #[derive(Debug, Clone)]
 struct Line {
@@ -83,10 +84,6 @@ impl Parser {
             {
                 break;
             }
-            if line.text == "break" {
-                self.next();
-                continue;
-            }
             body.push(self.parse_statement()?);
         }
         Ok(body)
@@ -99,6 +96,9 @@ impl Parser {
         if line.text.starts_with("if ") {
             return self.parse_if();
         }
+        if line.text.starts_with("while ") {
+            return self.parse_while();
+        }
         if line.text.starts_with("switch ") {
             return self.parse_switch();
         }
@@ -108,20 +108,38 @@ impl Parser {
 
     fn parse_if(&mut self) -> Result<Statement> {
         let line = self.next().expect("if line should exist");
-        let value = line
+        let inner = line
             .text
-            .strip_prefix("if ([string]::IsNullOrEmpty(")
-            .and_then(|text| text.strip_suffix(")) {"))
+            .strip_prefix("if (")
+            .and_then(|text| text.strip_suffix(") {"))
             .ok_or_else(|| anyhow::anyhow!("{}: unsupported if predicate", line.number))?;
-        let then_body = self.parse_block(&["}"])?;
-        self.expect("}")?;
+        let then_body = self.parse_block(&["}", "} else {"])?;
+        let else_body = if self.peek_text() == Some("} else {") {
+            self.next();
+            let body = self.parse_block(&["}"])?;
+            self.expect("}")?;
+            body
+        } else {
+            self.expect("}")?;
+            Vec::new()
+        };
         Ok(Statement::If {
-            predicate: Predicate::Empty {
-                value: parse_value(value, line.number)?,
-            },
+            predicate: parse_powershell_predicate(inner, line.number)?,
             then_body,
-            else_body: Vec::new(),
+            else_body,
         })
+    }
+    fn parse_while(&mut self) -> Result<Statement> {
+        let line = self.next().expect("while line should exist");
+        let inner = line
+            .text
+            .strip_prefix("while (")
+            .and_then(|text| text.strip_suffix(") {"))
+            .ok_or_else(|| anyhow::anyhow!("{}: expected while condition", line.number))?;
+        let predicate = parse_powershell_predicate(inner, line.number)?;
+        let body = self.parse_block(&["}"])?;
+        self.expect("}")?;
+        Ok(Statement::While { predicate, body })
     }
 
     fn parse_switch(&mut self) -> Result<Statement> {
@@ -199,6 +217,9 @@ fn parse_simple_statement(line: &Line) -> Result<Statement> {
                 return Ok(statement);
             }
         }
+        if let Some(statement) = int_add_assignment(&name, value, line.number)? {
+            return Ok(statement);
+        }
         return Ok(Statement::Assign {
             name,
             value: parse_value(value, line.number)?,
@@ -212,6 +233,16 @@ fn parse_simple_statement(line: &Line) -> Result<Statement> {
     if let Some(value) = line.text.strip_prefix("throw ") {
         return Ok(Statement::Fail {
             value: parse_value(value, line.number)?,
+        });
+    }
+    if line.text == "break" {
+        return Ok(Statement::Break);
+    }
+    if let Some(seconds) = line.text.strip_prefix("Start-Sleep -Seconds ") {
+        return Ok(Statement::Sleep {
+            seconds: seconds
+                .parse()
+                .map_err(|_| anyhow::anyhow!("{}: invalid sleep seconds", line.number))?,
         });
     }
     if let Some(argv) = line.text.strip_prefix("& ") {
@@ -279,9 +310,32 @@ fn helper_capture_statement(name: &str, argv: &[Value], line: usize) -> Result<O
             json: value.clone(),
             path: parse_json_path(path, line)?,
         }),
+        [
+            Value::Literal { text: seal },
+            Value::Literal { text: int },
+            Value::Literal { text: add },
+            left,
+            right,
+        ] if seal == "seal" && int == "int" && add == "add" => Some(Statement::IntAdd {
+            name: name.to_string(),
+            left: left.clone(),
+            right: right.clone(),
+        }),
         _ => None,
     };
     Ok(statement)
+}
+
+fn int_add_assignment(name: &str, value: &str, line: usize) -> Result<Option<Statement>> {
+    let Some((left, right)) = value.split_once(" + ") else {
+        return Ok(None);
+    };
+    let left = left.strip_prefix("[int]").unwrap_or(left);
+    Ok(Some(Statement::IntAdd {
+        name: name.to_string(),
+        left: parse_value(left, line)?,
+        right: parse_value(right, line)?,
+    }))
 }
 
 fn assignment(text: &str) -> Option<(String, &str)> {
@@ -290,7 +344,7 @@ fn assignment(text: &str) -> Option<(String, &str)> {
     is_valid_name(name).then_some((name.to_string(), value))
 }
 
-fn parse_value(text: &str, line: usize) -> Result<Value> {
+pub(super) fn parse_value(text: &str, line: usize) -> Result<Value> {
     let text = text.trim();
     if let Some(value) = text
         .strip_prefix('\'')
@@ -317,6 +371,11 @@ fn parse_value(text: &str, line: usize) -> Result<Value> {
         validate_name(name, line)?;
         return Ok(Value::Var {
             name: name.to_string(),
+        });
+    }
+    if text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Ok(Value::Literal {
+            text: text.to_string(),
         });
     }
     if let Some(inner) = text

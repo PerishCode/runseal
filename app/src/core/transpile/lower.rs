@@ -46,6 +46,9 @@ fn lower_statement(statement: &mut Statement, functions: &BTreeSet<String>) {
             lower_statements(then_body, functions);
             lower_statements(else_body, functions);
         }
+        Statement::While { body, .. } => {
+            lower_statements(body, functions);
+        }
         Statement::Case { arms, .. } => {
             for arm in arms {
                 lower_statements(&mut arm.body, functions);
@@ -55,11 +58,13 @@ fn lower_statement(statement: &mut Statement, functions: &BTreeSet<String>) {
         | Statement::CaptureChecked { .. }
         | Statement::StringTrim { .. }
         | Statement::JsonGet { .. }
+        | Statement::IntAdd { .. }
         | Statement::CallFunction { .. }
         | Statement::Print { .. }
         | Statement::Error { .. }
         | Statement::Fail { .. }
         | Statement::Exit { .. }
+        | Statement::Break
         | Statement::Sleep { .. } => {}
     }
 }

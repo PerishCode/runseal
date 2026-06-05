@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use super::ast::{Item, Program, Statement};
+use super::ast::{Item, Predicate, Program, Statement};
 
 pub(crate) fn bash_required_tools(program: &Program) -> BTreeSet<&'static str> {
     let mut tools = BTreeSet::new();
@@ -35,6 +35,11 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         Statement::JsonGet { .. } => {
             tools.insert("jq");
         }
+        Statement::If { predicate, .. } | Statement::While { predicate, .. }
+            if predicate_requires_jq(predicate) =>
+        {
+            tools.insert("jq");
+        }
         Statement::If {
             then_body,
             else_body,
@@ -42,6 +47,9 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         } => {
             collect_bash_tools(then_body, tools);
             collect_bash_tools(else_body, tools);
+        }
+        Statement::While { body, .. } => {
+            collect_bash_tools(body, tools);
         }
         Statement::Case { arms, .. } => {
             for arm in arms {
@@ -51,11 +59,20 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         Statement::Assign { .. }
         | Statement::ExecChecked { .. }
         | Statement::CaptureChecked { .. }
+        | Statement::IntAdd { .. }
         | Statement::CallFunction { .. }
         | Statement::Print { .. }
         | Statement::Error { .. }
         | Statement::Fail { .. }
         | Statement::Exit { .. }
+        | Statement::Break
         | Statement::Sleep { .. } => {}
     }
+}
+
+fn predicate_requires_jq(predicate: &Predicate) -> bool {
+    matches!(
+        predicate,
+        Predicate::JsonEmpty { .. } | Predicate::JsonNotEmpty { .. }
+    )
 }
