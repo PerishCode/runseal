@@ -1,4 +1,8 @@
-use std::{path::Path, process::Command};
+use std::{
+    io::Write,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 use tempfile::TempDir;
 
@@ -116,20 +120,41 @@ fn release_fixture_emits_targets() {
 }
 
 fn assert_bash_syntax(source: &str) {
-    if !tool_exists("bash") {
+    if !tool_exists("bash") || !bash_accepts_stdin() {
         return;
     }
-    let output = Command::new("bash")
+    let mut child = Command::new("bash")
         .arg("-n")
-        .arg("-c")
-        .arg(source)
-        .output()
+        .arg("-s")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
         .expect("bash should run");
+    child
+        .stdin
+        .as_mut()
+        .expect("bash stdin should be piped")
+        .write_all(source.as_bytes())
+        .expect("bash source should be written");
+    let output = child.wait_with_output().expect("bash should finish");
     assert!(
         output.status.success(),
-        "bash syntax should pass: {}",
+        "bash syntax should pass: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+fn bash_accepts_stdin() -> bool {
+    let output = Command::new("bash")
+        .arg("-n")
+        .arg("-s")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output();
+    output.is_ok_and(|output| output.status.success())
 }
 
 fn assert_pwsh_syntax(source: &str) {
