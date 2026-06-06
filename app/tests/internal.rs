@@ -11,7 +11,7 @@ fn bin() -> Command {
 
 #[cfg(unix)]
 fn wrapper_file(dir: &Path, name: &str) -> PathBuf {
-    dir.join(name)
+    dir.join(format!("{name}.sh"))
 }
 
 #[cfg(windows)]

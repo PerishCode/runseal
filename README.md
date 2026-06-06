@@ -231,8 +231,8 @@ runseal :ssh-run host ./probe.sh -- arg
 
 Wrapper lookup order is:
 
-1. `<profile-dir>/.runseal/wrappers/<name>`
-2. `$RUNSEAL_HOME/wrappers/<name>`
+1. `<profile-dir>/.runseal/wrappers/<name>.sh`
+2. `$RUNSEAL_HOME/wrappers/<name>.sh`
 
 The profile directory is the directory containing `RUNSEAL_PROFILE_PATH`.
 Successful profile and wrapper paths are normalized absolute paths.
@@ -241,8 +241,9 @@ The child working directory is not changed. A resolved wrapper receives:
 - `RUNSEAL_WRAPPER_NAME`
 - `RUNSEAL_WRAPPER_FILE`
 
-On Windows, runseal also checks `.exe`, `.cmd`, and `.bat` when the wrapper
-name has no extension. On Unix, the wrapper file must be executable.
+On Unix, wrapper files use the `.sh` suffix and must be executable. On Windows,
+runseal also checks `.exe`, `.cmd`, and `.bat` when the wrapper name has no
+extension.
 
 ## Internal Commands
 

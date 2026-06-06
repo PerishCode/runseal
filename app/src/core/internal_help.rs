@@ -109,12 +109,12 @@ Usage: runseal @wrappers
 List the effective wrappers visible to the selected profile.
 
 Lookup order:
-  1. <profile-dir>/.runseal/wrappers/<name>
-  2. $RUNSEAL_HOME/wrappers/<name>
+  1. <profile-dir>/.runseal/wrappers/<name>.sh
+  2. $RUNSEAL_HOME/wrappers/<name>.sh
 
-Profile-local wrappers shadow home wrappers with the same name. On Unix, wrapper files
-must be executable. On Windows, runseal also checks .exe, .cmd, and .bat when the
-wrapper name has no extension.
+Profile-local wrappers shadow home wrappers with the same name. On Unix, wrapper
+files use the .sh suffix and must be executable. On Windows, runseal also checks
+.exe, .cmd, and .bat when the wrapper name has no extension.
 
 @wrappers is read-only and does not run profile injections.
 ";

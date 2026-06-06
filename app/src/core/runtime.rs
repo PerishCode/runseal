@@ -205,7 +205,10 @@ fn profile_root(profile_path: &Path) -> &Path {
 
 #[cfg(unix)]
 fn wrapper_candidates(dir: &Path, name: &str) -> Vec<PathBuf> {
-    vec![dir.join(name)]
+    if Path::new(name).extension().is_some() {
+        return vec![dir.join(name)];
+    }
+    vec![dir.join(format!("{name}.sh"))]
 }
 
 #[cfg(windows)]
@@ -345,26 +348,29 @@ fn effective_wrappers(config: &RuntimeConfig) -> Result<Vec<ListedWrapper>> {
     Ok(wrappers)
 }
 
+#[cfg(unix)]
+fn listed_wrapper_name(path: &Path) -> Option<String> {
+    if path.extension().and_then(std::ffi::OsStr::to_str) != Some("sh") {
+        return None;
+    }
+    let stem = path.file_stem()?.to_str()?;
+    validate_symbol_name(stem).ok()?;
+    Some(stem.to_string())
+}
+
+#[cfg(windows)]
 fn listed_wrapper_name(path: &Path) -> Option<String> {
     let file_name = path.file_name()?.to_str()?;
-
-    #[cfg(windows)]
+    if let Some(ext) = path.extension().and_then(std::ffi::OsStr::to_str)
+        && matches_ignore_ascii_case(ext, &["exe", "cmd", "bat"])
     {
-        if let Some(ext) = path.extension().and_then(std::ffi::OsStr::to_str)
-            && matches_ignore_ascii_case(ext, &["exe", "cmd", "bat"])
-        {
-            let stem = path.file_stem()?.to_str()?;
-            if validate_symbol_name(stem).is_ok() {
-                return Some(stem.to_string());
-            }
-            return None;
-        }
+        let stem = path.file_stem()?.to_str()?;
+        validate_symbol_name(stem).ok()?;
+        return Some(stem.to_string());
     }
 
-    if validate_symbol_name(file_name).is_ok() {
-        return Some(file_name.to_string());
-    }
-    None
+    validate_symbol_name(file_name).ok()?;
+    Some(file_name.to_string())
 }
 
 #[cfg(windows)]
