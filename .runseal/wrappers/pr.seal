@@ -139,7 +139,23 @@ if eq "$is_draft" true; then
 fi
 
 if eq "$no_watch" false; then
+  checks_seen=false
+  attempt=0
+  while lt "$attempt" 12; do
+    seal capture optional checks_output checks_status gh pr checks "$number"
+    no_checks=$(seal regex capture "$checks_output" '(no checks reported)' 1)
+    if empty "$no_checks"; then
+      checks_seen=true
+      break
+    fi
+    sleep 5
+    attempt=$(seal int add "$attempt" 1)
+  done
+  if eq "$checks_seen" false; then
+    print "no checks reported on PR #$number; skipping watch"
+  else
   gh pr checks "$number" --watch --interval 10
+  fi
 fi
 
 if eq "$no_merge" false; then

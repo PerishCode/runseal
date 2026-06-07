@@ -25,6 +25,23 @@ pub(crate) fn parse_statement_helper(args: &[String], line: usize) -> Result<Sta
                 },
             })
         }
+        [capture, optional, name, status, rest @ ..]
+            if capture == "capture" && optional == "optional" =>
+        {
+            validate_name(name, line)?;
+            validate_name(status, line)?;
+            if rest.is_empty() {
+                bail!("{line}: seal capture optional requires a command");
+            }
+            Ok(Statement::CaptureOptional {
+                name: name.clone(),
+                status: status.clone(),
+                argv: rest
+                    .iter()
+                    .map(|arg| super::value::parse_value_text(arg, line))
+                    .collect::<Result<Vec<_>>>()?,
+            })
+        }
         [namespace, command, rest @ ..] => Ok(Statement::ToolExec {
             invocation: ToolInvocation {
                 path: vec![namespace.clone(), command.clone()],
@@ -173,7 +190,7 @@ fn validate_name(name: &str, line: usize) -> Result<()> {
     let valid = matches!(bytes.next(), Some(byte) if byte.is_ascii_alphabetic() || byte == b'_')
         && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
     if !valid {
-        bail!("{line}: invalid argv parse name: {name}");
+        bail!("{line}: invalid variable name: {name}");
     }
     Ok(())
 }

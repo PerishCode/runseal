@@ -89,18 +89,24 @@ impl<'a> Runner<'a> {
             }
             Statement::ArgvParse { specs } => self.parse_argv(specs)?,
             Statement::ExecChecked { argv } => {
-                let code = self.run_external(argv, false)?.code;
+                let code = self.run_external(argv, CaptureMode::None)?.code;
                 if code != 0 {
                     return Ok(Flow::Exit(code));
                 }
             }
             Statement::CaptureChecked { name, argv } => {
-                let output = self.run_external(argv, true)?;
+                let output = self.run_external(argv, CaptureMode::Stdout)?;
                 if output.code != 0 {
                     return Ok(Flow::Exit(output.code));
                 }
                 self.vars
                     .insert(name.clone(), output.stdout.trim().to_string());
+            }
+            Statement::CaptureOptional { name, status, argv } => {
+                let output = self.run_external(argv, CaptureMode::Combined)?;
+                self.vars
+                    .insert(name.clone(), output.stdout.trim().to_string());
+                self.vars.insert(status.clone(), output.code.to_string());
             }
             Statement::ToolExec { invocation } => {
                 self.tool_output(invocation)?;
@@ -362,7 +368,7 @@ impl<'a> Runner<'a> {
         self.tool_output(&invocation)
     }
 
-    fn run_external(&self, argv: &[Value], capture: bool) -> Result<CommandOutput> {
+    fn run_external(&self, argv: &[Value], capture: CaptureMode) -> Result<CommandOutput> {
         let argv = argv
             .iter()
             .map(|value| self.value(value))
@@ -372,7 +378,7 @@ impl<'a> Runner<'a> {
         };
         let mut command = Command::new(program);
         command.args(args).envs(&self.env);
-        if !capture {
+        if matches!(capture, CaptureMode::None) {
             let status = command
                 .status()
                 .with_context(|| format!("failed to execute command: {program}"))?;
@@ -382,12 +388,19 @@ impl<'a> Runner<'a> {
             });
         }
         command.stdout(Stdio::piped());
+        if matches!(capture, CaptureMode::Combined) {
+            command.stderr(Stdio::piped());
+        }
         let output = command
             .output()
             .with_context(|| format!("failed to execute command: {program}"))?;
+        let mut stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        if matches!(capture, CaptureMode::Combined) {
+            stdout.push_str(&String::from_utf8_lossy(&output.stderr));
+        }
         Ok(CommandOutput {
             code: output.status.code().unwrap_or(1),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stdout,
         })
     }
 
@@ -419,6 +432,12 @@ impl<'a> Runner<'a> {
             }
         }
     }
+}
+
+enum CaptureMode {
+    None,
+    Stdout,
+    Combined,
 }
 
 struct CommandOutput {

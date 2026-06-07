@@ -28,6 +28,11 @@ pub enum Statement {
         name: String,
         argv: Vec<Value>,
     },
+    CaptureOptional {
+        name: String,
+        status: String,
+        argv: Vec<Value>,
+    },
     ToolExec {
         invocation: ToolInvocation,
     },

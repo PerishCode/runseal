@@ -58,6 +58,7 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         | Statement::ArgvParse { .. }
         | Statement::ExecChecked { .. }
         | Statement::CaptureChecked { .. }
+        | Statement::CaptureOptional { .. }
         | Statement::ToolExec { .. }
         | Statement::ToolPassthrough { .. }
         | Statement::ToolCapture { .. }

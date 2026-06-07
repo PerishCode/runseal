@@ -323,6 +323,7 @@ git push -u origin feat/seal
 gh pr list --head feat/seal --json number,title,state,url,isDraft
 gh pr create --base develop --head feat/seal --title Seal migration --body-file body.md
 gh pr list --head feat/seal --json number,title,state,url,isDraft
+gh pr checks 77
 gh pr checks 77 --watch --interval 10
 gh pr merge 77 --squash --delete-branch
 "

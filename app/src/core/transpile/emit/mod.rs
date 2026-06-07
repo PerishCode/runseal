@@ -66,6 +66,16 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, seal_value));
             out.push_str(")\n");
         }
+        Statement::CaptureOptional { name, status, argv } => {
+            out.push_str(&pad);
+            out.push_str("seal capture optional ");
+            out.push_str(name);
+            out.push(' ');
+            out.push_str(status);
+            out.push(' ');
+            out.push_str(&join_values(argv, seal_value));
+            out.push('\n');
+        }
         Statement::ToolExec { invocation } => {
             out.push_str(&pad);
             out.push_str("seal ");
@@ -223,6 +233,16 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str("=$(");
             out.push_str(&join_values(argv, bash_value));
             out.push_str(")\n");
+        }
+        Statement::CaptureOptional { name, status, argv } => {
+            out.push_str(&format!("{pad}set +e\n"));
+            out.push_str(&pad);
+            out.push_str(name);
+            out.push_str("=$(");
+            out.push_str(&join_values(argv, bash_value));
+            out.push_str(" 2>&1)\n");
+            out.push_str(&format!("{pad}{status}=$?\n"));
+            out.push_str(&format!("{pad}set -e\n"));
         }
         Statement::ToolExec { invocation } => {
             out.push_str(&pad);

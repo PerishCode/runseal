@@ -47,6 +47,15 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, powershell_value));
             out.push('\n');
         }
+        Statement::CaptureOptional { name, status, argv } => {
+            out.push_str(&pad);
+            out.push_str(&format!("${name} = (& "));
+            out.push_str(&join_values(argv, powershell_value));
+            out.push_str(" 2>&1 | Out-String).TrimEnd()\n");
+            out.push_str(&format!(
+                "{pad}${status} = if ($null -ne $LASTEXITCODE) {{ $LASTEXITCODE }} elseif ($?) {{ 0 }} else {{ 1 }}\n"
+            ));
+        }
         Statement::ToolExec { invocation } => {
             out.push_str(&pad);
             out.push_str(&powershell_tool_command(invocation));
