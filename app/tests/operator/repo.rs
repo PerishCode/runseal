@@ -34,6 +34,9 @@ case "${1:-}" in
     [ "${2:-}" = "--show-current" ] || exit 9
     printf '%s\n' "${RUNSEAL_TEST_BRANCH:-feat/seal}"
     ;;
+  rev-parse)
+    printf '%s\n' "${RUNSEAL_TEST_REF_SHA:-abc123}"
+    ;;
   *)
     printf 'git %s\n' "$*" >> "${RUNSEAL_TEST_LOG:?}"
     ;;
@@ -450,7 +453,7 @@ fn release_uses_latest_run() {
         command_log(&fx),
         "\
 gh workflow run release-beta.yml --ref feature/ref -f ref=feature/ref -f version_override=
-gh run list --workflow release-beta.yml --branch feature/ref --event workflow_dispatch --limit 1 --json databaseId
+gh run list --workflow release-beta.yml --branch feature/ref --commit abc123 --event workflow_dispatch --limit 1 --json databaseId
 gh run watch 67890 --interval 10
 "
     );
