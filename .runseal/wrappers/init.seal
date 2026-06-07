@@ -1,5 +1,19 @@
 seal argv parse --flag force
 
+usage() {
+  print "Usage: runseal :init [--force]"
+  print ""
+  print "Validate the repository and install generated git hooks."
+  print ""
+  print "Options:"
+  print "  --force    back up custom hooks before replacing them"
+}
+
+if eq "$__seal_help" true; then
+  usage
+  exit 0
+fi
+
 print "==> resolving repository"
 root=$(git rev-parse --show-toplevel)
 git_dir=$(git rev-parse --absolute-git-dir)
