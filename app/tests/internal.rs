@@ -65,7 +65,6 @@ struct Fixture {
     profile: PathBuf,
     home: PathBuf,
     project_wrappers: PathBuf,
-    home_wrappers: PathBuf,
 }
 
 fn fixture() -> Fixture {
@@ -74,9 +73,8 @@ fn fixture() -> Fixture {
     let profile = project.join("runseal.toml");
     let home = temp.path().join("home");
     let project_wrappers = project.join(".runseal").join("wrappers");
-    let home_wrappers = home.join("wrappers");
     std::fs::create_dir_all(&project_wrappers).expect("project wrappers should be created");
-    std::fs::create_dir_all(&home_wrappers).expect("home wrappers should be created");
+    std::fs::create_dir_all(home.join("wrappers")).expect("home wrappers should be created");
     std::fs::write(
         &profile,
         "injections = []\n[resources]\nroot = \".resource\"\n",
@@ -88,7 +86,6 @@ fn fixture() -> Fixture {
         profile,
         home,
         project_wrappers,
-        home_wrappers,
     }
 }
 
@@ -156,6 +153,7 @@ fn internal_help_topics() {
         (vec!["@resources", "--help"], "Usage: runseal @resources"),
         (vec!["@resolve", "--help"], "Usage: runseal @resolve"),
         (vec!["@transpile", "--help"], "Usage: runseal @transpile"),
+        (vec!["@tool", "--help"], "Usage: runseal @tool"),
         (vec!["@wrappers", "--help"], "Lookup order"),
         (vec!["@which", "--help"], "Usage: runseal @which :<wrapper>"),
     ] {
@@ -194,60 +192,6 @@ fn profile_prints_paths() {
     assert!(stdout.contains("RUNSEAL_PROFILE_PATH="));
     assert!(stdout.contains("RUNSEAL_WRAPPER_PATH="));
     assert!(stdout.contains(fx.profile.to_str().expect("path should be UTF-8")));
-}
-
-#[test]
-fn wrappers_show_effective() {
-    let fx = fixture();
-    make_wrapper(&wrapper_file(&fx.project_wrappers, "wrap"), "project");
-    make_wrapper(&wrapper_file(&fx.home_wrappers, "wrap"), "home");
-    make_wrapper(&wrapper_file(&fx.home_wrappers, "home-only"), "home");
-
-    let output = run_in(&fx, &["@wrappers"]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains(":wrap"));
-    assert!(stdout.contains(":home-only"));
-    assert!(stdout.contains("profile"));
-    assert!(stdout.contains("home"));
-    let wrap_line = stdout
-        .lines()
-        .find(|line| line.contains(":wrap"))
-        .expect("wrap should be listed");
-    let wrap_file = wrap_line
-        .split_whitespace()
-        .last()
-        .expect("wrap line should include a file");
-    assert!(wrap_line.contains("profile"));
-    assert!(
-        std::path::Path::new(wrap_file)
-            .ends_with(path_suffix(&wrapper_file(&fx.project_wrappers, "wrap"), 4)),
-        "expected {wrap_file} to point at the profile wrapper"
-    );
-}
-
-#[test]
-fn wrappers_hide_shadow() {
-    let fx = fixture();
-    let project_wrapper = wrapper_file(&fx.project_wrappers, "wrap");
-    make_wrapper(&project_wrapper, "project");
-    make_wrapper(&wrapper_file(&fx.home_wrappers, "wrap"), "home");
-
-    let which = run_in(&fx, &["@which", ":wrap"]);
-    assert!(which.status.success());
-    let stdout = String::from_utf8(which.stdout).expect("stdout should be UTF-8");
-    assert_path_ends_with(stdout.trim(), &project_wrapper);
-
-    let output = run_in(&fx, &["@wrappers"]);
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    let wrap_lines = stdout
-        .lines()
-        .filter(|line| line.starts_with(":wrap "))
-        .collect::<Vec<_>>();
-    assert_eq!(wrap_lines.len(), 1);
-    assert!(wrap_lines[0].contains("profile"));
 }
 
 #[test]

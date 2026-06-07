@@ -1,0 +1,71 @@
+usage() {
+  print "Usage: runseal :release --channel=stable|beta [options]"
+  print ""
+  print "Trigger a release workflow."
+  print ""
+  print "Options:"
+  print "  --channel <name>      release channel: stable or beta"
+  print "  --ref <ref>           git ref passed to the workflow (default: main)"
+  print "  --version <version>   optional workflow version_override"
+  print "  --watch              watch the triggered workflow run"
+  print "  --dry-run            print planned action without triggering a workflow"
+}
+
+seal argv parse --string channel= --string ref=main --string version= --flag watch --flag dry_run
+
+if eq "$__seal_argc" 0; then
+  usage
+  exit 0
+fi
+
+if eq "$__seal_help" true; then
+  usage
+  exit 0
+fi
+
+if empty "$channel"; then
+  fail "release: --channel is required"
+fi
+
+case "$channel" in
+  stable) workflow=release-stable.yml ;;
+  beta) workflow=release-beta.yml ;;
+  *)
+    error "invalid choice: $channel"
+    exit 2
+    ;;
+esac
+
+command="gh workflow run $workflow --ref $ref -f ref=$ref -f version_override=$version"
+
+if eq "$dry_run" true; then
+  print "$command"
+else
+  gh --version
+  gh auth status
+  trigger_output=$(gh workflow run "$workflow" --ref "$ref" -f "ref=$ref" -f "version_override=$version")
+  if not_empty "$trigger_output"; then
+    print "$trigger_output"
+  fi
+  print "triggered $workflow for ref $ref"
+  if eq "$watch" true; then
+    run_id=$(seal regex capture "$trigger_output" '/actions/runs/([0-9]+)' 1)
+    if empty "$run_id"; then
+      attempt=0
+      raw='[]'
+      while lt "$attempt" 6; do
+        raw=$(gh run list --workflow "$workflow" --branch "$ref" --event workflow_dispatch --limit 1 --json databaseId)
+        if json_not_empty "$raw"; then
+          run_id=$(seal json get "$raw" '.[0].databaseId')
+          break
+        fi
+        sleep 2
+        attempt=$(seal int add "$attempt" 1)
+      done
+    fi
+    if empty "$run_id"; then
+      fail "release: could not find a recent run for $workflow on $ref"
+    fi
+    gh run watch "$run_id" --interval 10
+  fi
+fi

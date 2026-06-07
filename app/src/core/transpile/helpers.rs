@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 
-use super::ast::{ArgvKind, ArgvSpec, Statement, Value};
+use super::ast::{ArgvKind, ArgvSpec, Statement, ToolInvocation, Value};
 use super::json_path::parse_json_path;
 
 pub(crate) fn parse_statement_helper(args: &[String], line: usize) -> Result<Statement> {
@@ -10,6 +10,30 @@ pub(crate) fn parse_statement_helper(args: &[String], line: usize) -> Result<Sta
                 specs: parse_argv_specs(rest, line)?,
             })
         }
+        [passthrough, start, namespace, command, rest @ ..] if passthrough == "passthrough" => {
+            let start = start
+                .parse::<usize>()
+                .map_err(|_| anyhow::anyhow!("{line}: invalid passthrough start: {start}"))?;
+            Ok(Statement::ToolPassthrough {
+                start,
+                invocation: ToolInvocation {
+                    path: vec![namespace.clone(), command.clone()],
+                    argv: rest
+                        .iter()
+                        .map(|arg| super::value::parse_value_text(arg, line))
+                        .collect::<Result<Vec<_>>>()?,
+                },
+            })
+        }
+        [namespace, command, rest @ ..] => Ok(Statement::ToolExec {
+            invocation: ToolInvocation {
+                path: vec![namespace.clone(), command.clone()],
+                argv: rest
+                    .iter()
+                    .map(|arg| super::value::parse_value_text(arg, line))
+                    .collect::<Result<Vec<_>>>()?,
+            },
+        }),
         _ => bail!("{line}: unsupported seal helper statement"),
     }
 }
@@ -26,10 +50,7 @@ pub(crate) fn parse_capture_helper(
             Value::Literal { text: trim },
             value,
         ] if seal == "seal" && string == "string" && trim == "trim" => {
-            Some(Statement::StringTrim {
-                name: name.to_string(),
-                value: value.clone(),
-            })
+            Some(tool_capture(name, ["string", "trim"], vec![value.clone()]))
         }
         [
             Value::Literal { text: seal },
@@ -37,11 +58,14 @@ pub(crate) fn parse_capture_helper(
             Value::Literal { text: get },
             value,
             Value::Literal { text: path },
-        ] if seal == "seal" && json == "json" && get == "get" => Some(Statement::JsonGet {
-            name: name.to_string(),
-            json: value.clone(),
-            path: parse_json_path(path, line)?,
-        }),
+        ] if seal == "seal" && json == "json" && get == "get" => {
+            parse_json_path(path, line)?;
+            Some(tool_capture(
+                name,
+                ["json", "get"],
+                vec![value.clone(), Value::Literal { text: path.clone() }],
+            ))
+        }
         [
             Value::Literal { text: seal },
             Value::Literal { text: regex },
@@ -50,12 +74,20 @@ pub(crate) fn parse_capture_helper(
             Value::Literal { text: pattern },
             Value::Literal { text: group },
         ] if seal == "seal" && regex == "regex" && capture == "capture" => {
-            Some(Statement::RegexCapture {
-                name: name.to_string(),
-                value: value.clone(),
-                pattern: pattern.clone(),
-                group: parse_group(group, line)?,
-            })
+            parse_group(group, line)?;
+            Some(tool_capture(
+                name,
+                ["regex", "capture"],
+                vec![
+                    value.clone(),
+                    Value::Literal {
+                        text: pattern.clone(),
+                    },
+                    Value::Literal {
+                        text: group.clone(),
+                    },
+                ],
+            ))
         }
         [
             Value::Literal { text: seal },
@@ -63,14 +95,36 @@ pub(crate) fn parse_capture_helper(
             Value::Literal { text: add },
             left,
             right,
-        ] if seal == "seal" && int == "int" && add == "add" => Some(Statement::IntAdd {
+        ] if seal == "seal" && int == "int" && add == "add" => Some(tool_capture(
+            name,
+            ["int", "add"],
+            vec![left.clone(), right.clone()],
+        )),
+        [
+            Value::Literal { text: seal },
+            Value::Literal { text: namespace },
+            Value::Literal { text: command },
+            rest @ ..,
+        ] if seal == "seal" => Some(Statement::ToolCapture {
             name: name.to_string(),
-            left: left.clone(),
-            right: right.clone(),
+            invocation: ToolInvocation {
+                path: vec![namespace.clone(), command.clone()],
+                argv: rest.to_vec(),
+            },
         }),
         _ => None,
     };
     Ok(statement)
+}
+
+fn tool_capture<const N: usize>(name: &str, path: [&str; N], argv: Vec<Value>) -> Statement {
+    Statement::ToolCapture {
+        name: name.to_string(),
+        invocation: ToolInvocation {
+            path: path.into_iter().map(str::to_string).collect(),
+            argv,
+        },
+    }
 }
 
 fn parse_group(group: &str, line: usize) -> Result<usize> {

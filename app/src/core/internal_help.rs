@@ -12,6 +12,7 @@ fn text(name: &str) -> Result<&'static str> {
         "profile" => Ok(PROFILE),
         "resolve" => Ok(RESOLVE),
         "resources" => Ok(RESOURCES),
+        "tool" => Ok(crate::core::tool::help()),
         "transpile" => Ok(TRANSPILE),
         "wrappers" => Ok(WRAPPERS),
         "which" => Ok(WHICH),
@@ -109,12 +110,15 @@ Usage: runseal @wrappers
 List the effective wrappers visible to the selected profile.
 
 Lookup order:
-  1. <profile-dir>/.runseal/wrappers/<name>.sh
-  2. $RUNSEAL_HOME/wrappers/<name>.sh
+  1. <profile-dir>/.runseal/wrappers/<name>.seal
+  2. <profile-dir>/.runseal/wrappers/<name>.sh
+  3. $RUNSEAL_HOME/wrappers/<name>.seal
+  4. $RUNSEAL_HOME/wrappers/<name>.sh
 
 Profile-local wrappers shadow home wrappers with the same name. On Unix, wrapper
-files use the .sh suffix and must be executable. On Windows, runseal also checks
-.exe, .cmd, and .bat when the wrapper name has no extension.
+shell files use the .sh suffix and must be executable. Seal wrappers use the
+.seal suffix and are interpreted directly by runseal. On Windows, runseal also
+checks .exe, .cmd, and .bat when the wrapper name has no extension.
 
 @wrappers is read-only and does not run profile injections.
 ";

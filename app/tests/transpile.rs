@@ -1,9 +1,11 @@
 use std::{
     io::Write,
-    path::Path,
     process::{Command, Stdio},
 };
 use tempfile::TempDir;
+
+#[path = "transpile_support/tool.rs"]
+mod tool;
 
 fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_runseal"))
@@ -251,7 +253,8 @@ fn string_trim_helper_roundtrip() {
 
         assert!(output.status.success());
         let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-        assert!(stdout.contains("string_trim"));
+        assert!(stdout.contains("tool_capture"));
+        assert!(stdout.contains("string"));
     }
 
     let fx = fixture(powershell_trim_source());
@@ -259,7 +262,8 @@ fn string_trim_helper_roundtrip() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("string_trim"));
+    assert!(stdout.contains("tool_capture"));
+    assert!(stdout.contains("string"));
 }
 
 #[test]
@@ -273,9 +277,8 @@ fn string_trim_emits_native() {
     assert!(powershell.status.success());
     let bash = String::from_utf8(bash.stdout).expect("stdout should be UTF-8");
     let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
-    assert!(bash.contains("command -v sed"));
-    assert!(bash.contains("trimmed=$(printf '%s' \"$raw\" | sed"));
-    assert!(powershell.contains("$trimmed = ($raw).Trim()"));
+    assert!(bash.contains("trimmed=$(runseal @tool string trim \"$raw\")"));
+    assert!(powershell.contains("$trimmed = & 'runseal' '@tool' 'string' 'trim' $raw"));
     assert_bash_syntax(&bash);
     assert_pwsh_syntax(&powershell);
 }
@@ -288,7 +291,8 @@ fn json_get_helper_roundtrip() {
 
         assert!(output.status.success());
         let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-        assert!(stdout.contains("json_get"));
+        assert!(stdout.contains("tool_capture"));
+        assert!(stdout.contains("json"));
         assert!(stdout.contains("databaseId"));
     }
 
@@ -297,7 +301,8 @@ fn json_get_helper_roundtrip() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("json_get"));
+    assert!(stdout.contains("tool_capture"));
+    assert!(stdout.contains("json"));
     assert!(stdout.contains("databaseId"));
 }
 
@@ -312,9 +317,10 @@ fn json_get_emits_native() {
     assert!(powershell.status.success());
     let bash = String::from_utf8(bash.stdout).expect("stdout should be UTF-8");
     let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
-    assert!(bash.contains("command -v jq"));
-    assert!(bash.contains("run_id=$(printf '%s' \"$raw\" | jq -r '.[0].databaseId')"));
-    assert!(powershell.contains("$run_id = [string](($raw | ConvertFrom-Json)[0].databaseId)"));
+    assert!(bash.contains("run_id=$(runseal @tool json get \"$raw\" '.[0].databaseId')"));
+    assert!(
+        powershell.contains("$run_id = & 'runseal' '@tool' 'json' 'get' $raw '.[0].databaseId'")
+    );
     assert_bash_syntax(&bash);
     assert_pwsh_syntax(&powershell);
 }
@@ -424,7 +430,7 @@ fn metacharacters_fail() {
 }
 
 fn assert_bash_syntax(source: &str) {
-    if !tool_exists("bash") || !bash_accepts_stdin() {
+    if !tool::exists("bash") || !bash_accepts_stdin() {
         return;
     }
     let mut child = Command::new("bash")
@@ -462,7 +468,7 @@ fn bash_accepts_stdin() -> bool {
 }
 
 fn assert_pwsh_syntax(source: &str) {
-    if !tool_exists("pwsh") {
+    if !tool::exists("pwsh") {
         return;
     }
     let output = Command::new("pwsh")
@@ -478,23 +484,4 @@ fn assert_pwsh_syntax(source: &str) {
         "PowerShell syntax should pass: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-}
-
-fn tool_exists(name: &str) -> bool {
-    let path = std::env::var_os("PATH").unwrap_or_default();
-    std::env::split_paths(&path).any(|dir| executable_exists(&dir.join(name)))
-}
-
-#[cfg(unix)]
-fn executable_exists(path: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    path.is_file()
-        && path
-            .metadata()
-            .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0)
-}
-
-#[cfg(windows)]
-fn executable_exists(path: &Path) -> bool {
-    path.is_file()
 }

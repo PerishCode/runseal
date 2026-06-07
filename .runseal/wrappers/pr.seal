@@ -1,0 +1,153 @@
+usage() {
+  print "Usage: runseal :pr [options]"
+  print ""
+  print "Create or update, watch, and squash-merge the GitHub PR for the current branch."
+  print ""
+  print "Options:"
+  print "  --base <branch>       PR base branch (default: main)"
+  print "  --title <title>       title when creating a new PR"
+  print "  --body-file <path>    body file when creating a new PR"
+  print "  --draft              create the PR as draft and require --no-merge"
+  print "  --no-watch           do not watch PR checks"
+  print "  --no-merge           do not squash-merge after checks"
+  print "  --no-push            do not push the current branch first"
+  print "  --dry-run            print planned actions without changing remote state"
+}
+
+seal argv parse --string base=main --string title= --string body_file= --flag draft --flag no_watch --flag no_merge --flag no_push --flag dry_run
+
+if eq "$__seal_argc" 0; then
+  usage
+  exit 0
+fi
+
+if eq "$__seal_help" true; then
+  usage
+  exit 0
+fi
+
+git --version
+gh --version
+gh auth status
+
+branch=$(git branch --show-current)
+if empty "$branch"; then
+  fail "pr: not on a branch"
+fi
+
+if eq "$branch" "$base"; then
+  fail "pr: refusing to open a PR from base branch: $branch"
+fi
+
+if eq "$branch" main; then
+  fail "pr: refusing to open a PR from base branch: $branch"
+fi
+
+if eq "$branch" master; then
+  fail "pr: refusing to open a PR from base branch: $branch"
+fi
+
+if eq "$draft" true; then
+  if eq "$no_merge" false; then
+    fail "pr: --draft requires --no-merge"
+  fi
+fi
+
+if eq "$dry_run" true; then
+  print "branch: $branch"
+  print "base: $base"
+  if eq "$no_push" true; then
+    print "push: False"
+  else
+    print "push: True"
+  fi
+  print "pr: create if missing, otherwise reuse existing"
+  if eq "$draft" true; then
+    print "draft: True"
+    print "ready: False"
+  else
+    print "draft: False"
+    print "ready: True"
+  fi
+  if eq "$no_watch" true; then
+    print "watch: False"
+  else
+    print "watch: True"
+  fi
+  if eq "$no_merge" true; then
+    print "squash_merge: False"
+  else
+    print "squash_merge: True"
+  fi
+  exit 0
+fi
+
+if eq "$no_push" false; then
+  git push -u origin "$branch"
+fi
+
+created=false
+pr_raw=$(gh pr list --head "$branch" --json number,title,state,url,isDraft)
+
+if json_empty "$pr_raw"; then
+  if eq "$draft" true; then
+    if not_empty "$title"; then
+      if not_empty "$body_file"; then
+        gh pr create --draft --base "$base" --head "$branch" --title "$title" --body-file "$body_file"
+      else
+        gh pr create --draft --base "$base" --head "$branch" --title "$title" --fill
+      fi
+    else
+      if not_empty "$body_file"; then
+        gh pr create --draft --base "$base" --head "$branch" --fill --body-file "$body_file"
+      else
+        gh pr create --draft --base "$base" --head "$branch" --fill
+      fi
+    fi
+  else
+    if not_empty "$title"; then
+      if not_empty "$body_file"; then
+        gh pr create --base "$base" --head "$branch" --title "$title" --body-file "$body_file"
+      else
+        gh pr create --base "$base" --head "$branch" --title "$title" --fill
+      fi
+    else
+      if not_empty "$body_file"; then
+        gh pr create --base "$base" --head "$branch" --fill --body-file "$body_file"
+      else
+        gh pr create --base "$base" --head "$branch" --fill
+      fi
+    fi
+  fi
+  created=true
+  pr_raw=$(gh pr list --head "$branch" --json number,title,state,url,isDraft)
+  if json_empty "$pr_raw"; then
+    fail "pr: created PR for $branch, but could not find it afterward"
+  fi
+fi
+
+number=$(seal json get "$pr_raw" '.[0].number')
+url=$(seal json get "$pr_raw" '.[0].url')
+is_draft=$(seal json get "$pr_raw" '.[0].isDraft')
+
+if eq "$created" true; then
+  print "created PR #$number: $url"
+else
+  print "found PR #$number: $url"
+fi
+
+if eq "$is_draft" true; then
+  if eq "$draft" false; then
+    gh pr ready "$number"
+    print "marked PR #$number ready"
+  fi
+fi
+
+if eq "$no_watch" false; then
+  gh pr checks "$number" --watch --interval 10
+fi
+
+if eq "$no_merge" false; then
+  gh pr merge "$number" --squash --delete-branch
+  print "squash-merged PR #$number"
+fi

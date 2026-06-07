@@ -1,19 +1,15 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    env,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{collections::BTreeMap, path::PathBuf, process::Command};
 
 use anyhow::{Context, Result, bail};
-use path_absolutize::Absolutize;
 
 use super::app::AppContext;
 use super::config::RuntimeConfig;
 use super::env_key::is_valid_env_key;
 use super::internal_help;
 use super::profile::InjectionProfile;
-use super::{injections, profile};
+use super::{injections, profile, transpile};
+
+mod wrapper_paths;
 
 pub struct RunResult {
     pub exit_code: Option<i32>,
@@ -76,7 +72,7 @@ fn resolve_command(
         bail!("command mode requires at least one command token");
     }
     if let Some(name) = wrapper_name(&config.command[0])? {
-        let file = resolve_wrapper(config, &name)?;
+        let file = wrapper_paths::resolve(config, &name)?;
         let mut argv = Vec::with_capacity(config.command.len());
         argv.push(file.to_string_lossy().into_owned());
         argv.extend_from_slice(&config.command[1..]);
@@ -163,86 +159,6 @@ fn validate_symbol_name(name: &str) -> Result<()> {
     Ok(())
 }
 
-fn resolve_wrapper(config: &RuntimeConfig, name: &str) -> Result<PathBuf> {
-    let searched = wrapper_search_paths(config, name);
-
-    for candidate in &searched {
-        if wrapper_is_executable(candidate) {
-            return candidate
-                .absolutize()
-                .with_context(|| format!("failed to absolutize wrapper: {}", candidate.display()))
-                .map(|path| path.to_path_buf());
-        }
-    }
-
-    let searched = searched
-        .iter()
-        .map(|path| format!("- {}", path.display()))
-        .collect::<Vec<_>>()
-        .join("\n");
-    bail!("wrapper not found: :{name}\nsearched:\n{searched}")
-}
-
-fn wrapper_search_paths(config: &RuntimeConfig, name: &str) -> Vec<PathBuf> {
-    wrapper_search_dirs(config)
-        .into_iter()
-        .flat_map(|dir| wrapper_candidates(&dir, name))
-        .collect()
-}
-
-fn wrapper_search_dirs(config: &RuntimeConfig) -> Vec<PathBuf> {
-    vec![
-        profile_root(&config.profile_path)
-            .join(".runseal")
-            .join("wrappers"),
-        config.runseal_home.join("wrappers"),
-    ]
-}
-
-fn profile_root(profile_path: &Path) -> &Path {
-    profile_path.parent().unwrap_or(Path::new("."))
-}
-
-#[cfg(unix)]
-fn wrapper_candidates(dir: &Path, name: &str) -> Vec<PathBuf> {
-    if Path::new(name).extension().is_some() {
-        return vec![dir.join(name)];
-    }
-    vec![dir.join(format!("{name}.sh"))]
-}
-
-#[cfg(windows)]
-fn wrapper_candidates(dir: &Path, name: &str) -> Vec<PathBuf> {
-    let exact = dir.join(name);
-    if Path::new(name).extension().is_some() {
-        return vec![exact];
-    }
-    [exact]
-        .into_iter()
-        .chain(
-            ["exe", "cmd", "bat"]
-                .into_iter()
-                .map(|ext| dir.join(format!("{name}.{ext}"))),
-        )
-        .collect()
-}
-
-#[cfg(unix)]
-fn wrapper_is_executable(path: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-
-    path.is_file()
-        && path
-            .metadata()
-            .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
-            .unwrap_or(false)
-}
-
-#[cfg(windows)]
-fn wrapper_is_executable(path: &Path) -> bool {
-    path.is_file()
-}
-
 fn run_internal(config: &RuntimeConfig, command: InternalCommand) -> Result<()> {
     match command {
         InternalCommand::Help(help) => print!("{help}"),
@@ -267,13 +183,13 @@ fn print_profile(config: &RuntimeConfig) -> Result<()> {
     }
     println!(
         "RUNSEAL_WRAPPER_PATH={}",
-        wrapper_path_env(config)?.to_string_lossy()
+        wrapper_paths::path_env(config)?.to_string_lossy()
     );
     Ok(())
 }
 
 fn print_wrappers(config: &RuntimeConfig) -> Result<()> {
-    for wrapper in effective_wrappers(config)? {
+    for wrapper in wrapper_paths::effective(config)? {
         println!(
             ":{:<20} {}\t{}",
             wrapper.name,
@@ -302,82 +218,9 @@ fn print_resources(config: &RuntimeConfig) -> Result<()> {
 }
 
 fn print_which_wrapper(config: &RuntimeConfig, name: &str) -> Result<()> {
-    let file = resolve_wrapper(config, name)?;
+    let file = wrapper_paths::resolve(config, name)?;
     println!("{}", file.display());
     Ok(())
-}
-
-struct ListedWrapper {
-    name: String,
-    source: &'static str,
-    file: PathBuf,
-}
-
-fn effective_wrappers(config: &RuntimeConfig) -> Result<Vec<ListedWrapper>> {
-    let dirs = wrapper_search_dirs(config);
-    let mut names = BTreeSet::new();
-
-    for dir in &dirs {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            continue;
-        };
-        for entry in entries {
-            let entry =
-                entry.with_context(|| format!("failed to read wrapper dir: {}", dir.display()))?;
-            let file = entry.path();
-            if !wrapper_is_executable(&file) {
-                continue;
-            }
-            let Some(name) = listed_wrapper_name(&file) else {
-                continue;
-            };
-            names.insert(name);
-        }
-    }
-
-    let mut wrappers = Vec::new();
-    for name in names {
-        let file = resolve_wrapper(config, &name)?;
-        let source = if file.starts_with(&dirs[0]) {
-            "profile"
-        } else {
-            "home"
-        };
-        wrappers.push(ListedWrapper { name, source, file });
-    }
-    Ok(wrappers)
-}
-
-#[cfg(unix)]
-fn listed_wrapper_name(path: &Path) -> Option<String> {
-    if path.extension().and_then(std::ffi::OsStr::to_str) != Some("sh") {
-        return None;
-    }
-    let stem = path.file_stem()?.to_str()?;
-    validate_symbol_name(stem).ok()?;
-    Some(stem.to_string())
-}
-
-#[cfg(windows)]
-fn listed_wrapper_name(path: &Path) -> Option<String> {
-    let file_name = path.file_name()?.to_str()?;
-    if let Some(ext) = path.extension().and_then(std::ffi::OsStr::to_str)
-        && matches_ignore_ascii_case(ext, &["exe", "cmd", "bat"])
-    {
-        let stem = path.file_stem()?.to_str()?;
-        validate_symbol_name(stem).ok()?;
-        return Some(stem.to_string());
-    }
-
-    validate_symbol_name(file_name).ok()?;
-    Some(file_name.to_string())
-}
-
-#[cfg(windows)]
-fn matches_ignore_ascii_case(value: &str, expected: &[&str]) -> bool {
-    expected
-        .iter()
-        .any(|candidate| value.eq_ignore_ascii_case(candidate))
 }
 
 fn apply_argv_injections(
@@ -437,19 +280,17 @@ fn run_command(
     if command.is_empty() {
         bail!("command mode requires at least one command token");
     }
+    if let Some(wrapper) = &resolved.wrapper
+        && wrapper_paths::is_seal(&wrapper.file)
+    {
+        let env = run_env(config, resolved, exports)?;
+        return transpile::run_seal_file(&wrapper.file, &resolved.argv[1..], &env);
+    }
 
     let mut child = child_command(resolved);
-    child.envs(exports.iter().map(|(k, v)| (k.as_str(), v.as_str())));
-    child.env("RUNSEAL_HOME", &config.runseal_home);
-    child.env("RUNSEAL_PROFILE_HOME", &config.profile_home);
-    child.env("RUNSEAL_PROFILE_PATH", &config.profile_path);
-    child.env("RUNSEAL_WRAPPER_PATH", wrapper_path_env(config)?);
     child.env_remove("RUNSEAL_WRAPPER_NAME");
     child.env_remove("RUNSEAL_WRAPPER_FILE");
-    if let Some(wrapper) = &resolved.wrapper {
-        child.env("RUNSEAL_WRAPPER_NAME", &wrapper.name);
-        child.env("RUNSEAL_WRAPPER_FILE", &wrapper.file);
-    }
+    child.envs(run_env(config, resolved, exports)?);
 
     let status = child.status().context("failed to execute child command")?;
     if let Some(code) = status.code() {
@@ -465,6 +306,40 @@ fn run_command(
     }
 
     Ok(1)
+}
+
+fn run_env(
+    config: &RuntimeConfig,
+    resolved: &ResolvedCommand,
+    exports: &[(String, String)],
+) -> Result<Vec<(String, String)>> {
+    let mut env = exports.to_vec();
+    env.push((
+        "RUNSEAL_HOME".to_string(),
+        config.runseal_home.to_string_lossy().into_owned(),
+    ));
+    env.push((
+        "RUNSEAL_PROFILE_HOME".to_string(),
+        config.profile_home.to_string_lossy().into_owned(),
+    ));
+    env.push((
+        "RUNSEAL_PROFILE_PATH".to_string(),
+        config.profile_path.to_string_lossy().into_owned(),
+    ));
+    env.push((
+        "RUNSEAL_WRAPPER_PATH".to_string(),
+        wrapper_paths::path_env(config)?
+            .to_string_lossy()
+            .into_owned(),
+    ));
+    if let Some(wrapper) = &resolved.wrapper {
+        env.push(("RUNSEAL_WRAPPER_NAME".to_string(), wrapper.name.clone()));
+        env.push((
+            "RUNSEAL_WRAPPER_FILE".to_string(),
+            wrapper.file.to_string_lossy().into_owned(),
+        ));
+    }
+    Ok(env)
 }
 
 fn child_command(resolved: &ResolvedCommand) -> Command {
@@ -488,13 +363,9 @@ fn child_command(resolved: &ResolvedCommand) -> Command {
 }
 
 #[cfg(windows)]
-fn wrapper_uses_cmd(path: &Path) -> bool {
+fn wrapper_uses_cmd(path: &std::path::Path) -> bool {
     matches!(
         path.extension().and_then(|ext| ext.to_str()),
         Some(ext) if ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
     )
-}
-
-fn wrapper_path_env(config: &RuntimeConfig) -> Result<std::ffi::OsString> {
-    env::join_paths(wrapper_search_dirs(config)).context("failed to build RUNSEAL_WRAPPER_PATH")
 }
