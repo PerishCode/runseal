@@ -342,6 +342,9 @@ fn powershell_value(value: &Value) -> String {
             )
         }
         Value::Concat { parts } => {
+            if parts.is_empty() {
+                return "''".to_string();
+            }
             let value = parts
                 .iter()
                 .map(powershell_value)

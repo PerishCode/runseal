@@ -201,11 +201,20 @@ fn emit_bash_items(out: &mut String, program: &Program) {
             Item::Function { name, body } => {
                 out.push_str(name);
                 out.push_str("() {\n");
-                emit_bash_statements(out, body, 1);
+                emit_bash_body(out, body, 1);
                 out.push_str("}\n\n");
             }
             Item::Statement { statement } => emit_bash_statement(out, statement, 0),
         }
+    }
+}
+
+fn emit_bash_body(out: &mut String, statements: &[Statement], indent: usize) {
+    if statements.is_empty() {
+        let pad = "  ".repeat(indent);
+        out.push_str(&format!("{pad}:\n"));
+    } else {
+        emit_bash_statements(out, statements, indent);
     }
 }
 
@@ -300,23 +309,23 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             else_body,
         } => {
             out.push_str(&format!("{pad}if {}; then\n", bash_predicate(predicate)));
-            emit_bash_statements(out, then_body, indent + 1);
+            emit_bash_body(out, then_body, indent + 1);
             if !else_body.is_empty() {
                 out.push_str(&format!("{pad}else\n"));
-                emit_bash_statements(out, else_body, indent + 1);
+                emit_bash_body(out, else_body, indent + 1);
             }
             out.push_str(&format!("{pad}fi\n"));
         }
         Statement::While { predicate, body } => {
             out.push_str(&format!("{pad}while {}; do\n", bash_predicate(predicate)));
-            emit_bash_statements(out, body, indent + 1);
+            emit_bash_body(out, body, indent + 1);
             out.push_str(&format!("{pad}done\n"));
         }
         Statement::Case { value, arms } => {
             out.push_str(&format!("{pad}case {} in\n", bash_value(value)));
             for arm in arms {
                 out.push_str(&format!("{pad}  {})\n", arm.patterns.join("|")));
-                emit_bash_statements(out, &arm.body, indent + 2);
+                emit_bash_body(out, &arm.body, indent + 2);
                 out.push_str(&format!("{pad}    ;;\n"));
             }
             out.push_str(&format!("{pad}esac\n"));
