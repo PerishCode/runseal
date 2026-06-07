@@ -1,8 +1,4 @@
-use std::{
-    io::Write,
-    path::Path,
-    process::{Command, Stdio},
-};
+use std::process::Command;
 
 use tempfile::TempDir;
 
@@ -117,84 +113,6 @@ fn release_fixture_emits_targets() {
     assert!(powershell.contains("$trigger_output = & 'gh' 'workflow' 'run' $workflow"));
     assert!(powershell.contains("& 'runseal' '@tool' 'regex' 'capture' $trigger_output"));
     assert!(powershell.contains("& 'runseal' '@tool' 'json' 'empty' $raw"));
-    assert_bash_syntax(&bash);
-    assert_pwsh_syntax(&powershell);
-}
-
-fn assert_bash_syntax(source: &str) {
-    if !tool_exists("bash") || !bash_accepts_stdin() {
-        return;
-    }
-    let mut child = Command::new("bash")
-        .arg("-n")
-        .arg("-s")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("bash should run");
-    child
-        .stdin
-        .as_mut()
-        .expect("bash stdin should be piped")
-        .write_all(source.as_bytes())
-        .expect("bash source should be written");
-    let output = child.wait_with_output().expect("bash should finish");
-    assert!(
-        output.status.success(),
-        "bash syntax should pass: stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn bash_accepts_stdin() -> bool {
-    let output = Command::new("bash")
-        .arg("-n")
-        .arg("-s")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output();
-    output.is_ok_and(|output| output.status.success())
-}
-
-fn assert_pwsh_syntax(source: &str) {
-    if !tool_exists("pwsh") {
-        return;
-    }
-    let output = Command::new("pwsh")
-        .arg("-NoProfile")
-        .arg("-NonInteractive")
-        .arg("-Command")
-        .arg("[scriptblock]::Create($args[0]) | Out-Null")
-        .arg(source)
-        .output()
-        .expect("pwsh should run");
-    assert!(
-        output.status.success(),
-        "PowerShell syntax should pass: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn tool_exists(name: &str) -> bool {
-    let path = std::env::var_os("PATH").unwrap_or_default();
-    std::env::split_paths(&path).any(|dir| executable_exists(&dir.join(name)))
-}
-
-#[cfg(unix)]
-fn executable_exists(path: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    path.is_file()
-        && path
-            .metadata()
-            .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0)
-}
-
-#[cfg(windows)]
-fn executable_exists(path: &Path) -> bool {
-    path.with_extension("exe").is_file()
-        || path.with_extension("cmd").is_file()
-        || path.with_extension("bat").is_file()
+    super::syntax::assert_bash(&bash);
+    super::syntax::assert_pwsh(&powershell);
 }

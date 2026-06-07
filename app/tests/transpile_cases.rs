@@ -6,3 +6,5 @@ mod regex;
 mod release;
 #[path = "transpile_cases/retry.rs"]
 mod retry;
+#[path = "transpile_support/syntax.rs"]
+mod syntax;
