@@ -12,6 +12,7 @@ fn text(name: &str) -> Result<&'static str> {
         "profile" => Ok(PROFILE),
         "resolve" => Ok(RESOLVE),
         "resources" => Ok(RESOURCES),
+        "transpile" => Ok(TRANSPILE),
         "wrappers" => Ok(WRAPPERS),
         "which" => Ok(WHICH),
         _ => bail!("unknown internal command: @{name}"),
@@ -68,18 +69,52 @@ Invalid resource paths include empty segments, '.', '..', backslashes, and ':' i
 path segments. Resolved paths are printed even when the target file does not exist.
 ";
 
+const TRANSPILE: &str = "\
+Usage: runseal @transpile --input-lang=<lang> --output-lang=<lang> <source>
+
+Transpile one explicit glue language into another and print the result to stdout.
+
+Languages:
+  seal        POSIX-shaped Seal source
+  sealir      JSON SealIR semantic form
+  bash        bash output target
+  powershell  PowerShell output target
+
+Cold-start supported paths:
+  bash -> sealir
+  bash -> seal
+  bash -> powershell
+  seal -> sealir
+  seal -> bash
+  seal -> powershell
+  powershell -> sealir
+  powershell -> seal
+  powershell -> bash
+  sealir -> seal
+  sealir -> bash
+  sealir -> powershell
+
+Examples:
+  runseal @transpile --input-lang=seal --output-lang=bash manage.seal
+  runseal @transpile --input-lang=seal --output-lang=powershell manage.seal
+  runseal @transpile --input-lang=seal --output-lang=sealir manage.seal
+
+@transpile is explicit code generation only. It does not infer languages, write
+files, execute generated code, or run profile injections.
+";
+
 const WRAPPERS: &str = "\
 Usage: runseal @wrappers
 
 List the effective wrappers visible to the selected profile.
 
 Lookup order:
-  1. <profile-dir>/.runseal/wrappers/<name>
-  2. $RUNSEAL_HOME/wrappers/<name>
+  1. <profile-dir>/.runseal/wrappers/<name>.sh
+  2. $RUNSEAL_HOME/wrappers/<name>.sh
 
-Profile-local wrappers shadow home wrappers with the same name. On Unix, wrapper files
-must be executable. On Windows, runseal also checks .exe, .cmd, and .bat when the
-wrapper name has no extension.
+Profile-local wrappers shadow home wrappers with the same name. On Unix, wrapper
+files use the .sh suffix and must be executable. On Windows, runseal also checks
+.exe, .cmd, and .bat when the wrapper name has no extension.
 
 @wrappers is read-only and does not run profile injections.
 ";

@@ -6,6 +6,7 @@ use clap::{CommandFactory, Parser};
 use runseal::core::app::AppState;
 use runseal::core::config::{CliInput, RawEnv, RuntimeConfig};
 use runseal::core::internal_help;
+use runseal::core::transpile;
 use runseal::run;
 
 #[derive(Debug, Parser)]
@@ -23,13 +24,15 @@ Internal commands:
   @profile            print resolved runtime paths
   @resources          print the resolved resource root
   @resolve <uri>...   resolve resource:// paths
+  @transpile          transpile explicit input/output glue languages
   @wrappers           list visible wrappers
   @which :<name>      print a wrapper path
 
 Profile discovery walks from the current directory upward for runseal.toml|yaml|yml|json,
 then falls back to $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json.
 
-Run runseal @profile --help, @resolve --help, @wrappers --help, or @which --help for details.
+Run runseal @profile --help, @resolve --help, @transpile --help, @wrappers --help,
+or @which --help for details.
 
 Repository: https://github.com/PerishCode/runseal"
 )]
@@ -52,6 +55,9 @@ fn main() -> Result<()> {
     if print_internal_help(&cli.command)? {
         return Ok(());
     }
+    if run_early_internal(&cli.command)? {
+        return Ok(());
+    }
 
     let config = build_runtime_config(cli)?;
     let app = AppState::new(config);
@@ -72,6 +78,16 @@ fn build_runtime_config(cli: Cli) -> Result<RuntimeConfig> {
         RawEnv::from_process(),
         &cwd,
     )
+}
+
+fn run_early_internal(command: &[String]) -> Result<bool> {
+    if command.first().map(String::as_str) != Some("@transpile") {
+        return Ok(false);
+    }
+    let options = transpile::parse_args(&command[1..])?;
+    let output = transpile::transpile_file(&options)?;
+    print!("{output}");
+    Ok(true)
 }
 
 fn print_internal_help(command: &[String]) -> Result<bool> {

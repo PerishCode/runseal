@@ -37,9 +37,9 @@ REQUIRED_PATHS = (
     "manage.ps1",
     "runseal.toml",
     ".runseal/lib/python-module",
-    ".runseal/wrappers/cloudflare",
-    ".runseal/wrappers/pr",
-    ".runseal/wrappers/release",
+    ".runseal/wrappers/cloudflare.sh",
+    ".runseal/wrappers/pr.sh",
+    ".runseal/wrappers/release.sh",
     ".github/workflows/guard.yml",
     ".github/workflows/release-beta.yml",
     ".github/workflows/release-stable.yml",
@@ -76,9 +76,9 @@ flavor check --root . --config flavor.json
 
 echo "==> shell syntax"
 sh -n .runseal/lib/python-module
-sh -n .runseal/wrappers/cloudflare
-sh -n .runseal/wrappers/pr
-sh -n .runseal/wrappers/release
+sh -n .runseal/wrappers/cloudflare.sh
+sh -n .runseal/wrappers/pr.sh
+sh -n .runseal/wrappers/release.sh
 sh -n manage.sh
 sh -n .github/scripts/release/assets/checksums.sh
 sh -n .github/scripts/release/assets/package.sh
@@ -106,13 +106,15 @@ if command -v pwsh >/dev/null 2>&1; then
   pwsh -NoProfile -NonInteractive -Command \\
     '
 $ErrorActionPreference = "Stop"
-foreach ($path in $args) {{
+$paths = @(
+  "manage.ps1",
+  ".github/scripts/release/assets/package.ps1",
+  ".github/scripts/release/smoke/smoke.ps1"
+)
+foreach ($path in $paths) {{
   [scriptblock]::Create((Get-Content -Raw $path)) | Out-Null
 }}
-' \\
-    manage.ps1 \\
-    .github/scripts/release/assets/package.ps1 \\
-    .github/scripts/release/smoke/smoke.ps1
+'
 else
   echo "==> PowerShell syntax"
   echo "skip: pwsh not found"

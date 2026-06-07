@@ -49,6 +49,7 @@ Internal commands are read-only and do not run profile injections:
 runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
+runseal @transpile --input-lang=seal --output-lang=bash ./operator.seal
 runseal @wrappers
 runseal @which :ssh-run
 ```
@@ -230,8 +231,8 @@ runseal :ssh-run host ./probe.sh -- arg
 
 Wrapper lookup order is:
 
-1. `<profile-dir>/.runseal/wrappers/<name>`
-2. `$RUNSEAL_HOME/wrappers/<name>`
+1. `<profile-dir>/.runseal/wrappers/<name>.sh`
+2. `$RUNSEAL_HOME/wrappers/<name>.sh`
 
 The profile directory is the directory containing `RUNSEAL_PROFILE_PATH`.
 Successful profile and wrapper paths are normalized absolute paths.
@@ -240,8 +241,9 @@ The child working directory is not changed. A resolved wrapper receives:
 - `RUNSEAL_WRAPPER_NAME`
 - `RUNSEAL_WRAPPER_FILE`
 
-On Windows, runseal also checks `.exe`, `.cmd`, and `.bat` when the wrapper
-name has no extension. On Unix, the wrapper file must be executable.
+On Unix, wrapper files use the `.sh` suffix and must be executable. On Windows,
+runseal also checks `.exe`, `.cmd`, and `.bat` when the wrapper name has no
+extension.
 
 ## Internal Commands
 
@@ -252,6 +254,7 @@ command instead of a literal program name:
 runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
+runseal @transpile --input-lang=seal --output-lang=sealir ./operator.seal
 runseal @wrappers
 runseal @which :ssh-run
 ```
@@ -263,6 +266,10 @@ Internal commands are read-only and do not run profile injections.
 - `@resources` prints the resolved resource root.
 - `@resolve resource://...` prints resolved absolute resource paths, one per
   argument.
+- `@transpile --input-lang=<lang> --output-lang=<lang> <source>` transpiles
+  explicit glue languages and prints the generated output. Cold start supports
+  `bash`, `seal`, `powershell`, and `sealir` inputs and outputs for the
+  currently recognized intersection.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
 

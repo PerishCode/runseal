@@ -63,7 +63,7 @@ fn make_probe(path: &std::path::Path) {
 
 #[cfg(unix)]
 fn wrapper_file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
-    dir.join(name)
+    dir.join(format!("{name}.sh"))
 }
 
 #[cfg(windows)]
@@ -73,7 +73,7 @@ fn wrapper_file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
 
 #[cfg(unix)]
 fn wrapper_basename(name: &str) -> String {
-    name.to_string()
+    format!("{name}.sh")
 }
 
 #[cfg(windows)]

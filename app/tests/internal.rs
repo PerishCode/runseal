@@ -11,7 +11,7 @@ fn bin() -> Command {
 
 #[cfg(unix)]
 fn wrapper_file(dir: &Path, name: &str) -> PathBuf {
-    dir.join(name)
+    dir.join(format!("{name}.sh"))
 }
 
 #[cfg(windows)]
@@ -141,6 +141,7 @@ fn help_explains_model() {
     assert!(stdout.contains("runseal @<name>"));
     assert!(stdout.contains("@profile"));
     assert!(stdout.contains("@resolve"));
+    assert!(stdout.contains("@transpile"));
     assert!(stdout.contains("current directory upward"));
     assert!(stdout.contains("https://github.com/PerishCode/runseal"));
 }
@@ -154,6 +155,7 @@ fn internal_help_topics() {
         (vec!["@profile", "help"], "Profile discovery"),
         (vec!["@resources", "--help"], "Usage: runseal @resources"),
         (vec!["@resolve", "--help"], "Usage: runseal @resolve"),
+        (vec!["@transpile", "--help"], "Usage: runseal @transpile"),
         (vec!["@wrappers", "--help"], "Lookup order"),
         (vec!["@which", "--help"], "Usage: runseal @which :<wrapper>"),
     ] {

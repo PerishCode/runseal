@@ -26,6 +26,7 @@ fn internal_help_without_profile() {
         (vec!["@profile", "--help"], "Usage: runseal @profile"),
         (vec!["@resources", "--help"], "Usage: runseal @resources"),
         (vec!["@resolve", "--help"], "Usage: runseal @resolve"),
+        (vec!["@transpile", "--help"], "Usage: runseal @transpile"),
         (vec!["@wrappers", "--help"], "Usage: runseal @wrappers"),
         (vec!["@which", "--help"], "Usage: runseal @which :<wrapper>"),
     ] {
