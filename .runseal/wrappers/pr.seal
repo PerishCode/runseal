@@ -16,11 +16,6 @@ usage() {
 
 seal argv parse --string base=main --string title= --string body_file= --flag draft --flag no_watch --flag no_merge --flag no_push --flag dry_run
 
-if eq "$__seal_argc" 0; then
-  usage
-  exit 0
-fi
-
 if eq "$__seal_help" true; then
   usage
   exit 0

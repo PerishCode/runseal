@@ -183,12 +183,12 @@ fn command_log(fx: &Fixture) -> String {
 }
 
 #[test]
-fn pr_help_without_args() {
+fn pr_help_option() {
     let Some(fx) = fixture() else {
         return;
     };
 
-    let output = run_active_wrapper(&fx, "pr", &[]);
+    let output = run_active_wrapper(&fx, "pr", &["--help"]);
 
     assert!(output.status.success());
     let stdout = stdout(&output);
