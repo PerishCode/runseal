@@ -43,6 +43,7 @@ if eq "$dry_run" true; then
 else
   gh --version
   gh auth status
+  ref_sha=$(git rev-parse "$ref")
   trigger_output=$(gh workflow run "$workflow" --ref "$ref" -f "ref=$ref" -f "version_override=$version")
   if not_empty "$trigger_output"; then
     print "$trigger_output"
@@ -54,7 +55,7 @@ else
       attempt=0
       raw='[]'
       while lt "$attempt" 6; do
-        raw=$(gh run list --workflow "$workflow" --branch "$ref" --event workflow_dispatch --limit 1 --json databaseId)
+        raw=$(gh run list --workflow "$workflow" --branch "$ref" --commit "$ref_sha" --event workflow_dispatch --limit 1 --json databaseId)
         if json_not_empty "$raw"; then
           run_id=$(seal json get "$raw" '.[0].databaseId')
           break
