@@ -136,6 +136,19 @@ fn init_installs_generated_hooks() {
 }
 
 #[test]
+fn init_help_is_readonly() {
+    let fx = fixture();
+
+    let output = run_init(&fx, &["--help"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Usage: runseal :init"));
+    assert!(!fx.project.join(".git/hooks/pre-commit").exists());
+    assert!(!fx.project.join(".git/hooks/commit-msg").exists());
+}
+
+#[test]
 fn force_backs_up_hook() {
     let fx = fixture();
     let pre_commit = fx.project.join(".git/hooks/pre-commit");
