@@ -43,13 +43,14 @@ runseal :ssh-run host
 
 ## Inspect What Runseal Sees
 
-Internal commands are read-only and do not run profile injections:
+Runseal inspection commands are read-only and do not run profile injections:
 
 ```bash
 runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
 runseal @transpile --input-lang=seal --output-lang=bash ./operator.seal
+runseal @tool json get '{"releaseVersion":"v0.2.0"}' '.releaseVersion'
 runseal @wrappers
 runseal @which :ssh-run
 ```
@@ -64,7 +65,7 @@ Command routing is based on the first command token:
 
 - `runseal <cmd>` runs an external command inside the profile.
 - `runseal :<cmd>` runs a profile wrapper.
-- `runseal @<cmd>` runs a read-only runseal internal command.
+- `runseal @<cmd>` runs a runseal-owned command.
 
 For example:
 
@@ -231,8 +232,10 @@ runseal :ssh-run host ./probe.sh -- arg
 
 Wrapper lookup order is:
 
-1. `<profile-dir>/.runseal/wrappers/<name>.sh`
-2. `$RUNSEAL_HOME/wrappers/<name>.sh`
+1. `<profile-dir>/.runseal/wrappers/<name>.seal`
+2. `<profile-dir>/.runseal/wrappers/<name>.sh`
+3. `$RUNSEAL_HOME/wrappers/<name>.seal`
+4. `$RUNSEAL_HOME/wrappers/<name>.sh`
 
 The profile directory is the directory containing `RUNSEAL_PROFILE_PATH`.
 Successful profile and wrapper paths are normalized absolute paths.
@@ -241,7 +244,8 @@ The child working directory is not changed. A resolved wrapper receives:
 - `RUNSEAL_WRAPPER_NAME`
 - `RUNSEAL_WRAPPER_FILE`
 
-On Unix, wrapper files use the `.sh` suffix and must be executable. On Windows,
+Seal wrappers use the `.seal` suffix and are interpreted directly by runseal.
+On Unix, shell wrappers use the `.sh` suffix and must be executable. On Windows,
 runseal also checks `.exe`, `.cmd`, and `.bat` when the wrapper name has no
 extension.
 
@@ -259,7 +263,8 @@ runseal @wrappers
 runseal @which :ssh-run
 ```
 
-Internal commands are read-only and do not run profile injections.
+Runseal-owned commands do not run profile injections. Inspection commands are
+read-only; `@tool` is the explicit atomic tool runtime.
 
 - `@profile` prints the resolved runseal runtime paths. If resources are
   configured, it also prints `RUNSEAL_RESOURCE_ROOT`.
@@ -270,6 +275,8 @@ Internal commands are read-only and do not run profile injections.
   explicit glue languages and prints the generated output. Cold start supports
   `bash`, `seal`, `powershell`, and `sealir` inputs and outputs for the
   currently recognized intersection.
+- `@tool <namespace> <command> ...` runs an atomic runseal tool command. Cold
+  start supports `json get`, `string trim`, `regex capture`, and `int add`.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
 
@@ -307,7 +314,7 @@ injections:
 Initialize local development hooks:
 
 ```bash
-python3 scripts/init.py
+runseal :init
 ```
 
 ```bash

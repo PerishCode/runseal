@@ -57,6 +57,10 @@ fn lower_statement(statement: &mut Statement, functions: &BTreeSet<String>) {
         Statement::Assign { .. }
         | Statement::ArgvParse { .. }
         | Statement::CaptureChecked { .. }
+        | Statement::CaptureOptional { .. }
+        | Statement::ToolExec { .. }
+        | Statement::ToolPassthrough { .. }
+        | Statement::ToolCapture { .. }
         | Statement::StringTrim { .. }
         | Statement::JsonGet { .. }
         | Statement::RegexCapture { .. }

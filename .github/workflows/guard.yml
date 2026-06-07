@@ -56,4 +56,4 @@ jobs:
           $binDir | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
       - name: Flavor self-check
-        run: flavor check --root . --config flavor.json
+        run: flavor check --root . --config flavor.toml

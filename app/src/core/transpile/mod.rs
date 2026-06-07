@@ -4,18 +4,19 @@ use anyhow::{Result, bail};
 
 mod ast;
 mod emit;
+mod frontend;
 mod guards;
 mod helpers;
 mod json_path;
 mod lower;
 mod parse;
-mod powershell;
-mod powershell_predicate;
+mod runner;
 mod value;
 
 use emit::{emit_bash, emit_powershell, emit_seal};
+use frontend::parse_powershell;
 use parse::parse_seal;
-use powershell::parse_powershell;
+pub(crate) use runner::run_seal_file;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {

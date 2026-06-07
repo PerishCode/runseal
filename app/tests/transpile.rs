@@ -1,9 +1,8 @@
-use std::{
-    io::Write,
-    path::Path,
-    process::{Command, Stdio},
-};
+use std::process::Command;
 use tempfile::TempDir;
+
+#[path = "transpile_support/syntax.rs"]
+mod syntax;
 
 fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_runseal"))
@@ -199,7 +198,7 @@ fn powershell_to_bash() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     assert!(stdout.contains("release_run() {"));
     assert!(stdout.contains("gh workflow run release.yml --ref main -f \"channel=$channel\""));
-    assert_bash_syntax(&stdout);
+    syntax::assert_bash(&stdout);
 }
 
 #[test]
@@ -239,8 +238,8 @@ fn capture_to_targets() {
     let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
     assert!(bash.contains("raw=$(gh run list --json databaseId)"));
     assert!(powershell.contains("$raw = & 'gh' 'run' 'list' '--json' 'databaseId'"));
-    assert_bash_syntax(&bash);
-    assert_pwsh_syntax(&powershell);
+    syntax::assert_bash(&bash);
+    syntax::assert_pwsh(&powershell);
 }
 
 #[test]
@@ -251,7 +250,8 @@ fn string_trim_helper_roundtrip() {
 
         assert!(output.status.success());
         let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-        assert!(stdout.contains("string_trim"));
+        assert!(stdout.contains("tool_capture"));
+        assert!(stdout.contains("string"));
     }
 
     let fx = fixture(powershell_trim_source());
@@ -259,7 +259,8 @@ fn string_trim_helper_roundtrip() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("string_trim"));
+    assert!(stdout.contains("tool_capture"));
+    assert!(stdout.contains("string"));
 }
 
 #[test]
@@ -273,11 +274,10 @@ fn string_trim_emits_native() {
     assert!(powershell.status.success());
     let bash = String::from_utf8(bash.stdout).expect("stdout should be UTF-8");
     let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
-    assert!(bash.contains("command -v sed"));
-    assert!(bash.contains("trimmed=$(printf '%s' \"$raw\" | sed"));
-    assert!(powershell.contains("$trimmed = ($raw).Trim()"));
-    assert_bash_syntax(&bash);
-    assert_pwsh_syntax(&powershell);
+    assert!(bash.contains("trimmed=$(runseal @tool string trim \"$raw\")"));
+    assert!(powershell.contains("$trimmed = & 'runseal' '@tool' 'string' 'trim' $raw"));
+    syntax::assert_bash(&bash);
+    syntax::assert_pwsh(&powershell);
 }
 
 #[test]
@@ -288,7 +288,8 @@ fn json_get_helper_roundtrip() {
 
         assert!(output.status.success());
         let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-        assert!(stdout.contains("json_get"));
+        assert!(stdout.contains("tool_capture"));
+        assert!(stdout.contains("json"));
         assert!(stdout.contains("databaseId"));
     }
 
@@ -297,7 +298,8 @@ fn json_get_helper_roundtrip() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("json_get"));
+    assert!(stdout.contains("tool_capture"));
+    assert!(stdout.contains("json"));
     assert!(stdout.contains("databaseId"));
 }
 
@@ -312,11 +314,12 @@ fn json_get_emits_native() {
     assert!(powershell.status.success());
     let bash = String::from_utf8(bash.stdout).expect("stdout should be UTF-8");
     let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
-    assert!(bash.contains("command -v jq"));
-    assert!(bash.contains("run_id=$(printf '%s' \"$raw\" | jq -r '.[0].databaseId')"));
-    assert!(powershell.contains("$run_id = [string](($raw | ConvertFrom-Json)[0].databaseId)"));
-    assert_bash_syntax(&bash);
-    assert_pwsh_syntax(&powershell);
+    assert!(bash.contains("run_id=$(runseal @tool json get \"$raw\" '.[0].databaseId')"));
+    assert!(
+        powershell.contains("$run_id = & 'runseal' '@tool' 'json' 'get' $raw '.[0].databaseId'")
+    );
+    syntax::assert_bash(&bash);
+    syntax::assert_pwsh(&powershell);
 }
 
 #[test]
@@ -330,7 +333,7 @@ fn bash_syntax_valid() {
     assert!(stdout.contains("set -euo pipefail"));
     assert!(stdout.contains("gh workflow run release.yml --ref main -f \"channel=$channel\""));
     assert!(stdout.contains("case \"$channel\" in"));
-    assert_bash_syntax(&stdout);
+    syntax::assert_bash(&stdout);
 }
 
 #[test]
@@ -346,7 +349,7 @@ fn powershell_readable() {
     assert!(stdout.contains("& 'gh' 'workflow' 'run' 'release.yml' '--ref' 'main' '-f'"));
     assert!(stdout.contains("('channel=' + $channel)"));
     assert!(stdout.contains("switch ($channel)"));
-    assert_pwsh_syntax(&stdout);
+    syntax::assert_pwsh(&stdout);
 }
 
 #[test]
@@ -421,80 +424,4 @@ fn metacharacters_fail() {
             "expected unsupported error, got {stderr:?}"
         );
     }
-}
-
-fn assert_bash_syntax(source: &str) {
-    if !tool_exists("bash") || !bash_accepts_stdin() {
-        return;
-    }
-    let mut child = Command::new("bash")
-        .arg("-n")
-        .arg("-s")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("bash should run");
-    child
-        .stdin
-        .as_mut()
-        .expect("bash stdin should be piped")
-        .write_all(source.as_bytes())
-        .expect("bash source should be written");
-    let output = child.wait_with_output().expect("bash should finish");
-    assert!(
-        output.status.success(),
-        "bash syntax should pass: stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn bash_accepts_stdin() -> bool {
-    let output = Command::new("bash")
-        .arg("-n")
-        .arg("-s")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output();
-    output.is_ok_and(|output| output.status.success())
-}
-
-fn assert_pwsh_syntax(source: &str) {
-    if !tool_exists("pwsh") {
-        return;
-    }
-    let output = Command::new("pwsh")
-        .arg("-NoProfile")
-        .arg("-NonInteractive")
-        .arg("-Command")
-        .arg("[scriptblock]::Create($args[0]) | Out-Null")
-        .arg(source)
-        .output()
-        .expect("pwsh should run");
-    assert!(
-        output.status.success(),
-        "PowerShell syntax should pass: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn tool_exists(name: &str) -> bool {
-    let path = std::env::var_os("PATH").unwrap_or_default();
-    std::env::split_paths(&path).any(|dir| executable_exists(&dir.join(name)))
-}
-
-#[cfg(unix)]
-fn executable_exists(path: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    path.is_file()
-        && path
-            .metadata()
-            .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0)
-}
-
-#[cfg(windows)]
-fn executable_exists(path: &Path) -> bool {
-    path.is_file()
 }

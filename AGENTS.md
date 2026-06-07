@@ -10,8 +10,14 @@ Small CLI. Explicit profile. No hidden orchestration.
 - Treat `RUNSEAL_HOME` as the runseal configuration root.
 - Treat `RUNSEAL_PROFILE_HOME` as the profile directory, defaulting to `<RUNSEAL_HOME>/profiles`.
 - Resolve one concrete `RUNSEAL_PROFILE_PATH` during app initialization.
+- Treat `runseal` and `flavor` as installed developer infrastructure, at the
+  same level as `git`, `gh`, and `cargo`; this repository does not bootstrap
+  them.
 - Preserve command lifecycle semantics: load profile, register symlinks, export env, run command, cleanup symlinks.
 - Keep command namespaces explicit: `<cmd>` is external, `:<cmd>` is profile wrapper, `@<cmd>` is runseal internal.
+- Treat `.runseal/wrappers/*.seal` as first-class wrappers executed directly by
+  runseal. `@transpile` is an isomorphic debug/export tool, not the normal
+  wrapper execution path.
 
 ## Directory Conventions
 
@@ -19,11 +25,12 @@ Small CLI. Explicit profile. No hidden orchestration.
 - `app/src/core/config.rs`: app configuration and profile discovery.
 - `app/src/core/profile.rs`: profile format loading and normalization.
 - `app/src/core/runtime.rs`: command execution lifecycle.
+- `app/src/core/transpile/runner.rs`: direct Seal wrapper runtime.
 - `app/src/core/injections/`: `env` and `symlink` implementations.
 - `app/tests/`: integration tests and focused unit tests.
 - `runseal.toml`: repo-local operator profile.
-- `.runseal/wrappers/`: thin repo-local `:wrapper` entrypoints.
-- `scripts/cli/`: uv-managed support commands for repository operations.
+- `.runseal/wrappers/`: repo-local `:wrapper` entrypoints. Prefer `.seal`
+  wrappers; platform scripts exist only while a wrapper has not migrated.
 - `manage.sh` and `manage.ps1`: public install/uninstall managers.
 - `.task/`: branch-bound task state, ignored by git.
 
@@ -48,7 +55,8 @@ Successful profile and wrapper paths are normalized absolute paths.
 ## Development Workflow
 
 1. Work on a feature branch.
-2. Use `runseal :cloudflare`, `runseal :pr`, and `runseal :release` for repo management.
+2. Use `runseal :init`, `runseal :cloudflare`, `runseal :pr`, and
+   `runseal :release` for repo management.
 3. Keep changes scoped to the reduced CLI surface.
 4. Run:
 

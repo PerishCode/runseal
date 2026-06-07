@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use super::ast::{Item, Predicate, Program, Statement};
+use super::ast::{Item, Program, Statement};
 
 pub(crate) fn bash_required_tools(program: &Program) -> BTreeSet<&'static str> {
     let mut tools = BTreeSet::new();
@@ -38,11 +38,6 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         Statement::JsonGet { .. } => {
             tools.insert("jq");
         }
-        Statement::If { predicate, .. } | Statement::While { predicate, .. }
-            if predicate_requires_jq(predicate) =>
-        {
-            tools.insert("jq");
-        }
         Statement::If {
             then_body,
             else_body,
@@ -63,6 +58,10 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         | Statement::ArgvParse { .. }
         | Statement::ExecChecked { .. }
         | Statement::CaptureChecked { .. }
+        | Statement::CaptureOptional { .. }
+        | Statement::ToolExec { .. }
+        | Statement::ToolPassthrough { .. }
+        | Statement::ToolCapture { .. }
         | Statement::IntAdd { .. }
         | Statement::CallFunction { .. }
         | Statement::Print { .. }
@@ -72,11 +71,4 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         | Statement::Break
         | Statement::Sleep { .. } => {}
     }
-}
-
-fn predicate_requires_jq(predicate: &Predicate) -> bool {
-    matches!(
-        predicate,
-        Predicate::JsonEmpty { .. } | Predicate::JsonNotEmpty { .. }
-    )
 }

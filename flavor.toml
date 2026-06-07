@@ -1,0 +1,10 @@
+[scan]
+include = [
+  "app/src/**/*.rs",
+  "app/tests/**/*.rs",
+]
+exclude = [
+  "**/target/**",
+]
+
+overrides = []

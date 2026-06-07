@@ -28,6 +28,22 @@ pub enum Statement {
         name: String,
         argv: Vec<Value>,
     },
+    CaptureOptional {
+        name: String,
+        status: String,
+        argv: Vec<Value>,
+    },
+    ToolExec {
+        invocation: ToolInvocation,
+    },
+    ToolPassthrough {
+        start: usize,
+        invocation: ToolInvocation,
+    },
+    ToolCapture {
+        name: String,
+        invocation: ToolInvocation,
+    },
     StringTrim {
         name: String,
         value: Value,
@@ -94,6 +110,12 @@ pub struct ArgvSpec {
     pub name: String,
     pub kind: ArgvKind,
     pub default: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolInvocation {
+    pub path: Vec<String>,
+    pub argv: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

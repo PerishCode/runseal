@@ -6,6 +6,7 @@ use clap::{CommandFactory, Parser};
 use runseal::core::app::AppState;
 use runseal::core::config::{CliInput, RawEnv, RuntimeConfig};
 use runseal::core::internal_help;
+use runseal::core::tool;
 use runseal::core::transpile;
 use runseal::run;
 
@@ -18,21 +19,22 @@ use runseal::run;
 Command model:
   runseal <cmd>       run an external command inside the profile
   runseal :<name>     run a profile wrapper
-  runseal @<name>     run a read-only internal command
+  runseal @<name>     run a runseal command
 
-Internal commands:
+Runseal commands:
   @profile            print resolved runtime paths
   @resources          print the resolved resource root
   @resolve <uri>...   resolve resource:// paths
   @transpile          transpile explicit input/output glue languages
+  @tool               run an atomic runseal tool command
   @wrappers           list visible wrappers
   @which :<name>      print a wrapper path
 
 Profile discovery walks from the current directory upward for runseal.toml|yaml|yml|json,
 then falls back to $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json.
 
-Run runseal @profile --help, @resolve --help, @transpile --help, @wrappers --help,
-or @which --help for details.
+Run runseal @profile --help, @resolve --help, @transpile --help, @tool --help,
+@wrappers --help, or @which --help for details.
 
 Repository: https://github.com/PerishCode/runseal"
 )]
@@ -81,13 +83,19 @@ fn build_runtime_config(cli: Cli) -> Result<RuntimeConfig> {
 }
 
 fn run_early_internal(command: &[String]) -> Result<bool> {
-    if command.first().map(String::as_str) != Some("@transpile") {
-        return Ok(false);
+    match command.first().map(String::as_str) {
+        Some("@transpile") => {
+            let options = transpile::parse_args(&command[1..])?;
+            let output = transpile::transpile_file(&options)?;
+            print!("{output}");
+            Ok(true)
+        }
+        Some("@tool") => {
+            tool::run(&command[1..])?;
+            Ok(true)
+        }
+        _ => Ok(false),
     }
-    let options = transpile::parse_args(&command[1..])?;
-    let output = transpile::transpile_file(&options)?;
-    print!("{output}");
-    Ok(true)
 }
 
 fn print_internal_help(command: &[String]) -> Result<bool> {

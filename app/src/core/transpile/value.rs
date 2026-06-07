@@ -18,6 +18,11 @@ pub(crate) fn parse_value_text(text: &str, line: usize) -> Result<Value> {
         return parse_template(value, line);
     }
     if let Some(name) = text.strip_prefix('$') {
+        if is_positional_name(name) {
+            return Ok(Value::Var {
+                name: name.to_string(),
+            });
+        }
         if let Some(name) = name
             .strip_prefix('{')
             .and_then(|name| name.strip_suffix('}'))
@@ -83,6 +88,14 @@ fn parse_template(text: &str, line: usize) -> Result<Value> {
             continue;
         }
         let mut name = String::new();
+        if let Some(next) = chars.peek().copied()
+            && next.is_ascii_digit()
+        {
+            name.push(next);
+            chars.next();
+            parts.push(Value::Var { name });
+            continue;
+        }
         while let Some(next) = chars.peek().copied() {
             if next.is_ascii_alphanumeric() || next == '_' {
                 name.push(next);
@@ -101,6 +114,10 @@ fn parse_template(text: &str, line: usize) -> Result<Value> {
         [single] => Ok(single.clone()),
         _ => Ok(Value::Concat { parts }),
     }
+}
+
+fn is_positional_name(name: &str) -> bool {
+    name.len() == 1 && name.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn validate_name(name: &str, line: usize) -> Result<()> {

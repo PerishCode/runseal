@@ -1,4 +1,4 @@
-use super::{generated_header, option_name};
+use super::support::{generated_header, option_name};
 use crate::core::transpile::ast::{ArgvKind, ArgvSpec, Item, Predicate, Program, Statement, Value};
 use crate::core::transpile::json_path::powershell_json_get;
 
@@ -45,6 +45,35 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&pad);
             out.push_str(&format!("${name} = & "));
             out.push_str(&join_values(argv, powershell_value));
+            out.push('\n');
+        }
+        Statement::CaptureOptional { name, status, argv } => {
+            out.push_str(&pad);
+            out.push_str(&format!("${name} = (& "));
+            out.push_str(&join_values(argv, powershell_value));
+            out.push_str(" 2>&1 | Out-String).TrimEnd()\n");
+            out.push_str(&format!(
+                "{pad}${status} = if ($null -ne $LASTEXITCODE) {{ $LASTEXITCODE }} elseif ($?) {{ 0 }} else {{ 1 }}\n"
+            ));
+        }
+        Statement::ToolExec { invocation } => {
+            out.push_str(&pad);
+            out.push_str(&powershell_tool_command(invocation));
+            out.push('\n');
+        }
+        Statement::ToolPassthrough { start, invocation } => {
+            out.push_str(&pad);
+            out.push_str(&powershell_tool_command(invocation));
+            out.push_str(&format!(
+                " @($args[{}..($args.Count - 1)])",
+                start.saturating_sub(1)
+            ));
+            out.push('\n');
+        }
+        Statement::ToolCapture { name, invocation } => {
+            out.push_str(&pad);
+            out.push_str(&format!("${name} = "));
+            out.push_str(&powershell_tool_command(invocation));
             out.push('\n');
         }
         Statement::StringTrim { name, value } => {
@@ -130,6 +159,8 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize) {
 
 fn emit_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
     let pad = "    ".repeat(indent);
+    out.push_str(&format!("{pad}$__seal_argc = $args.Count\n"));
+    out.push_str(&format!("{pad}$__seal_help = $false\n"));
     for spec in specs {
         let value = match spec.kind {
             ArgvKind::String => powershell_quote(spec.default.as_deref().unwrap_or("")),
@@ -149,6 +180,11 @@ fn emit_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
     }
     out.push_str(&format!("{pad}        '^--$' {{\n"));
     out.push_str(&format!("{pad}            $__seal_index = $args.Count\n"));
+    out.push_str(&format!("{pad}            break\n"));
+    out.push_str(&format!("{pad}        }}\n"));
+    out.push_str(&format!("{pad}        '^(-h|--help|help)$' {{\n"));
+    out.push_str(&format!("{pad}            $__seal_help = $true\n"));
+    out.push_str(&format!("{pad}            $__seal_index += 1\n"));
     out.push_str(&format!("{pad}            break\n"));
     out.push_str(&format!("{pad}        }}\n"));
     out.push_str(&format!(
@@ -255,13 +291,13 @@ fn predicate_text(predicate: &Predicate) -> String {
         Predicate::IntGte { left, right } => int_compare(left, "-ge", right),
         Predicate::JsonEmpty { value } => {
             format!(
-                "(({} | ConvertFrom-Json).Count -eq 0)",
+                "(& 'runseal' '@tool' 'json' 'empty' {}) -eq 'true'",
                 powershell_value(value)
             )
         }
         Predicate::JsonNotEmpty { value } => {
             format!(
-                "(({} | ConvertFrom-Json).Count -gt 0)",
+                "(& 'runseal' '@tool' 'json' 'empty' {}) -eq 'false'",
                 powershell_value(value)
             )
         }
@@ -322,4 +358,15 @@ fn join_values(values: &[Value], format: fn(&Value) -> String) -> String {
 
 fn powershell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
+}
+
+fn powershell_tool_command(invocation: &crate::core::transpile::ast::ToolInvocation) -> String {
+    let mut parts = vec![
+        "&".to_string(),
+        powershell_quote("runseal"),
+        powershell_quote("@tool"),
+    ];
+    parts.extend(invocation.path.iter().map(|part| powershell_quote(part)));
+    parts.extend(invocation.argv.iter().map(powershell_value));
+    parts.join(" ")
 }
