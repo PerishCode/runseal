@@ -79,7 +79,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Flavor self-check
-        run: flavor check --root . --config flavor.json
+        run: flavor check --root . --config flavor.toml
 
   build:
     needs: [metadata, verify]
