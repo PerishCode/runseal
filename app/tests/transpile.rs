@@ -40,6 +40,13 @@ fn run_transpile(fx: &Fixture, input_lang: &str, output_lang: &str) -> std::proc
         .expect("runseal should run")
 }
 
+fn repo_root() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("app dir should have repo parent")
+        .to_path_buf()
+}
+
 fn sample_source() -> &'static str {
     r#"
 channel=${RUNSEAL_CHANNEL:-stable}
@@ -334,6 +341,52 @@ fn bash_syntax_valid() {
     assert!(stdout.contains("gh workflow run release.yml --ref main -f \"channel=$channel\""));
     assert!(stdout.contains("case \"$channel\" in"));
     syntax::assert_bash(&stdout);
+}
+
+#[test]
+fn repo_wrapper_syntax() {
+    let root = repo_root();
+    for wrapper in [
+        ".runseal/wrappers/cloudflare.seal",
+        ".runseal/wrappers/init.seal",
+        ".runseal/wrappers/pr.seal",
+        ".runseal/wrappers/release.seal",
+    ] {
+        let source = root.join(wrapper);
+
+        let bash = bin()
+            .current_dir(&root)
+            .arg("@transpile")
+            .arg("--input-lang=seal")
+            .arg("--output-lang=bash")
+            .arg(&source)
+            .output()
+            .expect("runseal should run");
+        assert!(
+            bash.status.success(),
+            "{wrapper} bash stderr: {}",
+            String::from_utf8_lossy(&bash.stderr)
+        );
+        let bash = String::from_utf8(bash.stdout).expect("bash output should be UTF-8");
+        syntax::assert_bash(&bash);
+
+        let powershell = bin()
+            .current_dir(&root)
+            .arg("@transpile")
+            .arg("--input-lang=seal")
+            .arg("--output-lang=powershell")
+            .arg(&source)
+            .output()
+            .expect("runseal should run");
+        assert!(
+            powershell.status.success(),
+            "{wrapper} powershell stderr: {}",
+            String::from_utf8_lossy(&powershell.stderr)
+        );
+        let powershell =
+            String::from_utf8(powershell.stdout).expect("powershell output should be UTF-8");
+        syntax::assert_pwsh(&powershell);
+    }
 }
 
 #[test]
