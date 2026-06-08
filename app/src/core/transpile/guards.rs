@@ -29,15 +29,6 @@ fn collect_bash_tools(statements: &[Statement], tools: &mut BTreeSet<&'static st
 
 fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) {
     match statement {
-        Statement::StringTrim { .. } => {
-            tools.insert("sed");
-        }
-        Statement::RegexCapture { .. } => {
-            tools.insert("sed");
-        }
-        Statement::JsonGet { .. } => {
-            tools.insert("jq");
-        }
         Statement::If {
             then_body,
             else_body,
@@ -57,12 +48,8 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         Statement::Assign { .. }
         | Statement::ArgvParse { .. }
         | Statement::ExecChecked { .. }
+        | Statement::Shift { .. }
         | Statement::CaptureChecked { .. }
-        | Statement::CaptureOptional { .. }
-        | Statement::ToolExec { .. }
-        | Statement::ToolPassthrough { .. }
-        | Statement::ToolCapture { .. }
-        | Statement::IntAdd { .. }
         | Statement::CallFunction { .. }
         | Statement::Print { .. }
         | Statement::Error { .. }

@@ -40,19 +40,12 @@ fn run_transpile(fx: &Fixture, input_lang: &str, output_lang: &str) -> std::proc
         .expect("runseal should run")
 }
 
-fn repo_root() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("app dir should have repo parent")
-        .to_path_buf()
-}
-
 fn sample_source() -> &'static str {
     r#"
 channel=${RUNSEAL_CHANNEL:-stable}
 
 release_run() {
-  if empty "$channel"; then
+  if [ -z "$channel" ]; then
     fail "channel missing"
   fi
   gh workflow run release.yml --ref main -f "channel=$channel"
@@ -110,7 +103,7 @@ Write-Output $raw
 fn trim_source() -> &'static str {
     r#"
 raw="  value  "
-trimmed=$(seal string trim "$raw")
+trimmed=$(runseal @tool string trim "$raw")
 print "$trimmed"
 "#
 }
@@ -118,7 +111,7 @@ print "$trimmed"
 fn powershell_trim_source() -> &'static str {
     r#"
 $raw = '  value  '
-$trimmed = seal string trim $raw
+$trimmed = & 'runseal' '@tool' 'string' 'trim' $raw
 Write-Output $trimmed
 "#
 }
@@ -126,7 +119,7 @@ Write-Output $trimmed
 fn json_get_source() -> &'static str {
     r#"
 raw='[{"databaseId":123}]'
-run_id=$(seal json get "$raw" '.[0].databaseId')
+run_id=$(runseal @tool json get "$raw" '.[0].databaseId')
 print "$run_id"
 "#
 }
@@ -134,7 +127,7 @@ print "$run_id"
 fn powershell_json_get_source() -> &'static str {
     r#"
 $raw = '[{"databaseId":123}]'
-$run_id = seal json get $raw '.[0].databaseId'
+$run_id = & 'runseal' '@tool' 'json' 'get' $raw '.[0].databaseId'
 Write-Output $run_id
 "#
 }
@@ -250,14 +243,14 @@ fn capture_to_targets() {
 }
 
 #[test]
-fn string_trim_helper_roundtrip() {
+fn string_trim_tool_roundtrip() {
     for input_lang in ["seal", "bash"] {
         let fx = fixture(trim_source());
         let output = run_transpile(&fx, input_lang, "sealir");
 
         assert!(output.status.success());
         let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-        assert!(stdout.contains("tool_capture"));
+        assert!(stdout.contains("capture_checked"));
         assert!(stdout.contains("string"));
     }
 
@@ -266,12 +259,12 @@ fn string_trim_helper_roundtrip() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("tool_capture"));
+    assert!(stdout.contains("capture_checked"));
     assert!(stdout.contains("string"));
 }
 
 #[test]
-fn string_trim_emits_native() {
+fn string_trim_emits_tool() {
     let fx = fixture(trim_source());
 
     let bash = run_transpile(&fx, "seal", "bash");
@@ -288,14 +281,14 @@ fn string_trim_emits_native() {
 }
 
 #[test]
-fn json_get_helper_roundtrip() {
+fn json_get_tool_roundtrip() {
     for input_lang in ["seal", "bash"] {
         let fx = fixture(json_get_source());
         let output = run_transpile(&fx, input_lang, "sealir");
 
         assert!(output.status.success());
         let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-        assert!(stdout.contains("tool_capture"));
+        assert!(stdout.contains("capture_checked"));
         assert!(stdout.contains("json"));
         assert!(stdout.contains("databaseId"));
     }
@@ -305,13 +298,13 @@ fn json_get_helper_roundtrip() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("tool_capture"));
+    assert!(stdout.contains("capture_checked"));
     assert!(stdout.contains("json"));
     assert!(stdout.contains("databaseId"));
 }
 
 #[test]
-fn json_get_emits_native() {
+fn json_get_emits_tool() {
     let fx = fixture(json_get_source());
 
     let bash = run_transpile(&fx, "seal", "bash");
@@ -341,52 +334,6 @@ fn bash_syntax_valid() {
     assert!(stdout.contains("gh workflow run release.yml --ref main -f \"channel=$channel\""));
     assert!(stdout.contains("case \"$channel\" in"));
     syntax::assert_bash(&stdout);
-}
-
-#[test]
-fn repo_wrapper_syntax() {
-    let root = repo_root();
-    for wrapper in [
-        ".runseal/wrappers/cloudflare.seal",
-        ".runseal/wrappers/init.seal",
-        ".runseal/wrappers/pr.seal",
-        ".runseal/wrappers/release.seal",
-    ] {
-        let source = root.join(wrapper);
-
-        let bash = bin()
-            .current_dir(&root)
-            .arg("@transpile")
-            .arg("--input-lang=seal")
-            .arg("--output-lang=bash")
-            .arg(&source)
-            .output()
-            .expect("runseal should run");
-        assert!(
-            bash.status.success(),
-            "{wrapper} bash stderr: {}",
-            String::from_utf8_lossy(&bash.stderr)
-        );
-        let bash = String::from_utf8(bash.stdout).expect("bash output should be UTF-8");
-        syntax::assert_bash(&bash);
-
-        let powershell = bin()
-            .current_dir(&root)
-            .arg("@transpile")
-            .arg("--input-lang=seal")
-            .arg("--output-lang=powershell")
-            .arg(&source)
-            .output()
-            .expect("runseal should run");
-        assert!(
-            powershell.status.success(),
-            "{wrapper} powershell stderr: {}",
-            String::from_utf8_lossy(&powershell.stderr)
-        );
-        let powershell =
-            String::from_utf8(powershell.stdout).expect("powershell output should be UTF-8");
-        syntax::assert_pwsh(&powershell);
-    }
 }
 
 #[test]

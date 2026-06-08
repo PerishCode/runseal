@@ -38,14 +38,14 @@ fn retry_source() -> &'static str {
     r#"
 attempt=0
 raw='[]'
-while lt "$attempt" 6; do
+while [ "$attempt" -lt 6 ]; do
   raw=$(gh run list --json databaseId)
-  if json_not_empty "$raw"; then
-    run_id=$(seal json get "$raw" '.[0].databaseId')
+  if [ "$(runseal @tool json empty "$raw")" = false ]; then
+    run_id=$(runseal @tool json get "$raw" '.[0].databaseId')
     break
   fi
   sleep 2
-  attempt=$(seal int add "$attempt" 1)
+  attempt=$(runseal @tool int add "$attempt" 1)
 done
 print "$run_id"
 "#
@@ -58,11 +58,11 @@ $raw = '[]'
 while ([int]$attempt -lt '6') {
     $raw = & 'gh' 'run' 'list' '--json' 'databaseId'
     if ((($raw | ConvertFrom-Json).Count -gt 0)) {
-        $run_id = seal json get $raw '.[0].databaseId'
+        $run_id = & 'runseal' '@tool' 'json' 'get' $raw '.[0].databaseId'
         break
     }
     Start-Sleep -Seconds 2
-    $attempt = [int]$attempt + '1'
+    $attempt = & 'runseal' '@tool' 'int' 'add' $attempt '1'
 }
 Write-Output $run_id
 "#
@@ -78,8 +78,8 @@ fn retry_loop_roundtrip() {
         let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
         assert!(stdout.contains("\"type\": \"while\""));
         assert!(stdout.contains("json_not_empty"));
-        assert!(stdout.contains("tool_capture"));
-        assert!(stdout.contains("int"));
+        assert!(stdout.contains("capture_checked"));
+        assert!(stdout.contains("runseal"));
         assert!(stdout.contains("\"type\": \"break\""));
     }
 
@@ -90,7 +90,7 @@ fn retry_loop_roundtrip() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     assert!(stdout.contains("\"type\": \"while\""));
     assert!(stdout.contains("json_not_empty"));
-    assert!(stdout.contains("int_add"));
+    assert!(stdout.contains("capture_checked"));
 }
 
 #[test]

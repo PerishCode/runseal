@@ -3,6 +3,9 @@ use anyhow::{Result, bail};
 use super::ast::Value;
 
 pub(crate) fn parse_value_text(text: &str, line: usize) -> Result<Value> {
+    if text == "$@" || text == "\"$@\"" {
+        return Ok(Value::Args);
+    }
     if let Some(value) = text
         .strip_prefix('\'')
         .and_then(|value| value.strip_suffix('\''))
@@ -88,6 +91,11 @@ fn parse_template(text: &str, line: usize) -> Result<Value> {
             continue;
         }
         let mut name = String::new();
+        if let Some(next) = chars.peek().copied()
+            && next == '@'
+        {
+            bail!("{line}: $@ is only supported as a standalone argument");
+        }
         if let Some(next) = chars.peek().copied()
             && next.is_ascii_digit()
         {

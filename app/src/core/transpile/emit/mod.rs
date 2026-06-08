@@ -1,15 +1,12 @@
 use super::ast::{ArgvKind, ArgvSpec, Item, Program, Statement};
 use super::guards::{bash_required_tools, emit_bash_guards};
-use super::json_path::json_path;
 
 mod powershell;
 mod support;
 
 pub(crate) use powershell::emit_powershell;
 use support::{
-    argv_spec_name, bash_int_value, bash_predicate, bash_tool_command, bash_value,
-    generated_header, join_values, option_name, seal_predicate, seal_value, sed_capture_expr,
-    sh_quote,
+    bash_predicate, bash_value, generated_header, join_values, option_name, seal_value, sh_quote,
 };
 
 pub(crate) fn emit_seal(program: &Program) -> String {
@@ -45,19 +42,17 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, seal_value));
             out.push('\n');
         }
-        Statement::ArgvParse { specs } => {
+        Statement::Shift { count } => {
             out.push_str(&pad);
-            out.push_str("seal argv parse");
-            for spec in specs {
+            out.push_str("shift");
+            if *count != 1 {
                 out.push(' ');
-                out.push_str(match spec.kind {
-                    ArgvKind::String => "--string",
-                    ArgvKind::Flag => "--flag",
-                });
-                out.push(' ');
-                out.push_str(&argv_spec_name(spec));
+                out.push_str(&count.to_string());
             }
             out.push('\n');
+        }
+        Statement::ArgvParse { specs } => {
+            emit_seal_argv_parse(out, specs, indent);
         }
         Statement::CaptureChecked { name, argv } => {
             out.push_str(&pad);
@@ -66,87 +61,12 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, seal_value));
             out.push_str(")\n");
         }
-        Statement::CaptureOptional { name, status, argv } => {
-            out.push_str(&pad);
-            out.push_str("seal capture optional ");
-            out.push_str(name);
-            out.push(' ');
-            out.push_str(status);
-            out.push(' ');
-            out.push_str(&join_values(argv, seal_value));
-            out.push('\n');
-        }
-        Statement::ToolExec { invocation } => {
-            out.push_str(&pad);
-            out.push_str("seal ");
-            out.push_str(&invocation.path.join(" "));
-            if !invocation.argv.is_empty() {
-                out.push(' ');
-                out.push_str(&join_values(&invocation.argv, seal_value));
-            }
-            out.push('\n');
-        }
-        Statement::ToolPassthrough { start, invocation } => {
-            out.push_str(&pad);
-            out.push_str("seal passthrough ");
-            out.push_str(&start.to_string());
-            out.push(' ');
-            out.push_str(&invocation.path.join(" "));
-            if !invocation.argv.is_empty() {
-                out.push(' ');
-                out.push_str(&join_values(&invocation.argv, seal_value));
-            }
-            out.push('\n');
-        }
-        Statement::ToolCapture { name, invocation } => {
-            out.push_str(&pad);
-            out.push_str(name);
-            out.push_str("=$(seal ");
-            out.push_str(&invocation.path.join(" "));
-            if !invocation.argv.is_empty() {
-                out.push(' ');
-                out.push_str(&join_values(&invocation.argv, seal_value));
-            }
-            out.push_str(")\n");
-        }
-        Statement::StringTrim { name, value } => {
-            out.push_str(&format!(
-                "{pad}{name}=$(seal string trim {})\n",
-                seal_value(value)
-            ));
-        }
-        Statement::JsonGet { name, json, path } => {
-            out.push_str(&format!(
-                "{pad}{name}=$(seal json get {} {})\n",
-                seal_value(json),
-                sh_quote(&json_path(path))
-            ));
-        }
-        Statement::RegexCapture {
-            name,
-            value,
-            pattern,
-            group,
-        } => {
-            out.push_str(&format!(
-                "{pad}{name}=$(seal regex capture {} {} {group})\n",
-                seal_value(value),
-                sh_quote(pattern)
-            ));
-        }
-        Statement::IntAdd { name, left, right } => {
-            out.push_str(&format!(
-                "{pad}{name}=$(seal int add {} {})\n",
-                seal_value(left),
-                seal_value(right)
-            ));
-        }
         Statement::If {
             predicate,
             then_body,
             else_body,
         } => {
-            out.push_str(&format!("{pad}if {}; then\n", seal_predicate(predicate)));
+            out.push_str(&format!("{pad}if {}; then\n", bash_predicate(predicate)));
             emit_seal_statements(out, then_body, indent + 1);
             if !else_body.is_empty() {
                 out.push_str(&format!("{pad}else\n"));
@@ -155,7 +75,7 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&format!("{pad}fi\n"));
         }
         Statement::While { predicate, body } => {
-            out.push_str(&format!("{pad}while {}; do\n", seal_predicate(predicate)));
+            out.push_str(&format!("{pad}while {}; do\n", bash_predicate(predicate)));
             emit_seal_statements(out, body, indent + 1);
             out.push_str(&format!("{pad}done\n"));
         }
@@ -184,6 +104,63 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
         Statement::Break => out.push_str(&format!("{pad}break\n")),
         Statement::Sleep { seconds } => out.push_str(&format!("{pad}sleep {seconds}\n")),
     }
+}
+
+fn emit_seal_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
+    let pad = "  ".repeat(indent);
+    out.push_str(&format!("{pad}__seal_argc=$#\n"));
+    out.push_str(&format!("{pad}__seal_help=false\n"));
+    for spec in specs {
+        let value = match spec.kind {
+            ArgvKind::String => spec.default.as_deref().unwrap_or(""),
+            ArgvKind::Flag => "false",
+        };
+        out.push_str(&format!("{pad}{}={value}\n", spec.name));
+    }
+    out.push_str(&format!("{pad}while [ \"$#\" -gt 0 ]; do\n"));
+    out.push_str(&format!("{pad}  case \"$1\" in\n"));
+    for spec in specs {
+        match spec.kind {
+            ArgvKind::String => emit_seal_string_option(out, spec, indent),
+            ArgvKind::Flag => emit_seal_flag_option(out, spec, indent),
+        }
+    }
+    out.push_str(&format!("{pad}    --)\n"));
+    out.push_str(&format!("{pad}      shift\n"));
+    out.push_str(&format!("{pad}      break\n"));
+    out.push_str(&format!("{pad}      ;;\n"));
+    out.push_str(&format!("{pad}    -h|--help|help)\n"));
+    out.push_str(&format!("{pad}      __seal_help=true\n"));
+    out.push_str(&format!("{pad}      shift\n"));
+    out.push_str(&format!("{pad}      ;;\n"));
+    out.push_str(&format!("{pad}    *) fail \"unknown option: $1\" ;;\n"));
+    out.push_str(&format!("{pad}  esac\n"));
+    out.push_str(&format!("{pad}done\n"));
+}
+
+fn emit_seal_string_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
+    let pad = "  ".repeat(indent);
+    let option = option_name(&spec.name);
+    out.push_str(&format!("{pad}    {option})\n"));
+    out.push_str(&format!(
+        "{pad}      if [ \"$#\" -lt 2 ]; then fail 'missing value for {option}'; fi\n"
+    ));
+    out.push_str(&format!("{pad}      {}=$2\n", spec.name));
+    out.push_str(&format!("{pad}      shift 2\n"));
+    out.push_str(&format!("{pad}      ;;\n"));
+    out.push_str(&format!("{pad}    {option}=*)\n"));
+    out.push_str(&format!("{pad}      {}=${{1#{option}=}}\n", spec.name));
+    out.push_str(&format!("{pad}      shift\n"));
+    out.push_str(&format!("{pad}      ;;\n"));
+}
+
+fn emit_seal_flag_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
+    let pad = "  ".repeat(indent);
+    let option = option_name(&spec.name);
+    out.push_str(&format!("{pad}    {option})\n"));
+    out.push_str(&format!("{pad}      {}=true\n", spec.name));
+    out.push_str(&format!("{pad}      shift\n"));
+    out.push_str(&format!("{pad}      ;;\n"));
 }
 
 pub(crate) fn emit_bash(program: &Program, source_name: Option<&str>) -> String {
@@ -235,6 +212,15 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, bash_value));
             out.push('\n');
         }
+        Statement::Shift { count } => {
+            out.push_str(&pad);
+            out.push_str("shift");
+            if *count != 1 {
+                out.push(' ');
+                out.push_str(&count.to_string());
+            }
+            out.push('\n');
+        }
         Statement::ArgvParse { specs } => emit_bash_argv_parse(out, specs, indent),
         Statement::CaptureChecked { name, argv } => {
             out.push_str(&pad);
@@ -242,66 +228,6 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str("=$(");
             out.push_str(&join_values(argv, bash_value));
             out.push_str(")\n");
-        }
-        Statement::CaptureOptional { name, status, argv } => {
-            out.push_str(&format!("{pad}set +e\n"));
-            out.push_str(&pad);
-            out.push_str(name);
-            out.push_str("=$(");
-            out.push_str(&join_values(argv, bash_value));
-            out.push_str(" 2>&1)\n");
-            out.push_str(&format!("{pad}{status}=$?\n"));
-            out.push_str(&format!("{pad}set -e\n"));
-        }
-        Statement::ToolExec { invocation } => {
-            out.push_str(&pad);
-            out.push_str(&bash_tool_command(invocation));
-            out.push('\n');
-        }
-        Statement::ToolPassthrough { start, invocation } => {
-            out.push_str(&pad);
-            out.push_str(&bash_tool_command(invocation));
-            out.push_str(&format!(" \"${{@:{start}}}\""));
-            out.push('\n');
-        }
-        Statement::ToolCapture { name, invocation } => {
-            out.push_str(&pad);
-            out.push_str(name);
-            out.push_str("=$(");
-            out.push_str(&bash_tool_command(invocation));
-            out.push_str(")\n");
-        }
-        Statement::StringTrim { name, value } => {
-            out.push_str(&format!(
-                "{pad}{name}=$(printf '%s' {} | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')\n",
-                bash_value(value)
-            ));
-        }
-        Statement::JsonGet { name, json, path } => {
-            out.push_str(&format!(
-                "{pad}{name}=$(printf '%s' {} | jq -r {})\n",
-                bash_value(json),
-                sh_quote(&json_path(path))
-            ));
-        }
-        Statement::RegexCapture {
-            name,
-            value,
-            pattern,
-            group,
-        } => {
-            out.push_str(&format!(
-                "{pad}{name}=$(printf '%s' {} | sed -nE {})\n",
-                bash_value(value),
-                sh_quote(&sed_capture_expr(pattern, *group))
-            ));
-        }
-        Statement::IntAdd { name, left, right } => {
-            out.push_str(&format!(
-                "{pad}{name}=$(({} + {}))\n",
-                bash_int_value(left),
-                bash_int_value(right)
-            ));
         }
         Statement::If {
             predicate,

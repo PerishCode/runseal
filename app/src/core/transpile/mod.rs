@@ -6,10 +6,10 @@ mod ast;
 mod emit;
 mod frontend;
 mod guards;
-mod helpers;
-mod json_path;
 mod lower;
 mod parse;
+mod parse_argv;
+mod parse_lex;
 mod runner;
 mod value;
 

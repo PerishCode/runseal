@@ -8,3 +8,5 @@ mod release;
 mod retry;
 #[path = "transpile_support/syntax.rs"]
 mod syntax;
+#[path = "transpile_cases/wrappers.rs"]
+mod wrappers;

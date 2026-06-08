@@ -21,48 +21,15 @@ pub enum Statement {
     ExecChecked {
         argv: Vec<Value>,
     },
+    Shift {
+        count: usize,
+    },
     ArgvParse {
         specs: Vec<ArgvSpec>,
     },
     CaptureChecked {
         name: String,
         argv: Vec<Value>,
-    },
-    CaptureOptional {
-        name: String,
-        status: String,
-        argv: Vec<Value>,
-    },
-    ToolExec {
-        invocation: ToolInvocation,
-    },
-    ToolPassthrough {
-        start: usize,
-        invocation: ToolInvocation,
-    },
-    ToolCapture {
-        name: String,
-        invocation: ToolInvocation,
-    },
-    StringTrim {
-        name: String,
-        value: Value,
-    },
-    JsonGet {
-        name: String,
-        json: Value,
-        path: JsonPath,
-    },
-    RegexCapture {
-        name: String,
-        value: Value,
-        pattern: String,
-        group: usize,
-    },
-    IntAdd {
-        name: String,
-        left: Value,
-        right: Value,
     },
     If {
         predicate: Predicate,
@@ -113,12 +80,6 @@ pub struct ArgvSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ToolInvocation {
-    pub path: Vec<String>,
-    pub argv: Vec<Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ArgvKind {
     String,
@@ -126,22 +87,11 @@ pub enum ArgvKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct JsonPath {
-    pub segments: Vec<JsonPathSegment>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum JsonPathSegment {
-    Field { name: String },
-    Index { index: usize },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Value {
     Literal { text: String },
     Var { name: String },
+    Args,
     Env { name: String },
     EnvDefault { name: String, default: String },
     Concat { parts: Vec<Value> },
@@ -162,6 +112,5 @@ pub enum Predicate {
     JsonNotEmpty { value: Value },
     FileExists { path: Value },
     DirExists { path: Value },
-    ToolExists { name: String },
 }
 use serde::{Deserialize, Serialize};

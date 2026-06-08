@@ -1,17 +1,20 @@
 use anyhow::{Result, bail};
 
 use super::ast::{CaseArm, Item, Predicate, Program, Statement, Value};
-use super::helpers::{parse_capture_helper, parse_statement_helper};
 use super::lower::lower_functions;
+use super::parse_argv::parse_argv_block;
+use super::parse_lex::{
+    assignment, is_safe_command_name, is_valid_name, split_test_words, split_words, strip_comment,
+};
 use super::value::parse_value_text;
 
 #[derive(Debug, Clone)]
-struct SourceLine {
-    number: usize,
-    text: String,
+pub(super) struct SourceLine {
+    pub(super) number: usize,
+    pub(super) text: String,
 }
 
-struct Parser {
+pub(super) struct Parser {
     lines: Vec<SourceLine>,
     index: usize,
 }
@@ -77,6 +80,9 @@ impl Parser {
         let Some(line) = self.peek().cloned() else {
             bail!("unexpected end of input");
         };
+        if line.text == "__seal_argc=$#" {
+            return parse_argv_block(self);
+        }
         if line.text.starts_with("if ") {
             return self.parse_if();
         }
@@ -184,7 +190,7 @@ impl Parser {
         }
         Ok(Statement::Case { value, arms })
     }
-    fn expect_exact(&mut self, expected: &str) -> Result<()> {
+    pub(super) fn expect_exact(&mut self, expected: &str) -> Result<()> {
         let Some(line) = self.next() else {
             bail!("expected `{expected}`, found end of input");
         };
@@ -197,13 +203,13 @@ impl Parser {
         }
         Ok(())
     }
-    fn peek(&self) -> Option<&SourceLine> {
+    pub(super) fn peek(&self) -> Option<&SourceLine> {
         self.lines.get(self.index)
     }
-    fn peek_text(&self) -> Option<&str> {
+    pub(super) fn peek_text(&self) -> Option<&str> {
         self.peek().map(|line| line.text.as_str())
     }
-    fn next(&mut self) -> Option<SourceLine> {
+    pub(super) fn next(&mut self) -> Option<SourceLine> {
         let line = self.lines.get(self.index).cloned();
         self.index += usize::from(line.is_some());
         line
@@ -218,9 +224,6 @@ fn function_header(text: &str) -> Option<&str> {
 fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
     if let Some((name, value)) = assignment(&line.text) {
         if let Some(argv) = capture_argv(value, line.number)? {
-            if let Some(statement) = parse_capture_helper(name, &argv, line.number)? {
-                return Ok(statement);
-            }
             return Ok(Statement::CaptureChecked {
                 name: name.to_string(),
                 argv,
@@ -236,8 +239,19 @@ fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
         bail!("{}: expected statement", line.number);
     };
     match command.as_str() {
+        "printf" => parse_printf(args, line.number),
         "eval" => bail!("{}: unsupported statement: eval", line.number),
-        "seal" => parse_statement_helper(args, line.number),
+        "seal" => bail!("{}: unsupported legacy seal helper statement", line.number),
+        "shift" => {
+            let count = match args {
+                [] => 1,
+                [count] => count
+                    .parse::<usize>()
+                    .map_err(|_| anyhow::anyhow!("{}: invalid shift count", line.number))?,
+                _ => bail!("{}: shift accepts at most one argument", line.number),
+            };
+            Ok(Statement::Shift { count })
+        }
         "print" => Ok(Statement::Print {
             value: one_value(args, line.number, "print")?,
         }),
@@ -286,6 +300,20 @@ fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
     }
 }
 
+fn parse_printf(args: &[String], line: usize) -> Result<Statement> {
+    match args {
+        [format, value] if format == "'%s\\n'" => Ok(Statement::Print {
+            value: parse_value_text(value, line)?,
+        }),
+        [format, value, redirect] if format == "'%s\\n'" && redirect == ">&2" => {
+            Ok(Statement::Error {
+                value: parse_value_text(value, line)?,
+            })
+        }
+        _ => bail!("{line}: unsupported printf form"),
+    }
+}
+
 fn validate_external_tokens(tokens: &[String], line: usize) -> Result<()> {
     for token in tokens {
         if token.starts_with('"') || token.starts_with('\'') {
@@ -301,9 +329,15 @@ fn validate_external_tokens(tokens: &[String], line: usize) -> Result<()> {
     Ok(())
 }
 
-fn assignment(text: &str) -> Option<(&str, &str)> {
-    let (name, value) = text.split_once('=')?;
-    is_valid_name(name).then_some((name, value))
+pub(super) fn option_to_name(option: &str, line: usize) -> Result<String> {
+    let Some(option) = option.strip_prefix("--") else {
+        bail!("{line}: expected long option: {option}");
+    };
+    let name = option.replace('-', "_");
+    if !is_valid_name(&name) {
+        bail!("{line}: invalid option name: {option}");
+    }
+    Ok(name)
 }
 
 fn capture_argv(value: &str, line: usize) -> Result<Option<Vec<Value>>> {
@@ -334,124 +368,84 @@ fn one_value(args: &[String], line: usize, command: &str) -> Result<Value> {
 }
 
 fn parse_predicate(text: &str, line: usize) -> Result<Predicate> {
-    let tokens = split_words(text, line)?;
-    let Some((name, args)) = tokens.split_first() else {
-        bail!("{line}: expected predicate");
+    if let Some(inner) = text
+        .strip_prefix("[ ")
+        .and_then(|text| text.strip_suffix(" ]"))
+    {
+        return parse_test_predicate(inner, line);
+    }
+
+    bail!("{line}: unsupported predicate: {text}")
+}
+
+fn parse_test_predicate(text: &str, line: usize) -> Result<Predicate> {
+    let tokens = split_test_words(text, line)?;
+    match tokens.as_slice() {
+        [flag, value] if flag == "-z" => Ok(Predicate::Empty {
+            value: parse_value_text(value, line)?,
+        }),
+        [flag, value] if flag == "-n" => Ok(Predicate::NotEmpty {
+            value: parse_value_text(value, line)?,
+        }),
+        [flag, path] if flag == "-f" => Ok(Predicate::FileExists {
+            path: parse_value_text(path, line)?,
+        }),
+        [flag, path] if flag == "-d" => Ok(Predicate::DirExists {
+            path: parse_value_text(path, line)?,
+        }),
+        [left, op, right] if op == "=" => {
+            if let Some(value) = json_empty_value(left, line)? {
+                return match right.as_str() {
+                    "true" => Ok(Predicate::JsonEmpty { value }),
+                    "false" => Ok(Predicate::JsonNotEmpty { value }),
+                    _ => bail!("{line}: unsupported json empty comparison: {text}"),
+                };
+            }
+            Ok(Predicate::Eq {
+                left: parse_value_text(left, line)?,
+                right: parse_value_text(right, line)?,
+            })
+        }
+        [left, op, right] if op == "!=" => Ok(Predicate::Neq {
+            left: parse_value_text(left, line)?,
+            right: parse_value_text(right, line)?,
+        }),
+        [left, op, right] if op == "-lt" => Ok(Predicate::IntLt {
+            left: parse_value_text(left, line)?,
+            right: parse_value_text(right, line)?,
+        }),
+        [left, op, right] if op == "-le" => Ok(Predicate::IntLte {
+            left: parse_value_text(left, line)?,
+            right: parse_value_text(right, line)?,
+        }),
+        [left, op, right] if op == "-gt" => Ok(Predicate::IntGt {
+            left: parse_value_text(left, line)?,
+            right: parse_value_text(right, line)?,
+        }),
+        [left, op, right] if op == "-ge" => Ok(Predicate::IntGte {
+            left: parse_value_text(left, line)?,
+            right: parse_value_text(right, line)?,
+        }),
+        _ => bail!("{line}: unsupported test predicate: {text}"),
+    }
+}
+
+fn json_empty_value(text: &str, line: usize) -> Result<Option<Value>> {
+    let Some(inner) = text
+        .strip_prefix("\"$(")
+        .and_then(|text| text.strip_suffix(")\""))
+    else {
+        return Ok(None);
     };
-    match (name.as_str(), args) {
-        ("empty", [value]) => Ok(Predicate::Empty {
-            value: parse_value_text(value, line)?,
-        }),
-        ("not_empty", [value]) => Ok(Predicate::NotEmpty {
-            value: parse_value_text(value, line)?,
-        }),
-        ("eq", [left, right]) => Ok(Predicate::Eq {
-            left: parse_value_text(left, line)?,
-            right: parse_value_text(right, line)?,
-        }),
-        ("neq", [left, right]) => Ok(Predicate::Neq {
-            left: parse_value_text(left, line)?,
-            right: parse_value_text(right, line)?,
-        }),
-        ("lt", [left, right]) => Ok(Predicate::IntLt {
-            left: parse_value_text(left, line)?,
-            right: parse_value_text(right, line)?,
-        }),
-        ("lte", [left, right]) => Ok(Predicate::IntLte {
-            left: parse_value_text(left, line)?,
-            right: parse_value_text(right, line)?,
-        }),
-        ("gt", [left, right]) => Ok(Predicate::IntGt {
-            left: parse_value_text(left, line)?,
-            right: parse_value_text(right, line)?,
-        }),
-        ("gte", [left, right]) => Ok(Predicate::IntGte {
-            left: parse_value_text(left, line)?,
-            right: parse_value_text(right, line)?,
-        }),
-        ("json_empty", [value]) => Ok(Predicate::JsonEmpty {
-            value: parse_value_text(value, line)?,
-        }),
-        ("json_not_empty", [value]) => Ok(Predicate::JsonNotEmpty {
-            value: parse_value_text(value, line)?,
-        }),
-        ("file_exists", [path]) => Ok(Predicate::FileExists {
-            path: parse_value_text(path, line)?,
-        }),
-        ("dir_exists", [path]) => Ok(Predicate::DirExists {
-            path: parse_value_text(path, line)?,
-        }),
-        ("tool_exists", [tool]) if is_valid_name(tool) => Ok(Predicate::ToolExists {
-            name: tool.to_string(),
-        }),
-        _ => bail!("{line}: unsupported predicate: {text}"),
-    }
-}
-
-fn split_words(text: &str, line: usize) -> Result<Vec<String>> {
-    let mut words = Vec::new();
-    let mut current = String::new();
-    let mut quote = None;
-    for ch in text.chars() {
-        match quote {
-            Some(q) if ch == q => {
-                current.push(ch);
-                quote = None;
-            }
-            Some(_) => current.push(ch),
-            None if ch == '\'' || ch == '"' => {
-                current.push(ch);
-                quote = Some(ch);
-            }
-            None if ch.is_whitespace() => {
-                if !current.is_empty() {
-                    words.push(std::mem::take(&mut current));
-                }
-            }
-            None => current.push(ch),
+    let tokens = split_words(inner, line)?;
+    match tokens.as_slice() {
+        [runseal, tool, json, empty, value]
+            if runseal == "runseal" && tool == "@tool" && json == "json" && empty == "empty" =>
+        {
+            Ok(Some(parse_value_text(value, line)?))
         }
+        _ => bail!("{line}: unsupported command substitution predicate: {text}"),
     }
-    if let Some(q) = quote {
-        bail!("{line}: unterminated {q} quote");
-    }
-    if !current.is_empty() {
-        words.push(current);
-    }
-    Ok(words)
-}
-
-fn strip_comment(line: &str) -> String {
-    let mut output = String::new();
-    let mut quote = None;
-    for ch in line.chars() {
-        match quote {
-            Some(q) if ch == q => {
-                output.push(ch);
-                quote = None;
-            }
-            Some(_) => output.push(ch),
-            None if ch == '\'' || ch == '"' => {
-                output.push(ch);
-                quote = Some(ch);
-            }
-            None if ch == '#' => break,
-            None => output.push(ch),
-        }
-    }
-    output
-}
-
-fn is_valid_name(name: &str) -> bool {
-    let mut bytes = name.bytes();
-    matches!(bytes.next(), Some(byte) if byte.is_ascii_alphabetic() || byte == b'_')
-        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-}
-
-fn is_safe_command_name(name: &str) -> bool {
-    !name.is_empty()
-        && name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.' | b'/' | b'-'))
 }
 
 pub(crate) fn parse_seal(source: &str) -> Result<Program> {

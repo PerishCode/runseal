@@ -2,6 +2,7 @@ use anyhow::{Result, bail};
 
 mod cloudflare;
 mod fs;
+mod github;
 mod int;
 mod json;
 mod process;
@@ -27,6 +28,7 @@ pub fn eval(args: &[String]) -> Result<Option<String>> {
         [namespace, command, rest @ ..] if namespace == "int" => int::eval(command, rest),
         [namespace, command, rest @ ..] if namespace == "process" => process::eval(command, rest),
         [namespace, command, rest @ ..] if namespace == "fs" => fs::eval(command, rest),
+        [namespace, command, rest @ ..] if namespace == "github" => github::eval(command, rest),
         [namespace, command, rest @ ..] if namespace == "cloudflare" => {
             cloudflare::eval(command, rest)
         }
@@ -58,6 +60,7 @@ Tools:
   fs chmod <path> <mode>                 set a file mode on Unix
   fs contains-any <path> <text>...       print true when file contains any text
   fs backup-numbered <path>              move path to .bak or .bak.N and print it
+  github pr checks probe <number>        print true when PR checks are reported
   cloudflare ...                         run an atomic Cloudflare resource op
 
 @tool is the runseal atomic tool runtime. Tool inputs use argv/env, output is

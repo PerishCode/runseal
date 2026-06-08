@@ -36,9 +36,63 @@ fn run_transpile(fx: &Fixture, input_lang: &str, output_lang: &str) -> std::proc
 
 fn release_source() -> &'static str {
     r#"
-seal argv parse --string channel=stable --string ref=main --string version= --flag watch --flag dry_run
+__seal_argc=$#
+__seal_help=false
+channel=stable
+ref=main
+version=
+watch=false
+dry_run=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --channel)
+      if [ "$#" -lt 2 ]; then fail "missing value for --channel"; fi
+      channel=$2
+      shift 2
+      ;;
+    --channel=*)
+      channel=${1#--channel=}
+      shift
+      ;;
+    --ref)
+      if [ "$#" -lt 2 ]; then fail "missing value for --ref"; fi
+      ref=$2
+      shift 2
+      ;;
+    --ref=*)
+      ref=${1#--ref=}
+      shift
+      ;;
+    --version)
+      if [ "$#" -lt 2 ]; then fail "missing value for --version"; fi
+      version=$2
+      shift 2
+      ;;
+    --version=*)
+      version=${1#--version=}
+      shift
+      ;;
+    --watch)
+      watch=true
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -h|--help|help)
+      __seal_help=true
+      shift
+      ;;
+    *) fail "unknown option: $1" ;;
+  esac
+done
 
-if empty "$channel"; then
+if [ -z "$channel" ]; then
   fail "--channel is required"
 fi
 
@@ -48,29 +102,29 @@ case "$channel" in
   *) fail "unknown channel: $channel" ;;
 esac
 
-if eq "$dry_run" true; then
+if [ "$dry_run" = true ]; then
   print "dry run"
 else
   gh --version
   gh auth status
   trigger_output=$(gh workflow run "$workflow" --ref "$ref" -f "ref=$ref" -f "version_override=$version")
-  if not_empty "$trigger_output"; then
+  if [ -n "$trigger_output" ]; then
     print "$trigger_output"
   fi
   print "triggered $workflow for ref $ref"
-  if eq "$watch" true; then
-    run_id=$(seal regex capture "$trigger_output" '/actions/runs/([0-9]+)' 1)
-    if empty "$run_id"; then
+  if [ "$watch" = true ]; then
+    run_id=$(runseal @tool regex capture "$trigger_output" '/actions/runs/([0-9]+)' 1)
+    if [ -z "$run_id" ]; then
       attempt=0
       raw='[]'
-      while lt "$attempt" 6; do
+      while [ "$attempt" -lt 6 ]; do
         raw=$(gh run list --workflow "$workflow" --branch "$ref" --event workflow_dispatch --limit 1 --json databaseId)
-        if json_not_empty "$raw"; then
-          run_id=$(seal json get "$raw" '.[0].databaseId')
+        if [ "$(runseal @tool json empty "$raw")" = false ]; then
+          run_id=$(runseal @tool json get "$raw" '.[0].databaseId')
           break
         fi
         sleep 2
-        attempt=$(seal int add "$attempt" 1)
+        attempt=$(runseal @tool int add "$attempt" 1)
       done
     fi
     gh run watch "$run_id" --interval 10
@@ -87,10 +141,10 @@ fn release_fixture_roundtrip() {
     assert!(sealir.status.success());
     let sealir = String::from_utf8(sealir.stdout).expect("stdout should be UTF-8");
     assert!(sealir.contains("argv_parse"));
-    assert!(sealir.contains("tool_capture"));
+    assert!(sealir.contains("capture_checked"));
     assert!(sealir.contains("regex"));
     assert!(sealir.contains("json_not_empty"));
-    assert!(sealir.contains("int"));
+    assert!(sealir.contains("runseal"));
     assert!(sealir.contains("release-stable.yml"));
 }
 
