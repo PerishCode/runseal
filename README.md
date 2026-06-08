@@ -50,7 +50,7 @@ runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
 runseal @transpile --input-lang=seal --output-lang=bash ./operator.seal
-runseal @tool json get '{"releaseVersion":"v0.2.0"}' '.releaseVersion'
+runseal @tool json get '{"releaseVersion":"v0.2.1"}' '.releaseVersion'
 runseal @wrappers
 runseal @which :ssh-run
 ```
@@ -249,6 +249,41 @@ On Unix, shell wrappers use the `.sh` suffix and must be executable. On Windows,
 runseal also checks `.exe`, `.cmd`, and `.bat` when the wrapper name has no
 extension.
 
+### Seal wrappers
+
+`.seal` files are bash-runnable wrapper glue. They are meant for small
+cross-platform repository operations where the shared shape is clear:
+
+- ordinary command execution, assignment, functions, `if`, `while`, `case`,
+  `shift`, and `"$@"`
+- bash `[ ... ]` tests for ordinary predicates
+- explicit `runseal @tool ...` calls for atomic glue where bash and PowerShell
+  do not share a clean expression
+
+For example:
+
+```bash
+fail() {
+  printf '%s\n' "$1" >&2
+  exit 1
+}
+
+if [ -z "$channel" ]; then
+  fail "channel missing"
+fi
+
+raw=$(gh run list --json databaseId)
+run_id=$(runseal @tool json get "$raw" '.[0].databaseId')
+```
+
+Runseal interprets `.seal` wrappers directly when called as `runseal :name`.
+Use `runseal @transpile --input-lang=seal --output-lang=bash <file>` or
+`--output-lang=powershell` to inspect generated targets.
+
+Seal is not intended to become a general scripting language. If a workflow
+wants richer parsing, data structures, or platform-specific behavior, move that
+part to Python, Ruby, JavaScript, etc. and call it from the wrapper.
+
 ## Internal Commands
 
 If the command token starts with `@`, runseal resolves it as a runseal internal
@@ -276,7 +311,8 @@ read-only; `@tool` is the explicit atomic tool runtime.
   `bash`, `seal`, `powershell`, and `sealir` inputs and outputs for the
   currently recognized intersection.
 - `@tool <namespace> <command> ...` runs an atomic runseal tool command. Cold
-  start supports `json get`, `string trim`, `regex capture`, and `int add`.
+  start supports JSON, string, regex, integer, process, filesystem, GitHub, and
+  Cloudflare helpers. Run `runseal @tool --help` for the complete tool index.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
 

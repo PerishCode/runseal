@@ -30,6 +30,12 @@ Runseal commands:
   @wrappers           list visible wrappers
   @which :<name>      print a wrapper path
 
+Seal wrappers:
+  .seal files are bash-runnable wrapper glue interpreted directly by runseal.
+  Use ordinary commands for shared behavior and runseal @tool for atomic glue
+  where bash and PowerShell do not share a clean expression.
+  Run runseal @transpile --help for Seal code-generation support.
+
 Profile discovery walks from the current directory upward for runseal.toml|yaml|yml|json,
 then falls back to $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json.
 
