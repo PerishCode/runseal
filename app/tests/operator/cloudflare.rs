@@ -116,6 +116,48 @@ CLOUDFLARE_MANAGE_REDIRECT_PREFIX=
     .expect("credentials should be written");
 }
 
+fn tool_credentials() -> (TempDir, PathBuf) {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let secrets = temp.path().join("secrets");
+    std::fs::create_dir_all(&secrets).expect("secrets dir should be created");
+    std::fs::write(
+        secrets.join("cloudflare.env"),
+        "\
+CLOUDFLARE_ACCOUNT_ID=account-123
+CLOUDFLARE_API_TOKEN=token-456
+",
+    )
+    .expect("credentials should be written");
+    (temp, secrets)
+}
+
+fn mock_cloudflare<F>(assert_request: F, body: &'static str) -> (String, thread::JoinHandle<()>)
+where
+    F: FnOnce(&str) + Send + 'static,
+{
+    let server = TcpListener::bind("127.0.0.1:0").expect("mock server should bind");
+    let address = server
+        .local_addr()
+        .expect("mock server address should exist");
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = server.accept().expect("mock request should arrive");
+        let mut request = [0_u8; 4096];
+        let read = stream
+            .read(&mut request)
+            .expect("request should be readable");
+        let request = String::from_utf8_lossy(&request[..read]);
+        assert_request(&request);
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        )
+        .expect("response should be written");
+    });
+    (format!("http://{address}"), handle)
+}
+
 fn stdout(output: &std::process::Output) -> String {
     String::from_utf8(output.stdout.clone()).expect("stdout should be UTF-8")
 }
@@ -155,40 +197,14 @@ fn manage_plan_uses_tool() {
 
 #[test]
 fn zone_get_uses_tool() {
-    let temp = TempDir::new().expect("temp dir should be created");
-    let secrets = temp.path().join("secrets");
-    std::fs::create_dir_all(&secrets).expect("secrets dir should be created");
-    std::fs::write(
-        secrets.join("cloudflare.env"),
-        "\
-CLOUDFLARE_ACCOUNT_ID=account-123
-CLOUDFLARE_API_TOKEN=token-456
-",
-    )
-    .expect("credentials should be written");
-    let server = TcpListener::bind("127.0.0.1:0").expect("mock server should bind");
-    let address = server
-        .local_addr()
-        .expect("mock server address should exist");
-    let handle = thread::spawn(move || {
-        let (mut stream, _) = server.accept().expect("mock request should arrive");
-        let mut request = [0_u8; 2048];
-        let read = stream
-            .read(&mut request)
-            .expect("request should be readable");
-        let request = String::from_utf8_lossy(&request[..read]);
-        assert!(request.starts_with("GET /zones?name=perish.uk "));
-        assert!(request.contains("authorization: Bearer token-456"));
-        let body =
-            r#"{"success":true,"result":[{"id":"zone-123","name":"perish.uk","status":"active"}]}"#;
-        write!(
-            stream,
-            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{}",
-            body.len(),
-            body
-        )
-        .expect("response should be written");
-    });
+    let (_temp, secrets) = tool_credentials();
+    let (api_base, handle) = mock_cloudflare(
+        move |request| {
+            assert!(request.starts_with("GET /zones?name=perish.uk "));
+            assert!(request.contains("authorization: Bearer token-456"));
+        },
+        r#"{"success":true,"result":[{"id":"zone-123","name":"perish.uk","status":"active"}]}"#,
+    );
 
     let output = run_cloudflare_tool(
         &["@tool", "cloudflare", "zone", "get", "--name", "perish.uk"],
@@ -197,7 +213,7 @@ CLOUDFLARE_API_TOKEN=token-456
                 "RUNSEAL_REPO_SECRETS_DIR",
                 secrets.to_string_lossy().into_owned(),
             ),
-            ("RUNSEAL_CLOUDFLARE_API_BASE", format!("http://{address}")),
+            ("RUNSEAL_CLOUDFLARE_API_BASE", api_base),
         ],
     );
 
@@ -207,6 +223,169 @@ CLOUDFLARE_API_TOKEN=token-456
         stdout(&output),
         r#"{"id":"zone-123","name":"perish.uk","status":"active"}"#.to_string() + "\n"
     );
+}
+
+#[test]
+fn dns_record_list() {
+    let (_temp, secrets) = tool_credentials();
+    let (api_base, handle) = mock_cloudflare(
+        move |request| {
+            assert!(request.starts_with("GET /zones/zone-123/dns_records?name=sidecar.perish.uk "));
+            assert!(request.contains("authorization: Bearer token-456"));
+        },
+        r#"{"success":true,"result":[{"id":"record-123","name":"sidecar.perish.uk"}]}"#,
+    );
+
+    let output = run_cloudflare_tool(
+        &[
+            "@tool",
+            "cloudflare",
+            "zone",
+            "dns-record",
+            "list",
+            "--zone-id",
+            "zone-123",
+            "--name",
+            "sidecar.perish.uk",
+        ],
+        &[
+            (
+                "RUNSEAL_REPO_SECRETS_DIR",
+                secrets.to_string_lossy().into_owned(),
+            ),
+            ("RUNSEAL_CLOUDFLARE_API_BASE", api_base),
+        ],
+    );
+
+    handle.join().expect("mock server should finish");
+    assert!(output.status.success(), "stderr: {}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        r#"[{"id":"record-123","name":"sidecar.perish.uk"}]"#.to_string() + "\n"
+    );
+}
+
+#[test]
+fn dns_record_create() {
+    let (_temp, secrets) = tool_credentials();
+    let record = r#"{"type":"CNAME","name":"sidecar.perish.uk","content":"releases.sidecar.perish.uk","ttl":1,"proxied":true}"#;
+    let (api_base, handle) = mock_cloudflare(
+        move |request| {
+            assert!(request.starts_with("POST /zones/zone-123/dns_records "));
+            assert!(request.contains("authorization: Bearer token-456"));
+            assert_json_body(request, record);
+        },
+        r#"{"success":true,"result":{"id":"record-123","type":"CNAME"}}"#,
+    );
+
+    let output = run_cloudflare_tool(
+        &[
+            "@tool",
+            "cloudflare",
+            "zone",
+            "dns-record",
+            "create",
+            "--zone-id",
+            "zone-123",
+            "--json",
+            record,
+        ],
+        &[
+            (
+                "RUNSEAL_REPO_SECRETS_DIR",
+                secrets.to_string_lossy().into_owned(),
+            ),
+            ("RUNSEAL_CLOUDFLARE_API_BASE", api_base),
+        ],
+    );
+
+    handle.join().expect("mock server should finish");
+    assert!(output.status.success(), "stderr: {}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        r#"{"id":"record-123","type":"CNAME"}"#.to_string() + "\n"
+    );
+}
+
+#[test]
+fn dns_record_update() {
+    let (_temp, secrets) = tool_credentials();
+    let record = r#"{"type":"CNAME","name":"sidecar.perish.uk","content":"releases.sidecar.perish.uk","ttl":1,"proxied":true}"#;
+    let (api_base, handle) = mock_cloudflare(
+        move |request| {
+            assert!(request.starts_with("PATCH /zones/zone-123/dns_records/record-123 "));
+            assert!(request.contains("authorization: Bearer token-456"));
+            assert_json_body(request, record);
+        },
+        r#"{"success":true,"result":{"id":"record-123","modified":true}}"#,
+    );
+
+    let output = run_cloudflare_tool(
+        &[
+            "@tool",
+            "cloudflare",
+            "zone",
+            "dns-record",
+            "update",
+            "--zone-id",
+            "zone-123",
+            "--record-id",
+            "record-123",
+            "--json",
+            record,
+        ],
+        &[
+            (
+                "RUNSEAL_REPO_SECRETS_DIR",
+                secrets.to_string_lossy().into_owned(),
+            ),
+            ("RUNSEAL_CLOUDFLARE_API_BASE", api_base),
+        ],
+    );
+
+    handle.join().expect("mock server should finish");
+    assert!(output.status.success(), "stderr: {}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        r#"{"id":"record-123","modified":true}"#.to_string() + "\n"
+    );
+}
+
+#[test]
+fn dns_record_bad_json() {
+    let (_temp, secrets) = tool_credentials();
+
+    let output = run_cloudflare_tool(
+        &[
+            "@tool",
+            "cloudflare",
+            "zone",
+            "dns-record",
+            "create",
+            "--zone-id",
+            "zone-123",
+            "--json",
+            "{",
+        ],
+        &[(
+            "RUNSEAL_REPO_SECRETS_DIR",
+            secrets.to_string_lossy().into_owned(),
+        )],
+    );
+
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("invalid DNS record JSON"));
+}
+
+fn assert_json_body(request: &str, expected: &str) {
+    let body = request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .expect("request should include a body");
+    let actual: serde_json::Value = serde_json::from_str(body).expect("body should be JSON");
+    let expected: serde_json::Value =
+        serde_json::from_str(expected).expect("expected body should be JSON");
+    assert_eq!(actual, expected);
 }
 
 #[test]

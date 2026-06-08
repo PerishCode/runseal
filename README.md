@@ -50,7 +50,7 @@ runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
 runseal @transpile --input-lang=seal --output-lang=bash ./operator.seal
-runseal @tool json get '{"releaseVersion":"v0.2.1"}' '.releaseVersion'
+runseal @tool json get '{"releaseVersion":"v0.6.0"}' '.releaseVersion'
 runseal @wrappers
 runseal @which :ssh-run
 ```

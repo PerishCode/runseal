@@ -7,6 +7,8 @@ use std::{
 use anyhow::{Context, Result, bail};
 use serde_json::Value as JsonValue;
 
+mod dns_record;
+
 #[derive(Debug, Clone)]
 struct Config {
     account_id: String,
@@ -85,7 +87,8 @@ fn zone(args: &[String]) -> Result<Option<String>> {
     match args {
         [command, rest @ ..] if command == "get" => zone_get(rest),
         [ruleset, rest @ ..] if ruleset == "ruleset" => zone_ruleset(rest),
-        _ => bail!("usage: runseal @tool cloudflare zone get|ruleset ..."),
+        [dns, command, rest @ ..] if dns == "dns-record" => dns_record::eval(command, rest),
+        _ => bail!("usage: runseal @tool cloudflare zone get|ruleset|dns-record ..."),
     }
 }
 
