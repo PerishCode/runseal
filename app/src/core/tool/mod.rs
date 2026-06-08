@@ -61,6 +61,9 @@ Tools:
   fs contains-any <path> <text>...       print true when file contains any text
   fs backup-numbered <path>              move path to .bak or .bak.N and print it
   github pr checks probe <number>        print true when PR checks are reported
+  cloudflare zone dns-record list        list DNS records in a zone
+  cloudflare zone dns-record create      create a DNS record from JSON
+  cloudflare zone dns-record update      update a DNS record from JSON
   cloudflare ...                         run an atomic Cloudflare resource op
 
 @tool is the runseal atomic tool runtime. Tool inputs use argv/env, output is
