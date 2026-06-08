@@ -28,7 +28,6 @@ fn fixture() -> Fixture {
     write_required_files(&project);
     write_stub(&bin.join("python3"));
     write_stub(&bin.join("cargo"));
-    write_stub(&bin.join("runseal"));
     write_stub(&bin.join("flavor"));
     write_stub(&bin.join("sh"));
     write_stub(&bin.join("bash"));
@@ -109,6 +108,9 @@ fn run_init(fx: &Fixture, args: &[&str]) -> std::process::Output {
 
 fn prepend_path(first: &Path) -> OsString {
     let mut paths = vec![first.to_path_buf()];
+    if let Some(runseal_dir) = Path::new(env!("CARGO_BIN_EXE_runseal")).parent() {
+        paths.push(runseal_dir.to_path_buf());
+    }
     if let Some(existing) = std::env::var_os("PATH") {
         paths.extend(std::env::split_paths(&existing));
     }

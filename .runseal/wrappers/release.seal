@@ -1,3 +1,16 @@
+print() {
+  printf '%s\n' "$1"
+}
+
+error() {
+  printf '%s\n' "$1" >&2
+}
+
+fail() {
+  error "$1"
+  exit 1
+}
+
 usage() {
   print "Usage: runseal :release --channel=stable|beta [options]"
   print ""
@@ -11,19 +24,73 @@ usage() {
   print "  --dry-run            print planned action without triggering a workflow"
 }
 
-seal argv parse --string channel= --string ref=main --string version= --flag watch --flag dry_run
+__seal_argc=$#
+__seal_help=false
+channel=
+ref=main
+version=
+watch=false
+dry_run=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --channel)
+      if [ "$#" -lt 2 ]; then fail "missing value for --channel"; fi
+      channel=$2
+      shift 2
+      ;;
+    --channel=*)
+      channel=${1#--channel=}
+      shift
+      ;;
+    --ref)
+      if [ "$#" -lt 2 ]; then fail "missing value for --ref"; fi
+      ref=$2
+      shift 2
+      ;;
+    --ref=*)
+      ref=${1#--ref=}
+      shift
+      ;;
+    --version)
+      if [ "$#" -lt 2 ]; then fail "missing value for --version"; fi
+      version=$2
+      shift 2
+      ;;
+    --version=*)
+      version=${1#--version=}
+      shift
+      ;;
+    --watch)
+      watch=true
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -h|--help|help)
+      __seal_help=true
+      shift
+      ;;
+    *) fail "unknown option: $1" ;;
+  esac
+done
 
-if eq "$__seal_argc" 0; then
+if [ "$__seal_argc" = 0 ]; then
   usage
   exit 0
 fi
 
-if eq "$__seal_help" true; then
+if [ "$__seal_help" = true ]; then
   usage
   exit 0
 fi
 
-if empty "$channel"; then
+if [ -z "$channel" ]; then
   fail "release: --channel is required"
 fi
 
@@ -38,33 +105,33 @@ esac
 
 command="gh workflow run $workflow --ref $ref -f ref=$ref -f version_override=$version"
 
-if eq "$dry_run" true; then
+if [ "$dry_run" = true ]; then
   print "$command"
 else
   gh --version
   gh auth status
   ref_sha=$(git rev-parse "$ref")
   trigger_output=$(gh workflow run "$workflow" --ref "$ref" -f "ref=$ref" -f "version_override=$version")
-  if not_empty "$trigger_output"; then
+  if [ -n "$trigger_output" ]; then
     print "$trigger_output"
   fi
   print "triggered $workflow for ref $ref"
-  if eq "$watch" true; then
-    run_id=$(seal regex capture "$trigger_output" '/actions/runs/([0-9]+)' 1)
-    if empty "$run_id"; then
+  if [ "$watch" = true ]; then
+    run_id=$(runseal @tool regex capture "$trigger_output" '/actions/runs/([0-9]+)' 1)
+    if [ -z "$run_id" ]; then
       attempt=0
       raw='[]'
-      while lt "$attempt" 6; do
+      while [ "$attempt" -lt 6 ]; do
         raw=$(gh run list --workflow "$workflow" --branch "$ref" --commit "$ref_sha" --event workflow_dispatch --limit 1 --json databaseId)
-        if json_not_empty "$raw"; then
-          run_id=$(seal json get "$raw" '.[0].databaseId')
+        if [ "$(runseal @tool json empty "$raw")" = false ]; then
+          run_id=$(runseal @tool json get "$raw" '.[0].databaseId')
           break
         fi
         sleep 2
-        attempt=$(seal int add "$attempt" 1)
+        attempt=$(runseal @tool int add "$attempt" 1)
       done
     fi
-    if empty "$run_id"; then
+    if [ -z "$run_id" ]; then
       fail "release: could not find a recent run for $workflow on $ref"
     fi
     gh run watch "$run_id" --interval 10

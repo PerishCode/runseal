@@ -2,7 +2,6 @@ use anyhow::{Result, bail};
 
 use super::predicate::parse_powershell_predicate;
 use crate::core::transpile::ast::{CaseArm, Item, Program, Statement, Value};
-use crate::core::transpile::helpers::{parse_capture_helper, parse_statement_helper};
 use crate::core::transpile::lower::lower_functions;
 
 #[derive(Debug, Clone)]
@@ -203,27 +202,10 @@ impl Parser {
 }
 
 fn parse_simple_statement(line: &Line) -> Result<Statement> {
-    if let Some(rest) = line.text.strip_prefix("seal argv parse ") {
-        let mut args = vec!["argv".to_string(), "parse".to_string()];
-        args.extend(split_exprs(rest, line.number)?);
-        return parse_statement_helper(&args, line.number);
-    }
     if let Some((name, value)) = assignment(&line.text) {
         if let Some(argv) = value.strip_prefix("& ") {
             let argv = parse_argv(argv, line.number)?;
-            if let Some(statement) = parse_capture_helper(&name, &argv, line.number)? {
-                return Ok(statement);
-            }
             return Ok(Statement::CaptureChecked { name, argv });
-        }
-        if value.starts_with("seal ") {
-            let argv = parse_argv(value, line.number)?;
-            if let Some(statement) = parse_capture_helper(&name, &argv, line.number)? {
-                return Ok(statement);
-            }
-        }
-        if let Some(statement) = int_add_assignment(&name, value, line.number)? {
-            return Ok(statement);
         }
         return Ok(Statement::Assign {
             name,
@@ -289,18 +271,6 @@ fn parse_argv_value(text: &str, line: usize) -> Result<Value> {
             bail!("{line}: unsupported PowerShell argv value: {text}")
         }
     })
-}
-
-fn int_add_assignment(name: &str, value: &str, line: usize) -> Result<Option<Statement>> {
-    let Some((left, right)) = value.split_once(" + ") else {
-        return Ok(None);
-    };
-    let left = left.strip_prefix("[int]").unwrap_or(left);
-    Ok(Some(Statement::IntAdd {
-        name: name.to_string(),
-        left: parse_value(left, line)?,
-        right: parse_value(right, line)?,
-    }))
 }
 
 fn assignment(text: &str) -> Option<(String, &str)> {

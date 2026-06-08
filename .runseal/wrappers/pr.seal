@@ -1,3 +1,16 @@
+print() {
+  printf '%s\n' "$1"
+}
+
+error() {
+  printf '%s\n' "$1" >&2
+}
+
+fail() {
+  error "$1"
+  exit 1
+}
+
 usage() {
   print "Usage: runseal :pr [options]"
   print ""
@@ -14,9 +27,157 @@ usage() {
   print "  --dry-run            print planned actions without changing remote state"
 }
 
-seal argv parse --string base=main --string title= --string body_file= --flag draft --flag no_watch --flag no_merge --flag no_push --flag dry_run
+print_dry_run() {
+  print "branch: $branch"
+  print "base: $base"
+  if [ "$no_push" = true ]; then
+    print "push: False"
+  else
+    print "push: True"
+  fi
+  print "pr: create if missing, otherwise reuse existing"
+  if [ "$draft" = true ]; then
+    print "draft: True"
+    print "ready: False"
+  else
+    print "draft: False"
+    print "ready: True"
+  fi
+  if [ "$no_watch" = true ]; then
+    print "watch: False"
+  else
+    print "watch: True"
+  fi
+  if [ "$no_merge" = true ]; then
+    print "squash_merge: False"
+  else
+    print "squash_merge: True"
+  fi
+}
 
-if eq "$__seal_help" true; then
+create_pr() {
+  if [ "$draft" = true ]; then
+    if [ -n "$title" ]; then
+      if [ -n "$body_file" ]; then
+        gh pr create --draft --base "$base" --head "$branch" --title "$title" --body-file "$body_file"
+      else
+        gh pr create --draft --base "$base" --head "$branch" --title "$title" --fill
+      fi
+    else
+      if [ -n "$body_file" ]; then
+        gh pr create --draft --base "$base" --head "$branch" --fill --body-file "$body_file"
+      else
+        gh pr create --draft --base "$base" --head "$branch" --fill
+      fi
+    fi
+  else
+    if [ -n "$title" ]; then
+      if [ -n "$body_file" ]; then
+        gh pr create --base "$base" --head "$branch" --title "$title" --body-file "$body_file"
+      else
+        gh pr create --base "$base" --head "$branch" --title "$title" --fill
+      fi
+    else
+      if [ -n "$body_file" ]; then
+        gh pr create --base "$base" --head "$branch" --fill --body-file "$body_file"
+      else
+        gh pr create --base "$base" --head "$branch" --fill
+      fi
+    fi
+  fi
+}
+
+watch_checks() {
+  checks_seen=false
+  attempt=0
+  while [ "$attempt" -lt 12 ]; do
+    checks_seen=$(runseal @tool github pr checks probe "$number")
+    if [ "$checks_seen" = true ]; then
+      checks_seen=true
+      break
+    fi
+    sleep 5
+    attempt=$(runseal @tool int add "$attempt" 1)
+  done
+  if [ "$checks_seen" = false ]; then
+    print "no checks reported on PR #$number; skipping watch"
+  else
+    gh pr checks "$number" --watch --interval 10
+  fi
+}
+
+__seal_argc=$#
+__seal_help=false
+base=main
+title=
+body_file=
+draft=false
+no_watch=false
+no_merge=false
+no_push=false
+dry_run=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --base)
+      if [ "$#" -lt 2 ]; then fail "missing value for --base"; fi
+      base=$2
+      shift 2
+      ;;
+    --base=*)
+      base=${1#--base=}
+      shift
+      ;;
+    --title)
+      if [ "$#" -lt 2 ]; then fail "missing value for --title"; fi
+      title=$2
+      shift 2
+      ;;
+    --title=*)
+      title=${1#--title=}
+      shift
+      ;;
+    --body-file)
+      if [ "$#" -lt 2 ]; then fail "missing value for --body-file"; fi
+      body_file=$2
+      shift 2
+      ;;
+    --body-file=*)
+      body_file=${1#--body-file=}
+      shift
+      ;;
+    --draft)
+      draft=true
+      shift
+      ;;
+    --no-watch)
+      no_watch=true
+      shift
+      ;;
+    --no-merge)
+      no_merge=true
+      shift
+      ;;
+    --no-push)
+      no_push=true
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -h|--help|help)
+      __seal_help=true
+      shift
+      ;;
+    *) fail "unknown option: $1" ;;
+  esac
+done
+
+if [ "$__seal_help" = true ]; then
   usage
   exit 0
 fi
@@ -26,139 +187,71 @@ gh --version
 gh auth status
 
 branch=$(git branch --show-current)
-if empty "$branch"; then
+if [ -z "$branch" ]; then
   fail "pr: not on a branch"
 fi
 
-if eq "$branch" "$base"; then
+if [ "$branch" = "$base" ]; then
   fail "pr: refusing to open a PR from base branch: $branch"
 fi
 
-if eq "$branch" main; then
+if [ "$branch" = main ]; then
   fail "pr: refusing to open a PR from base branch: $branch"
 fi
 
-if eq "$branch" master; then
+if [ "$branch" = master ]; then
   fail "pr: refusing to open a PR from base branch: $branch"
 fi
 
-if eq "$draft" true; then
-  if eq "$no_merge" false; then
+if [ "$draft" = true ]; then
+  if [ "$no_merge" = false ]; then
     fail "pr: --draft requires --no-merge"
   fi
 fi
 
-if eq "$dry_run" true; then
-  print "branch: $branch"
-  print "base: $base"
-  if eq "$no_push" true; then
-    print "push: False"
-  else
-    print "push: True"
-  fi
-  print "pr: create if missing, otherwise reuse existing"
-  if eq "$draft" true; then
-    print "draft: True"
-    print "ready: False"
-  else
-    print "draft: False"
-    print "ready: True"
-  fi
-  if eq "$no_watch" true; then
-    print "watch: False"
-  else
-    print "watch: True"
-  fi
-  if eq "$no_merge" true; then
-    print "squash_merge: False"
-  else
-    print "squash_merge: True"
-  fi
+if [ "$dry_run" = true ]; then
+  print_dry_run
   exit 0
 fi
 
-if eq "$no_push" false; then
+if [ "$no_push" = false ]; then
   git push -u origin "$branch"
 fi
 
 created=false
 pr_raw=$(gh pr list --head "$branch" --json number,title,state,url,isDraft)
 
-if json_empty "$pr_raw"; then
-  if eq "$draft" true; then
-    if not_empty "$title"; then
-      if not_empty "$body_file"; then
-        gh pr create --draft --base "$base" --head "$branch" --title "$title" --body-file "$body_file"
-      else
-        gh pr create --draft --base "$base" --head "$branch" --title "$title" --fill
-      fi
-    else
-      if not_empty "$body_file"; then
-        gh pr create --draft --base "$base" --head "$branch" --fill --body-file "$body_file"
-      else
-        gh pr create --draft --base "$base" --head "$branch" --fill
-      fi
-    fi
-  else
-    if not_empty "$title"; then
-      if not_empty "$body_file"; then
-        gh pr create --base "$base" --head "$branch" --title "$title" --body-file "$body_file"
-      else
-        gh pr create --base "$base" --head "$branch" --title "$title" --fill
-      fi
-    else
-      if not_empty "$body_file"; then
-        gh pr create --base "$base" --head "$branch" --fill --body-file "$body_file"
-      else
-        gh pr create --base "$base" --head "$branch" --fill
-      fi
-    fi
-  fi
+if [ "$(runseal @tool json empty "$pr_raw")" = true ]; then
+  create_pr
   created=true
   pr_raw=$(gh pr list --head "$branch" --json number,title,state,url,isDraft)
-  if json_empty "$pr_raw"; then
+  if [ "$(runseal @tool json empty "$pr_raw")" = true ]; then
     fail "pr: created PR for $branch, but could not find it afterward"
   fi
 fi
 
-number=$(seal json get "$pr_raw" '.[0].number')
-url=$(seal json get "$pr_raw" '.[0].url')
-is_draft=$(seal json get "$pr_raw" '.[0].isDraft')
+number=$(runseal @tool json get "$pr_raw" '.[0].number')
+url=$(runseal @tool json get "$pr_raw" '.[0].url')
+is_draft=$(runseal @tool json get "$pr_raw" '.[0].isDraft')
 
-if eq "$created" true; then
+if [ "$created" = true ]; then
   print "created PR #$number: $url"
 else
   print "found PR #$number: $url"
 fi
 
-if eq "$is_draft" true; then
-  if eq "$draft" false; then
+if [ "$is_draft" = true ]; then
+  if [ "$draft" = false ]; then
     gh pr ready "$number"
     print "marked PR #$number ready"
   fi
 fi
 
-if eq "$no_watch" false; then
-  checks_seen=false
-  attempt=0
-  while lt "$attempt" 12; do
-    seal capture optional checks_output checks_status gh pr checks "$number"
-    no_checks=$(seal regex capture "$checks_output" '(no checks reported)' 1)
-    if empty "$no_checks"; then
-      checks_seen=true
-      break
-    fi
-    sleep 5
-    attempt=$(seal int add "$attempt" 1)
-  done
-  if eq "$checks_seen" false; then
-    print "no checks reported on PR #$number; skipping watch"
-  else
-  gh pr checks "$number" --watch --interval 10
-  fi
+if [ "$no_watch" = false ]; then
+  watch_checks
 fi
 
-if eq "$no_merge" false; then
+if [ "$no_merge" = false ]; then
   gh pr merge "$number" --squash --delete-branch
   print "squash-merged PR #$number"
 fi

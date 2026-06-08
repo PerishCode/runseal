@@ -1,6 +1,7 @@
 #![cfg(unix)]
 
 use std::{
+    ffi::OsString,
     io::{Read, Write},
     net::TcpListener,
     path::{Path, PathBuf},
@@ -67,6 +68,7 @@ fn run_cloudflare_with_env(
     let mut command = Command::new(env!("CARGO_BIN_EXE_runseal"));
     command
         .current_dir(&fx.project)
+        .env("PATH", prepend_path())
         .arg("-p")
         .arg(fx.project.join("runseal.toml"))
         .arg(":cloudflare")
@@ -75,6 +77,17 @@ fn run_cloudflare_with_env(
         command.env(key, value);
     }
     command.output().expect("cloudflare wrapper should run")
+}
+
+fn prepend_path() -> OsString {
+    let mut paths = Vec::new();
+    if let Some(runseal_dir) = Path::new(env!("CARGO_BIN_EXE_runseal")).parent() {
+        paths.push(runseal_dir.to_path_buf());
+    }
+    if let Some(existing) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&existing));
+    }
+    std::env::join_paths(paths).expect("PATH should be joinable")
 }
 
 fn run_cloudflare_tool(args: &[&str], envs: &[(&str, String)]) -> std::process::Output {
@@ -126,7 +139,7 @@ fn cloudflare_init_writes_template() {
 }
 
 #[test]
-fn manage_plan_uses_seal() {
+fn manage_plan_uses_tool() {
     let fx = fixture();
     write_credentials(&fx);
 

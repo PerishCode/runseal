@@ -158,11 +158,40 @@ fn seal_wrapper_runs_directly() {
     make_seal_wrapper(
         &fx.project_wrappers.join("seal-tool.seal"),
         r#"
-seal argv parse --string name=world --flag loud
-if eq "$__seal_argc" 0; then
+__seal_argc=$#
+__seal_help=false
+name=world
+loud=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --name)
+      if [ "$#" -lt 2 ]; then fail "missing value for --name"; fi
+      name=$2
+      shift 2
+      ;;
+    --name=*)
+      name=${1#--name=}
+      shift
+      ;;
+    --loud)
+      loud=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -h|--help|help)
+      __seal_help=true
+      shift
+      ;;
+    *) fail "unknown option: $1" ;;
+  esac
+done
+if [ "$__seal_argc" = 0 ]; then
   print "hello $name"
 else
-  if eq "$loud" true; then
+  if [ "$loud" = true ]; then
     print "HELLO $name from ${RUNSEAL_WRAPPER_NAME}"
   else
     print "hello $name"

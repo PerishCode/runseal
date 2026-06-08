@@ -36,21 +36,65 @@ fn run_transpile(fx: &Fixture, input_lang: &str, output_lang: &str) -> std::proc
 
 fn argv_source() -> &'static str {
     r#"
-seal argv parse --string channel=stable --string ref=main --string body_file= --flag dry_run --flag no_merge
-if empty "$channel"; then
+__seal_argc=$#
+__seal_help=false
+channel=stable
+ref=main
+body_file=
+dry_run=false
+no_merge=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --channel)
+      if [ "$#" -lt 2 ]; then fail "missing value for --channel"; fi
+      channel=$2
+      shift 2
+      ;;
+    --channel=*)
+      channel=${1#--channel=}
+      shift
+      ;;
+    --ref)
+      if [ "$#" -lt 2 ]; then fail "missing value for --ref"; fi
+      ref=$2
+      shift 2
+      ;;
+    --ref=*)
+      ref=${1#--ref=}
+      shift
+      ;;
+    --body-file)
+      if [ "$#" -lt 2 ]; then fail "missing value for --body-file"; fi
+      body_file=$2
+      shift 2
+      ;;
+    --body-file=*)
+      body_file=${1#--body-file=}
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --no-merge)
+      no_merge=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -h|--help|help)
+      __seal_help=true
+      shift
+      ;;
+    *) fail "unknown option: $1" ;;
+  esac
+done
+if [ -z "$channel" ]; then
   fail "channel missing"
 fi
 print "$body_file"
-"#
-}
-
-fn powershell_argv_source() -> &'static str {
-    r#"
-seal argv parse --string channel=stable --string ref=main --string body_file= --flag dry_run --flag no_merge
-if ([string]::IsNullOrEmpty($channel)) {
-    throw 'channel missing'
-}
-Write-Output $body_file
 "#
 }
 
@@ -66,14 +110,6 @@ fn argv_parse_roundtrip() {
         assert!(stdout.contains("body_file"));
         assert!(stdout.contains("dry_run"));
     }
-
-    let fx = fixture(powershell_argv_source());
-    let output = run_transpile(&fx, "powershell", "sealir");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("argv_parse"));
-    assert!(stdout.contains("no_merge"));
 }
 
 #[test]
@@ -90,7 +126,10 @@ fn argv_parse_emits_targets() {
     assert!(bash.contains("body_file=${1#--body-file=}"));
     assert!(bash.contains("dry_run=true"));
     assert!(powershell.contains("$body_file = $__seal_arg.Substring(12)"));
-    assert!(powershell.contains("$dry_run = $true"));
+    assert!(powershell.contains("$dry_run = 'false'"));
+    assert!(powershell.contains("$dry_run = 'true'"));
+    assert!(!powershell.contains("$dry_run = $false"));
+    assert!(!powershell.contains("$dry_run = $true"));
     super::syntax::assert_bash(&bash);
     super::syntax::assert_pwsh(&powershell);
 }

@@ -37,8 +37,8 @@ fn run_transpile(fx: &Fixture, input_lang: &str, output_lang: &str) -> std::proc
 fn regex_source() -> &'static str {
     r#"
 trigger_output='https://github.com/PerishCode/runseal/actions/runs/12345'
-run_id=$(seal regex capture "$trigger_output" '/actions/runs/([0-9]+)' 1)
-if empty "$run_id"; then
+run_id=$(runseal @tool regex capture "$trigger_output" '/actions/runs/([0-9]+)' 1)
+if [ -z "$run_id" ]; then
   run_id=$(latest_run_id "$workflow" "$ref")
 fi
 print "$run_id"
@@ -48,7 +48,7 @@ print "$run_id"
 fn powershell_regex_source() -> &'static str {
     r#"
 $trigger_output = 'https://github.com/PerishCode/runseal/actions/runs/12345'
-$run_id = seal regex capture $trigger_output '/actions/runs/([0-9]+)' '1'
+$run_id = & 'runseal' '@tool' 'regex' 'capture' $trigger_output '/actions/runs/([0-9]+)' '1'
 if ([string]::IsNullOrEmpty($run_id)) {
     $run_id = & 'latest_run_id' $workflow $ref
 }
@@ -64,7 +64,7 @@ fn regex_capture_roundtrip() {
 
         assert!(output.status.success());
         let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-        assert!(stdout.contains("tool_capture"));
+        assert!(stdout.contains("capture_checked"));
         assert!(stdout.contains("regex"));
         assert!(stdout.contains("/actions/runs/([0-9]+)"));
     }
@@ -74,7 +74,7 @@ fn regex_capture_roundtrip() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("tool_capture"));
+    assert!(stdout.contains("capture_checked"));
     assert!(stdout.contains("regex"));
     assert!(stdout.contains("\"1\""));
 }
