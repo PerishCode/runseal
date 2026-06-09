@@ -8,7 +8,11 @@ mod ssh;
 #[path = "internal_tool/string.rs"]
 mod string;
 
-use std::{path::PathBuf, process::Command};
+use std::{
+    io::Write,
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 
 use tempfile::TempDir;
 
@@ -23,6 +27,10 @@ fn tool_runs_without_profile() {
     std::fs::create_dir_all(&cwd).expect("empty cwd should be created");
 
     for (args, expected) in [
+        (
+            vec!["@tool", "json", "pretty", "value", r#"{"a":1}"#],
+            "{\n  \"a\": 1\n}\n",
+        ),
         (
             vec![
                 "@tool",
@@ -91,6 +99,22 @@ fn tool_help_is_progressive() {
         (
             vec!["@tool", "json", "get", "--help"],
             "Usage: runseal @tool json get <json> <path>",
+        ),
+        (
+            vec!["@tool", "json", "pretty", "--help"],
+            "Usage: runseal @tool json pretty <mode> [args]",
+        ),
+        (
+            vec!["@tool", "json", "pretty", "value", "--help"],
+            "Usage: runseal @tool json pretty value <json>",
+        ),
+        (
+            vec!["@tool", "json", "pretty", "stdin", "--help"],
+            "Usage: runseal @tool json pretty stdin",
+        ),
+        (
+            vec!["@tool", "json", "pretty", "file", "--help"],
+            "Usage: runseal @tool json pretty file <input> <output>",
         ),
         (
             vec!["@tool", "string", "--help"],
@@ -369,4 +393,64 @@ fn fs_mode_touch_list() {
     assert!(PathBuf::from(&paths[0]).is_absolute());
     assert!(paths[0].ends_with("a.yaml"));
     assert!(paths[1].ends_with("b.yaml"));
+}
+
+#[test]
+fn json_pretty_stdin() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let cwd = temp.path().join("empty");
+    std::fs::create_dir_all(&cwd).expect("empty cwd should be created");
+
+    let mut child = bin()
+        .current_dir(&cwd)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .args(["@tool", "json", "pretty", "stdin"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("runseal should start");
+
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(br#"{"a":1,"b":[2]}"#)
+        .expect("stdin write should succeed");
+
+    let output = child.wait_with_output().expect("runseal should finish");
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout should be UTF-8"),
+        "{\n  \"a\": 1,\n  \"b\": [\n    2\n  ]\n}\n"
+    );
+}
+
+#[test]
+fn json_pretty_file() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let cwd = temp.path().join("empty");
+    std::fs::create_dir_all(&cwd).expect("empty cwd should be created");
+    let input = cwd.join("input.json");
+    let output = cwd.join("output.json");
+    std::fs::write(&input, r#"{"a":1,"b":[2]}"#).expect("input file should be written");
+
+    let result = bin()
+        .current_dir(&cwd)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .args([
+            "@tool",
+            "json",
+            "pretty",
+            "file",
+            input.to_str().expect("input path should be UTF-8"),
+            output.to_str().expect("output path should be UTF-8"),
+        ])
+        .output()
+        .expect("runseal should run");
+
+    assert!(result.status.success());
+    assert_eq!(
+        std::fs::read_to_string(&output).expect("output file should be readable"),
+        "{\n  \"a\": 1,\n  \"b\": [\n    2\n  ]\n}\n"
+    );
 }

@@ -1,5 +1,6 @@
 mod basic;
 mod cloudflare;
+mod json;
 mod ssh;
 
 #[derive(Clone, Copy)]
@@ -18,13 +19,16 @@ pub struct Section {
 }
 
 const ENTRIES: &[Entry] = &[
-    basic::JSON,
-    basic::JSON_GET,
-    basic::JSON_EMPTY,
-    basic::JSON_LEN,
-    basic::JSON_PRETTY,
-    basic::JSON_FIND,
-    basic::JSON_FILTER,
+    json::JSON,
+    json::JSON_GET,
+    json::JSON_EMPTY,
+    json::JSON_LEN,
+    json::JSON_PRETTY,
+    json::JSON_PRETTY_VALUE,
+    json::JSON_PRETTY_STDIN,
+    json::JSON_PRETTY_FILE,
+    json::JSON_FIND,
+    json::JSON_FILTER,
     basic::STRING,
     basic::STRING_TRIM,
     basic::STRING_JOIN,

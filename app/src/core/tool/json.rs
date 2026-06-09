@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use anyhow::{Context, Result, bail};
 use serde_json::Value as JsonValue;
 
@@ -53,11 +55,53 @@ fn len(args: &[String]) -> Result<Option<String>> {
 }
 
 fn pretty(args: &[String]) -> Result<Option<String>> {
+    let [mode, rest @ ..] = args else {
+        bail!("usage: runseal @tool json pretty value|stdin|file ...");
+    };
+    match mode.as_str() {
+        "value" => pretty_value(rest),
+        "stdin" => pretty_stdin(rest),
+        "file" => pretty_file(rest),
+        _ => bail!("usage: runseal @tool json pretty value|stdin|file ..."),
+    }
+}
+
+fn pretty_value(args: &[String]) -> Result<Option<String>> {
     let [json] = args else {
-        bail!("usage: runseal @tool json pretty <json>");
+        bail!("usage: runseal @tool json pretty value <json>");
     };
     let value: JsonValue = serde_json::from_str(json).context("invalid JSON input")?;
-    Ok(Some(serde_json::to_string_pretty(&value)?))
+    Ok(Some(render_pretty(&value)?))
+}
+
+fn pretty_stdin(args: &[String]) -> Result<Option<String>> {
+    if !args.is_empty() {
+        bail!("usage: runseal @tool json pretty stdin");
+    }
+    let mut input = String::new();
+    std::io::stdin()
+        .read_to_string(&mut input)
+        .context("failed to read JSON from stdin")?;
+    let value: JsonValue = serde_json::from_str(&input).context("invalid JSON input")?;
+    Ok(Some(render_pretty(&value)?))
+}
+
+fn pretty_file(args: &[String]) -> Result<Option<String>> {
+    let [input_path, output_path] = args else {
+        bail!("usage: runseal @tool json pretty file <input> <output>");
+    };
+    let input = std::fs::read_to_string(input_path)
+        .with_context(|| format!("failed to read JSON file: {input_path}"))?;
+    let value: JsonValue = serde_json::from_str(&input).context("invalid JSON input")?;
+    let mut pretty = render_pretty(&value)?;
+    pretty.push('\n');
+    std::fs::write(output_path, pretty)
+        .with_context(|| format!("failed to write JSON file: {output_path}"))?;
+    Ok(None)
+}
+
+fn render_pretty(value: &JsonValue) -> Result<String> {
+    serde_json::to_string_pretty(value).map_err(Into::into)
 }
 
 fn find(args: &[String]) -> Result<Option<String>> {
