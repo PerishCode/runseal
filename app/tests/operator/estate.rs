@@ -69,8 +69,6 @@ fn write_wrappers(project: &Path) {
     )
     .expect("admin seal should be written");
     std::fs::write(wrappers.join("ssh.seal"), SSH_SEAL).expect("ssh seal should be written");
-    std::fs::write(wrappers.join("ssh-run.seal"), SSH_RUN_SEAL)
-        .expect("ssh-run seal should be written");
     std::fs::write(wrappers.join("kube.seal"), KUBE_SEAL).expect("kube seal should be written");
     std::fs::write(wrappers.join("pr.seal"), PR_SEAL).expect("pr seal should be written");
 }
@@ -309,29 +307,6 @@ fn ssh_run_mode() {
 }
 
 #[test]
-fn ssh_run_forward() {
-    let fx = fixture();
-    let init = run_wrapper(&fx, "admin", &["init"]);
-    assert!(init.status.success());
-    let script = fx.project.join("probe.sh");
-    std::fs::write(&script, "echo probe").expect("script should be written");
-
-    let output = run_wrapper(
-        &fx,
-        "ssh-run",
-        &["10m.hk.zxi", script.to_str().unwrap(), "--", "one"],
-    );
-    assert!(
-        output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let log = log(&fx);
-    assert!(log.contains("ssh|-F|"));
-    assert!(log.ends_with("|10m.hk.zxi|bash|-s|--|one\n"));
-}
-
-#[test]
 fn admin_bootstrap_kube() {
     let fx = fixture();
     let init = run_wrapper(&fx, "admin", &["init"]);
@@ -475,8 +450,6 @@ const SSH_CONFIG_BASE64: &str = "SG9zdCAxMG0uaGsuenhpCiAgSG9zdE5hbWUgNDMuMjUxLjI
 const ADMIN_SEAL: &str = include_str!("../fixtures/estate/admin.seal");
 
 const SSH_SEAL: &str = include_str!("../fixtures/estate/ssh.seal");
-
-const SSH_RUN_SEAL: &str = include_str!("../fixtures/estate/ssh-run.seal");
 
 const KUBE_SEAL: &str = include_str!("../fixtures/estate/kube.seal");
 
