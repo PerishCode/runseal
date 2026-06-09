@@ -1,0 +1,66 @@
+print() {
+  printf '%s\n' "$1"
+}
+
+error() {
+  printf '%s\n' "$1" >&2
+}
+
+fail() {
+  error "$1"
+  exit 1
+}
+
+usage() {
+  print "Usage: runseal :ssh <host> [--run <script> [-- <args>...] | -- <remote-command>...]"
+}
+
+ssh_config=${PERISH_TOP_SSH_CONFIG}
+run_script=false
+script=
+
+if [ -z "$1" ]; then
+  usage
+  exit 0
+fi
+
+host=$1
+shift
+
+if [ -n "$1" ]; then
+  if [ "$1" = --run ]; then
+    run_script=true
+    shift
+    if [ -z "$1" ]; then
+      usage
+      exit 2
+    fi
+    script=$1
+    shift
+    if [ -n "$1" ]; then
+      if [ "$1" = -- ]; then
+        shift
+      else
+        fail "ssh: script arguments must be separated with --"
+      fi
+    fi
+  else
+    if [ "$1" = -- ]; then
+      shift
+    else
+      fail "ssh: remote command must be separated with --"
+    fi
+  fi
+fi
+
+if [ "$run_script" = true ]; then
+  runseal @tool ssh script run --config "$ssh_config" --host "$host" --file "$script" -- "$@"
+else
+  allowed=$(runseal @tool ssh config host "$host" --config "$ssh_config")
+  if [ "$allowed" = true ]; then
+  else
+    fail "ssh: host is not declared in $ssh_config: $host"
+  fi
+
+  ssh -F "$ssh_config" "$host" "$@"
+fi

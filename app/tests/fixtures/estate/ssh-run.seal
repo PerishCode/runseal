@@ -1,0 +1,42 @@
+print() {
+  printf '%s\n' "$1"
+}
+
+error() {
+  printf '%s\n' "$1" >&2
+}
+
+fail() {
+  error "$1"
+  exit 1
+}
+
+usage() {
+  print "Usage: runseal :ssh-run <host> <script> [-- <args>...]"
+}
+
+if [ -z "$1" ]; then
+  usage
+  exit 0
+fi
+
+host=$1
+shift
+
+if [ -z "$1" ]; then
+  usage
+  exit 2
+fi
+
+script=$1
+shift
+
+if [ -n "$1" ]; then
+  if [ "$1" = -- ]; then
+    shift
+  else
+    fail "ssh-run: script arguments must be separated with --"
+  fi
+fi
+
+runseal :ssh "$host" --run "$script" -- "$@"

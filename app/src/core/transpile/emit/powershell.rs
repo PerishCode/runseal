@@ -1,5 +1,7 @@
 use super::support::{generated_header, option_name};
-use crate::core::transpile::ast::{ArgvKind, ArgvSpec, Item, Predicate, Program, Statement, Value};
+use crate::core::transpile::ast::{
+    ArgvKind, ArgvSpec, EnvAssign, Item, Predicate, Program, Statement, Value,
+};
 
 pub(crate) fn emit_powershell(program: &Program, source_name: Option<&str>) -> String {
     let mut out = generated_header("powershell", source_name);
@@ -63,6 +65,7 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
             out.push_str(&join_values(argv, powershell_value));
             out.push('\n');
         }
+        Statement::EnvExecChecked { env, argv } => emit_env_exec(out, &pad, env, argv),
         Statement::Shift { count } => {
             if *count == 0 {
                 out.push_str(&format!("{pad}$args = @($args)\n"));
@@ -86,9 +89,7 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
             else_body,
         } => emit_if(out, &pad, predicate, then_body, else_body, indent),
         Statement::While { predicate, body } => {
-            out.push_str(&format!("{pad}while ({}) {{\n", predicate_text(predicate)));
-            emit_statements(out, body, indent + 1);
-            out.push_str(&format!("{pad}}}\n"));
+            emit_while(out, &pad, predicate, body, indent);
         }
         Statement::Case { value, arms } => {
             out.push_str(&format!("{pad}switch ({}) {{\n", powershell_value(value)));
@@ -235,6 +236,21 @@ fn emit_if(
     else_body: &[Statement],
     indent: usize,
 ) {
+    if let Predicate::Command { argv } = predicate {
+        out.push_str(&format!("{pad}& "));
+        out.push_str(&join_values(argv, powershell_value));
+        out.push('\n');
+        out.push_str(&format!("{pad}if ($LASTEXITCODE -eq 0) {{\n"));
+        emit_statements(out, then_body, indent + 1);
+        if else_body.is_empty() {
+            out.push_str(&format!("{pad}}}\n"));
+        } else {
+            out.push_str(&format!("{pad}}} else {{\n"));
+            emit_statements(out, else_body, indent + 1);
+            out.push_str(&format!("{pad}}}\n"));
+        }
+        return;
+    }
     out.push_str(&format!("{pad}if ({}) {{\n", predicate_text(predicate)));
     emit_statements(out, then_body, indent + 1);
     if else_body.is_empty() {
@@ -246,8 +262,39 @@ fn emit_if(
     }
 }
 
+fn emit_while(
+    out: &mut String,
+    pad: &str,
+    predicate: &Predicate,
+    body: &[Statement],
+    indent: usize,
+) {
+    if let Predicate::Command { argv } = predicate {
+        out.push_str(&format!("{pad}while ($true) {{\n"));
+        let inner = "    ".repeat(indent + 1);
+        out.push_str(&format!("{inner}& "));
+        out.push_str(&join_values(argv, powershell_value));
+        out.push('\n');
+        out.push_str(&format!(
+            "{inner}if ($LASTEXITCODE -ne 0) {{\n{inner}    break\n{inner}}}\n"
+        ));
+        emit_statements(out, body, indent + 1);
+        out.push_str(&format!("{pad}}}\n"));
+        return;
+    }
+    out.push_str(&format!("{pad}while ({}) {{\n", predicate_text(predicate)));
+    emit_statements(out, body, indent + 1);
+    out.push_str(&format!("{pad}}}\n"));
+}
+
 fn predicate_text(predicate: &Predicate) -> String {
     match predicate {
+        Predicate::Command { argv } => {
+            format!(
+                "(& {}; $LASTEXITCODE) -eq 0",
+                join_values(argv, powershell_value)
+            )
+        }
         Predicate::Empty { value } => {
             format!("[string]::IsNullOrEmpty({})", powershell_value(value))
         }
@@ -302,6 +349,7 @@ fn int_compare(left: &Value, operator: &str, right: &Value) -> String {
 fn powershell_value(value: &Value) -> String {
     match value {
         Value::Literal { text } => powershell_quote(text),
+        Value::Argc => "$args.Count".to_string(),
         Value::Var { name } => format!("${name}"),
         Value::Args => "@args".to_string(),
         Value::Env { name } => format!("$env:{name}"),
@@ -337,6 +385,7 @@ fn max_positional_statement(statement: &Statement) -> usize {
     match statement {
         Statement::Assign { value, .. } => max_positional_value(value),
         Statement::ExecChecked { argv }
+        | Statement::EnvExecChecked { argv, .. }
         | Statement::CaptureChecked { argv, .. }
         | Statement::CallFunction { argv, .. } => argv
             .iter()
@@ -370,8 +419,43 @@ fn max_positional_statement(statement: &Statement) -> usize {
     }
 }
 
+fn emit_env_exec(out: &mut String, pad: &str, env: &[EnvAssign], argv: &[Value]) {
+    out.push_str(&format!("{pad}& {{\n"));
+    for item in env {
+        out.push_str(&format!(
+            "{pad}    $__seal_old_env_{} = $env:{}\n",
+            item.name, item.name
+        ));
+    }
+    out.push_str(&format!("{pad}    try {{\n"));
+    for item in env {
+        out.push_str(&format!(
+            "{pad}        $env:{} = {}\n",
+            item.name,
+            powershell_value(&item.value)
+        ));
+    }
+    out.push_str(&format!("{pad}        & "));
+    out.push_str(&join_values(argv, powershell_value));
+    out.push('\n');
+    out.push_str(&format!("{pad}    }} finally {{\n"));
+    for item in env {
+        out.push_str(&format!(
+            "{pad}        $env:{} = $__seal_old_env_{}\n",
+            item.name, item.name
+        ));
+    }
+    out.push_str(&format!("{pad}    }}\n"));
+    out.push_str(&format!("{pad}}}\n"));
+}
+
 fn max_positional_predicate(predicate: &Predicate) -> usize {
     match predicate {
+        Predicate::Command { argv } => argv
+            .iter()
+            .map(max_positional_value)
+            .max()
+            .unwrap_or_default(),
         Predicate::Empty { value }
         | Predicate::NotEmpty { value }
         | Predicate::JsonEmpty { value }
@@ -398,7 +482,11 @@ fn max_positional_value(value: &Value) -> usize {
             .map(max_positional_value)
             .max()
             .unwrap_or_default(),
-        Value::Literal { .. } | Value::Args | Value::Env { .. } | Value::EnvDefault { .. } => 0,
+        Value::Literal { .. }
+        | Value::Argc
+        | Value::Args
+        | Value::Env { .. }
+        | Value::EnvDefault { .. } => 0,
     }
 }
 

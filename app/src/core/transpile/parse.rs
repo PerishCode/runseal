@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 
-use super::ast::{CaseArm, Item, Predicate, Program, Statement, Value};
+use super::ast::{CaseArm, EnvAssign, Item, Predicate, Program, Statement, Value};
 use super::lower::lower_functions;
 use super::parse_argv::parse_argv_block;
 use super::parse_lex::{
@@ -222,19 +222,24 @@ fn function_header(text: &str) -> Option<&str> {
 }
 
 fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
+    if let Some((name, value)) = assignment(&line.text)
+        && let Some(argv) = capture_argv(value, line.number)?
+    {
+        return Ok(Statement::CaptureChecked {
+            name: name.to_string(),
+            argv,
+        });
+    }
+    let tokens = split_words(&line.text, line.number)?;
+    if let Some(statement) = parse_env_exec(&tokens, line.number)? {
+        return Ok(statement);
+    }
     if let Some((name, value)) = assignment(&line.text) {
-        if let Some(argv) = capture_argv(value, line.number)? {
-            return Ok(Statement::CaptureChecked {
-                name: name.to_string(),
-                argv,
-            });
-        }
         return Ok(Statement::Assign {
             name: name.to_string(),
             value: parse_value_text(value, line.number)?,
         });
     }
-    let tokens = split_words(&line.text, line.number)?;
     let Some((command, args)) = tokens.split_first() else {
         bail!("{}: expected statement", line.number);
     };
@@ -290,14 +295,41 @@ fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
         _ if is_safe_command_name(command) => {
             validate_external_tokens(&tokens, line.number)?;
             Ok(Statement::ExecChecked {
-                argv: tokens
-                    .iter()
-                    .map(|arg| parse_value_text(arg, line.number))
-                    .collect::<Result<Vec<_>>>()?,
+                argv: parse_values(&tokens, line.number)?,
             })
         }
         _ => bail!("{}: unsupported statement: {}", line.number, line.text),
     }
+}
+
+fn parse_env_exec(tokens: &[String], line: usize) -> Result<Option<Statement>> {
+    let mut env = Vec::new();
+    let mut index = 0;
+    while let Some(token) = tokens.get(index) {
+        let Some((name, value)) = assignment(token) else {
+            break;
+        };
+        env.push(EnvAssign {
+            name: name.to_string(),
+            value: parse_value_text(value, line)?,
+        });
+        index += 1;
+    }
+    if env.is_empty() || index == tokens.len() {
+        return Ok(None);
+    }
+    let argv_tokens = &tokens[index..];
+    validate_external_tokens(argv_tokens, line)?;
+    let Some(command) = argv_tokens.first() else {
+        return Ok(None);
+    };
+    if !is_safe_command_name(command) {
+        bail!("{line}: unsupported statement: {}", tokens.join(" "));
+    }
+    Ok(Some(Statement::EnvExecChecked {
+        env,
+        argv: parse_values(argv_tokens, line)?,
+    }))
 }
 
 fn parse_printf(args: &[String], line: usize) -> Result<Statement> {
@@ -352,12 +384,7 @@ fn capture_argv(value: &str, line: usize) -> Result<Option<Vec<Value>>> {
         bail!("{line}: capture command cannot be empty");
     }
     validate_external_tokens(&tokens, line)?;
-    Ok(Some(
-        tokens
-            .iter()
-            .map(|arg| parse_value_text(arg, line))
-            .collect::<Result<Vec<_>>>()?,
-    ))
+    Ok(Some(parse_values(&tokens, line)?))
 }
 
 fn one_value(args: &[String], line: usize, command: &str) -> Result<Value> {
@@ -375,7 +402,24 @@ fn parse_predicate(text: &str, line: usize) -> Result<Predicate> {
         return parse_test_predicate(inner, line);
     }
 
-    bail!("{line}: unsupported predicate: {text}")
+    let tokens = split_words(text, line)?;
+    let Some(command) = tokens.first() else {
+        bail!("{line}: command predicate cannot be empty");
+    };
+    if !is_safe_command_name(command) {
+        bail!("{line}: unsupported predicate: {text}");
+    }
+    validate_external_tokens(&tokens, line)?;
+    Ok(Predicate::Command {
+        argv: parse_values(&tokens, line)?,
+    })
+}
+
+fn parse_values(tokens: &[String], line: usize) -> Result<Vec<Value>> {
+    tokens
+        .iter()
+        .map(|arg| parse_value_text(arg, line))
+        .collect()
 }
 
 fn parse_test_predicate(text: &str, line: usize) -> Result<Predicate> {

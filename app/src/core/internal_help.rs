@@ -126,9 +126,13 @@ shell files use the .sh suffix and must be executable. Seal wrappers use the
 .seal suffix and are interpreted directly by runseal. On Windows, runseal also
 checks .exe, .cmd, and .bat when the wrapper name has no extension.
 
-.seal wrappers are bash-runnable wrapper glue. They are intended for small
-cross-platform repository operations: shared shell-shaped control flow plus
-explicit runseal @tool calls for atomic glue.
+.seal wrappers are bash-runnable wrapper glue. They are intended for
+cross-platform repository operations where bash and PowerShell share a clear
+shape: shell-shaped control flow, command success predicates, command-scoped env
+overlays, and explicit runseal @tool calls for atomic glue.
+
+The boundary is syntax shape, not script size. Keep reusable domain atoms in
+@tool and pass profile-specific paths or env names from the wrapper.
 
 @wrappers is read-only and does not run profile injections.
 ";

@@ -221,6 +221,23 @@ fn seal_wrapper_shadows() {
 }
 
 #[test]
+fn seal_env_overlay() {
+    let fx = fixture();
+    make_seal_wrapper(
+        &fx.project_wrappers.join("env-tool.seal"),
+        r#"
+RUNSEAL_MARKER=sealed sh -c 'printf %s "$RUNSEAL_MARKER"'
+"#,
+    );
+
+    let output = run_in(&fx, &[":env-tool"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout, "sealed");
+}
+
+#[test]
 fn wrappers_hide_shadow() {
     let fx = fixture();
     let project_wrapper = wrapper_file(&fx.project_wrappers, "wrap");
