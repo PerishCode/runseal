@@ -27,9 +27,55 @@ pub const JSON: Entry = Entry {
 pub const JSON_GET: Entry = Entry {
     key: "json.get",
     usage: "runseal @tool json get <json> <path>",
-    about: None,
+    about: Some("Print one JSON value selected by the path expression."),
+    sections: &[Section {
+        title: "Arguments",
+        items: &[
+            ("<json>", "input JSON text"),
+            ("<path>", "path expression such as `.[0].databaseId`"),
+        ],
+    }],
+    examples: &["runseal @tool json get '[{\"databaseId\":123}]' '.[0].databaseId'"],
+};
+
+pub const JSON_EMPTY: Entry = Entry {
+    key: "json.empty",
+    usage: "runseal @tool json empty <json>",
+    about: Some("Print `true` when the JSON array, object, or string length is zero."),
     sections: &[],
-    examples: &[],
+    examples: &["runseal @tool json empty '[]'"],
+};
+
+pub const JSON_LEN: Entry = Entry {
+    key: "json.len",
+    usage: "runseal @tool json len <json>",
+    about: Some("Print the JSON array, object, or string length as an integer."),
+    sections: &[],
+    examples: &["runseal @tool json len '[1,2,3]'"],
+};
+
+pub const JSON_PRETTY: Entry = Entry {
+    key: "json.pretty",
+    usage: "runseal @tool json pretty <json>",
+    about: Some("Print formatted JSON with indentation."),
+    sections: &[],
+    examples: &["runseal @tool json pretty '{\"a\":1}'"],
+};
+
+pub const JSON_FIND: Entry = Entry {
+    key: "json.find",
+    usage: "runseal @tool json find <array> <field> <value>",
+    about: Some("Print the first object in the JSON array with `<field> == <value>`."),
+    sections: &[],
+    examples: &["runseal @tool json find '[{\"id\":1}]' id 1"],
+};
+
+pub const JSON_FILTER: Entry = Entry {
+    key: "json.filter",
+    usage: "runseal @tool json filter <array> <field> <value>...",
+    about: Some("Print objects in the JSON array whose `<field>` matches any provided value."),
+    sections: &[],
+    examples: &["runseal @tool json filter '[{\"env\":\"dev\"},{\"env\":\"prod\"}]' env dev prod"],
 };
 
 pub const STRING: Entry = Entry {
@@ -168,10 +214,10 @@ pub const ARCHIVE_LOCAL: Entry = Entry {
     examples: &[],
 };
 
-pub const ARCHIVE_LOCAL_COMMAND: Entry = Entry {
+pub const ARCHIVE_LOCAL_EXPORT: Entry = Entry {
     key: "archive.local.export",
-    usage: "runseal @tool archive local export|import --source <dir> --archive <path> (--password <text>|--password-env <name>) [--force]",
-    about: Some("Encrypt or decrypt a .local-style directory archive."),
+    usage: "runseal @tool archive local export --source <dir> --archive <path> (--password <text>|--password-env <name>)",
+    about: Some("Encrypt one .local-style directory archive."),
     sections: &[Section {
         title: "Flags",
         items: &[
@@ -185,13 +231,36 @@ pub const ARCHIVE_LOCAL_COMMAND: Entry = Entry {
                 "--password-env <name>",
                 "read the password from one environment variable",
             ),
+        ],
+    }],
+    examples: &[
+        "runseal @tool archive local export --source .local --archive backup.seal --password-env ESTATE_LOCAL_PASSWORD",
+    ],
+};
+
+pub const ARCHIVE_LOCAL_IMPORT: Entry = Entry {
+    key: "archive.local.import",
+    usage: "runseal @tool archive local import --source <dir> --archive <path> (--password <text>|--password-env <name>) [--force]",
+    about: Some("Decrypt one .local-style directory archive into the source directory."),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--source <dir>", "destination directory to restore into"),
+            ("--archive <path>", "archive file to read"),
+            ("--password <text>", "explicit archive password"),
+            (
+                "--password-env <name>",
+                "read the password from one environment variable",
+            ),
             (
                 "--force",
-                "allow overwriting the destination archive or restore target",
+                "allow replacing an existing destination directory",
             ),
         ],
     }],
-    examples: &[],
+    examples: &[
+        "runseal @tool archive local import --source .local --archive backup.seal --password-env ESTATE_LOCAL_PASSWORD --force",
+    ],
 };
 
 pub const FS: Entry = Entry {
@@ -302,12 +371,77 @@ pub const GITEE_PR: Entry = Entry {
     examples: &[],
 };
 
-pub const GITEE_PR_COMMAND: Entry = Entry {
+pub const GITEE_PR_CREATE: Entry = Entry {
     key: "gitee.pr.create",
-    usage: "runseal @tool gitee pr create|pass-gates|merge ...",
-    about: None,
-    sections: &[],
-    examples: &[],
+    usage: "runseal @tool gitee pr create --owner <name> --repo <name> --base <branch> --head <branch> --title <text> --body <text> [--token <text>|--token-file <path>]",
+    about: Some("Create a Gitee pull request and print the API response JSON."),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--owner <name>", "Gitee repository owner"),
+            ("--repo <name>", "Gitee repository name"),
+            ("--base <branch>", "target branch"),
+            ("--head <branch>", "source branch"),
+            ("--title <text>", "pull request title"),
+            ("--body <text>", "pull request body"),
+            ("--token <text>", "explicit Gitee token"),
+            (
+                "--token-file <path>",
+                "env-style file containing `GITEE_TOKEN`",
+            ),
+        ],
+    }],
+    examples: &[
+        "runseal @tool gitee pr create --owner perishme --repo perish.top --base main --head auto/demo --title demo --body demo",
+    ],
+};
+
+pub const GITEE_PR_PASS_GATES: Entry = Entry {
+    key: "gitee.pr.pass-gates",
+    usage: "runseal @tool gitee pr pass-gates --owner <name> --repo <name> --number <n> [--token <text>|--token-file <path>]",
+    about: Some("Best-effort pass available Gitee PR gates and print the result JSON."),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--owner <name>", "Gitee repository owner"),
+            ("--repo <name>", "Gitee repository name"),
+            ("--number <n>", "pull request number"),
+            ("--token <text>", "explicit Gitee token"),
+            (
+                "--token-file <path>",
+                "env-style file containing `GITEE_TOKEN`",
+            ),
+        ],
+    }],
+    examples: &[
+        "runseal @tool gitee pr pass-gates --owner perishme --repo perish.top --number 123",
+    ],
+};
+
+pub const GITEE_PR_MERGE: Entry = Entry {
+    key: "gitee.pr.merge",
+    usage: "runseal @tool gitee pr merge --owner <name> --repo <name> --number <n> [--method <merge|rebase|squash>] [--token <text>|--token-file <path>]",
+    about: Some("Merge a Gitee pull request and print the API response JSON."),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--owner <name>", "Gitee repository owner"),
+            ("--repo <name>", "Gitee repository name"),
+            ("--number <n>", "pull request number"),
+            (
+                "--method <merge|rebase|squash>",
+                "merge method; default `squash`",
+            ),
+            ("--token <text>", "explicit Gitee token"),
+            (
+                "--token-file <path>",
+                "env-style file containing `GITEE_TOKEN`",
+            ),
+        ],
+    }],
+    examples: &[
+        "runseal @tool gitee pr merge --owner perishme --repo perish.top --number 123 --method squash",
+    ],
 };
 
 pub const GITHUB: Entry = Entry {
