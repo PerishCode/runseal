@@ -6,6 +6,9 @@ pub(crate) fn parse_value_text(text: &str, line: usize) -> Result<Value> {
     if text == "$@" || text == "\"$@\"" {
         return Ok(Value::Args);
     }
+    if text == "$#" || text == "\"$#\"" {
+        return Ok(Value::Argc);
+    }
     if let Some(value) = text
         .strip_prefix('\'')
         .and_then(|value| value.strip_suffix('\''))

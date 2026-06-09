@@ -1,0 +1,4 @@
+kube_dir=${PERISH_TOP_KUBE_DIR}
+configs=$(runseal @tool fs list "$kube_dir" --glob "*.yaml" --files --require-nonempty)
+kubeconfig=$(runseal @tool string join "$configs" --separator path)
+KUBECONFIG="$kubeconfig" kubectl "$@"

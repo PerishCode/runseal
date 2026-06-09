@@ -42,6 +42,17 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, seal_value));
             out.push('\n');
         }
+        Statement::EnvExecChecked { env, argv } => {
+            out.push_str(&pad);
+            for item in env {
+                out.push_str(&item.name);
+                out.push('=');
+                out.push_str(&seal_value(&item.value));
+                out.push(' ');
+            }
+            out.push_str(&join_values(argv, seal_value));
+            out.push('\n');
+        }
         Statement::Shift { count } => {
             out.push_str(&pad);
             out.push_str("shift");
@@ -209,6 +220,17 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
         }
         Statement::ExecChecked { argv } => {
             out.push_str(&pad);
+            out.push_str(&join_values(argv, bash_value));
+            out.push('\n');
+        }
+        Statement::EnvExecChecked { env, argv } => {
+            out.push_str(&pad);
+            for item in env {
+                out.push_str(&item.name);
+                out.push('=');
+                out.push_str(&bash_value(&item.value));
+                out.push(' ');
+            }
             out.push_str(&join_values(argv, bash_value));
             out.push('\n');
         }

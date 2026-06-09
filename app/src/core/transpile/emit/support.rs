@@ -15,6 +15,7 @@ pub(super) fn generated_header(target: &str, source_name: Option<&str>) -> Strin
 
 pub(super) fn bash_predicate(predicate: &Predicate) -> String {
     match predicate {
+        Predicate::Command { argv } => join_values(argv, bash_value),
         Predicate::Empty { value } => format!("[ -z {} ]", bash_value(value)),
         Predicate::NotEmpty { value } => format!("[ -n {} ]", bash_value(value)),
         Predicate::Eq { left, right } => {
@@ -55,6 +56,7 @@ pub(super) fn bash_predicate(predicate: &Predicate) -> String {
 pub(super) fn seal_value(value: &Value) -> String {
     match value {
         Value::Literal { text } => sh_quote(text),
+        Value::Argc => "$#".to_string(),
         Value::Var { name } => format!("${name}"),
         Value::Args => "\"$@\"".to_string(),
         Value::Env { name } => format!("${{{name}}}"),
@@ -64,6 +66,7 @@ pub(super) fn seal_value(value: &Value) -> String {
                 .iter()
                 .map(|part| match part {
                     Value::Literal { text } => text.clone(),
+                    Value::Argc => "$#".to_string(),
                     Value::Args => "$@".to_string(),
                     _ => seal_value(part),
                 })
@@ -76,6 +79,7 @@ pub(super) fn seal_value(value: &Value) -> String {
 pub(super) fn bash_value(value: &Value) -> String {
     match value {
         Value::Literal { text } => sh_quote(text),
+        Value::Argc => "\"$#\"".to_string(),
         Value::Var { name } => format!("\"${name}\""),
         Value::Args => "\"$@\"".to_string(),
         Value::Env { name } => format!("\"${{{name}}}\""),
@@ -85,6 +89,7 @@ pub(super) fn bash_value(value: &Value) -> String {
                 .iter()
                 .map(|part| match part {
                     Value::Literal { text } => text.clone(),
+                    Value::Argc => "$#".to_string(),
                     Value::Var { name } => format!("${name}"),
                     Value::Args => "$@".to_string(),
                     Value::Env { name } => format!("${{{name}}}"),
@@ -98,6 +103,7 @@ pub(super) fn bash_value(value: &Value) -> String {
 
 pub(super) fn bash_int_value(value: &Value) -> String {
     match value {
+        Value::Argc => "$#".to_string(),
         Value::Var { name } => format!("${name}"),
         Value::Args => "\"$@\"".to_string(),
         Value::Env { name } => format!("${{{name}}}"),

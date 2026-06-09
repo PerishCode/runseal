@@ -21,6 +21,10 @@ pub enum Statement {
     ExecChecked {
         argv: Vec<Value>,
     },
+    EnvExecChecked {
+        env: Vec<EnvAssign>,
+        argv: Vec<Value>,
+    },
     Shift {
         count: usize,
     },
@@ -80,6 +84,12 @@ pub struct ArgvSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EnvAssign {
+    pub name: String,
+    pub value: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ArgvKind {
     String,
@@ -90,6 +100,7 @@ pub enum ArgvKind {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Value {
     Literal { text: String },
+    Argc,
     Var { name: String },
     Args,
     Env { name: String },
@@ -100,6 +111,7 @@ pub enum Value {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Predicate {
+    Command { argv: Vec<Value> },
     Empty { value: Value },
     NotEmpty { value: Value },
     Eq { left: Value, right: Value },

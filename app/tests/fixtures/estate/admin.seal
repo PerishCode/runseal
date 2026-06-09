@@ -1,0 +1,191 @@
+print() {
+  printf '%s\n' "$1"
+}
+
+error() {
+  printf '%s\n' "$1" >&2
+}
+
+fail() {
+  error "$1"
+  exit 1
+}
+
+usage() {
+  print "Usage: runseal :admin <command> [args]"
+  print ""
+  print "Commands:"
+  print "  init"
+  print "  check"
+  print "  bootstrap-kube"
+  print "  export <archive.enc>"
+  print "  import [--force] <archive.enc>"
+}
+
+local_dir=${PERISH_TOP_LOCAL_DIR}
+ssh_dir=${PERISH_TOP_SSH_DIR}
+ssh_config=${PERISH_TOP_SSH_CONFIG}
+kube_dir=${PERISH_TOP_KUBE_DIR}
+secrets_dir=${PERISH_TOP_SECRETS_DIR}
+tmp_dir=${PERISH_TOP_TMP_DIR}
+
+ensure_dir() {
+  runseal @tool fs mkdir "$1" 700
+}
+
+ensure_file() {
+  runseal @tool fs touch "$1" 600
+}
+
+check_dir() {
+  if [ -d "$1" ]; then
+    current=$(runseal @tool fs mode "$1")
+    if [ "$current" = 700 ]; then
+    else
+      print "bad mode: $1 is $current, expected 700"
+      ok=false
+    fi
+  else
+    print "missing: $1"
+    ok=false
+  fi
+}
+
+check_file_mode() {
+  if [ -f "$1" ]; then
+    current=$(runseal @tool fs mode "$1")
+    if [ "$current" = "$2" ]; then
+    else
+      print "bad mode: $1 is $current, expected $2"
+      ok=false
+    fi
+  else
+    print "missing: $1"
+    ok=false
+  fi
+}
+
+check_host() {
+  allowed=$(runseal @tool ssh config host "$1" --config "$config")
+  if [ "$allowed" = true ]; then
+  else
+    print "missing ssh Host: $1"
+    ok=false
+  fi
+}
+
+if [ -z "$1" ]; then
+  usage
+  exit 0
+fi
+
+command=$1
+shift
+
+case "$command" in
+  init)
+    if [ -n "$1" ]; then
+      fail "admin init: unknown argument: $1"
+    fi
+    ensure_dir "$local_dir"
+    ensure_dir "$ssh_dir"
+    ensure_dir "$kube_dir"
+    ensure_dir "$secrets_dir"
+    ensure_dir "$tmp_dir"
+    config="$ssh_config"
+    if [ -f "$config" ]; then
+      print "exists $config"
+    else
+      runseal @tool fs write-base64 "$config" "__SSH_CONFIG_BASE64__"
+      runseal @tool fs chmod "$config" 600
+      print "created $config"
+    fi
+    ensure_file "$ssh_dir/id_perish_top_root"
+    ensure_file "$ssh_dir/known_hosts"
+    print "admin init: ok"
+    ;;
+  check)
+    if [ -n "$1" ]; then
+      fail "admin check: unknown argument: $1"
+    fi
+    ok=true
+    config="$ssh_config"
+    check_dir "$local_dir"
+    check_dir "$ssh_dir"
+    check_dir "$kube_dir"
+    check_dir "$secrets_dir"
+    check_file_mode "$config" 600
+    check_host 10m.hk.zxi
+    check_host 5m.hk.zxi
+    check_host la.us.lisa
+    check_host ny.us.lisa
+    identities=$(runseal @tool ssh config identities --config "$config")
+    identity=$(runseal @tool json get "$identities" '.[0]')
+    check_file_mode "$identity" 600
+    kube_files=$(runseal @tool fs list "$kube_dir" --glob "*.yaml" --files --require-nonempty)
+    kube_file=$(runseal @tool json get "$kube_files" '.[0]')
+    check_file_mode "$kube_file" 600
+    if [ "$ok" = true ]; then
+      print "admin check: ok"
+    else
+      print "admin check: failed"
+      exit 1
+    fi
+    ;;
+  bootstrap-kube)
+    if [ -n "$1" ]; then
+      fail "admin bootstrap-kube: unknown argument: $1"
+    fi
+    ensure_dir "$kube_dir"
+    host=10m.hk.zxi
+    context=hk-zxi
+    server=https://k8s.perish.top:6443
+    ops_admin=infra/k8s/access/ops-admin.yaml
+    setup=nodes/10m-hk-zxi/k3s/bootstrap/35-emit-kubeconfig.sh
+    kubeconfig="$kube_dir/$context.yaml"
+    runseal @tool ssh script run --config "$ssh_config" --host "$host" --file "$ops_admin"
+    raw=$(runseal @tool ssh script capture --config "$ssh_config" --host "$host" --file "$setup" -- "$server" "$context")
+    runseal @tool fs write "$kubeconfig" "$raw" 600
+    print "admin bootstrap-kube: wrote $kubeconfig"
+    ;;
+  export)
+    if [ -z "$1" ]; then
+      fail "admin export: archive path is required"
+    fi
+    archive=$1
+    shift
+    if [ -n "$1" ]; then
+      fail "admin export: unknown argument: $1"
+    fi
+    runseal @tool archive local export --source "$local_dir" --archive "$archive" --password-env PERISH_TOP_LOCAL_PASSWORD
+    print "admin export: wrote encrypted archive $archive"
+    ;;
+  import)
+    force=false
+    if [ "$1" = --force ]; then
+      force=true
+      shift
+    fi
+    if [ -z "$1" ]; then
+      fail "admin import: archive path is required"
+    fi
+    archive=$1
+    shift
+    if [ -n "$1" ]; then
+      fail "admin import: unknown argument: $1"
+    fi
+    if [ "$force" = true ]; then
+      runseal @tool archive local import --source "$local_dir" --archive "$archive" --password-env PERISH_TOP_LOCAL_PASSWORD --force
+    else
+      runseal @tool archive local import --source "$local_dir" --archive "$archive" --password-env PERISH_TOP_LOCAL_PASSWORD
+    fi
+    print "admin import: restored .local"
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac

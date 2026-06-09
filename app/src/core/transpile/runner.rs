@@ -99,6 +99,18 @@ impl<'a> Runner<'a> {
                     return Ok(Flow::Exit(code));
                 }
             }
+            Statement::EnvExecChecked { env, argv } => {
+                let overlay = env
+                    .iter()
+                    .map(|item| (item.name.clone(), self.value(&item.value)))
+                    .collect::<Vec<_>>();
+                let code = self
+                    .run_external_with_env(argv, CaptureMode::None, &overlay)?
+                    .code;
+                if code != 0 {
+                    return Ok(Flow::Exit(code));
+                }
+            }
             Statement::CaptureChecked { name, argv } => {
                 let output = self.run_external(argv, CaptureMode::Stdout)?;
                 if output.code != 0 {
@@ -240,6 +252,7 @@ impl<'a> Runner<'a> {
     fn value(&self, value: &Value) -> String {
         match value {
             Value::Literal { text } => text.clone(),
+            Value::Argc => self.argc().to_string(),
             Value::Var { name } => self.vars.get(name).cloned().unwrap_or_default(),
             Value::Args => shell_words(&self.current_args()),
             Value::Env { name } => self.env.get(name).cloned().unwrap_or_default(),
@@ -255,6 +268,7 @@ impl<'a> Runner<'a> {
 
     fn predicate(&self, predicate: &Predicate) -> Result<bool> {
         Ok(match predicate {
+            Predicate::Command { argv } => self.run_external(argv, CaptureMode::None)?.code == 0,
             Predicate::Empty { value } => self.value(value).is_empty(),
             Predicate::NotEmpty { value } => !self.value(value).is_empty(),
             Predicate::Eq { left, right } => self.value(left) == self.value(right),
@@ -288,12 +302,22 @@ impl<'a> Runner<'a> {
     }
 
     fn run_external(&self, argv: &[Value], capture: CaptureMode) -> Result<CommandOutput> {
+        self.run_external_with_env(argv, capture, &[])
+    }
+
+    fn run_external_with_env(
+        &self,
+        argv: &[Value],
+        capture: CaptureMode,
+        env_overlay: &[(String, String)],
+    ) -> Result<CommandOutput> {
         let argv = self.expanded_values(argv);
         let Some((program, args)) = argv.split_first() else {
             bail!("external command cannot be empty");
         };
         let mut command = Command::new(program);
         command.args(args).envs(&self.env);
+        command.envs(env_overlay.iter().map(|(key, value)| (key, value)));
         if matches!(capture, CaptureMode::None) {
             let status = command
                 .status()
@@ -358,6 +382,7 @@ impl<'a> Runner<'a> {
         for value in values {
             match value {
                 Value::Args => expanded.extend(self.current_args()),
+                Value::Argc => expanded.push(self.argc().to_string()),
                 _ => expanded.push(self.value(value)),
             }
         }

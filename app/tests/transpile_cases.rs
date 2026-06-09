@@ -1,5 +1,9 @@
 #[path = "transpile_cases/argv.rs"]
 mod argv;
+#[path = "transpile_cases/command_predicate.rs"]
+mod command_predicate;
+#[path = "transpile_cases/env.rs"]
+mod env;
 #[path = "transpile_cases/regex.rs"]
 mod regex;
 #[path = "transpile_cases/release.rs"]

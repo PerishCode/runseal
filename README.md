@@ -38,7 +38,7 @@ Run an external command or a named wrapper inside the profile:
 
 ```bash
 runseal bash -lc 'echo "$APP_SSH_CONFIG"'
-runseal :ssh-run host
+runseal :ssh host --run ./probe.sh
 ```
 
 ## Inspect What Runseal Sees
@@ -52,7 +52,7 @@ runseal @resolve resource:// resource://ssh/config
 runseal @transpile --input-lang=seal --output-lang=bash ./operator.seal
 runseal @tool json get '{"releaseVersion":"v0.6.0"}' '.releaseVersion'
 runseal @wrappers
-runseal @which :ssh-run
+runseal @which :ssh
 ```
 
 These commands answer the first debugging questions: which profile was selected,
@@ -227,7 +227,7 @@ If the command token starts with `:`, runseal resolves it as a wrapper
 executable instead of a literal program name:
 
 ```bash
-runseal :ssh-run host ./probe.sh -- arg
+runseal :ssh host --run ./probe.sh -- arg
 ```
 
 Wrapper lookup order is:
@@ -251,14 +251,25 @@ extension.
 
 ### Seal wrappers
 
-`.seal` files are bash-runnable wrapper glue. They are meant for small
-cross-platform repository operations where the shared shape is clear:
+`.seal` files are bash-runnable wrapper glue. They are meant for
+cross-platform repository operations where the bash/PowerShell shared shape is
+clear. The boundary is syntax shape, not script size:
 
 - ordinary command execution, assignment, functions, `if`, `while`, `case`,
-  `shift`, and `"$@"`
+  `shift`, `"$@"`, command success predicates such as
+  `if git checkout "$branch"; then`, and command-scoped env overlays such as
+  `KUBECONFIG="$kubeconfig" kubectl "$@"`
 - bash `[ ... ]` tests for ordinary predicates
 - explicit `runseal @tool ...` calls for atomic glue where bash and PowerShell
   do not share a clean expression
+
+Use `.seal` as the profile integration layer: it should pass caller-specific
+paths, env names, and defaults explicitly. Keep reusable domain atoms in
+`@tool`, such as SSH config inspection, stdin script execution, path-list
+joining, branch slugging, Gitee PR API calls, and encrypted local archive
+round trips. For example, a wrapper can expose `:ssh <host> --run <script>`
+while `runseal @tool ssh script run` owns the stdin, argv forwarding, and host
+config details.
 
 For example:
 
@@ -295,7 +306,7 @@ runseal @resources
 runseal @resolve resource:// resource://ssh/config
 runseal @transpile --input-lang=seal --output-lang=sealir ./operator.seal
 runseal @wrappers
-runseal @which :ssh-run
+runseal @which :ssh
 ```
 
 Runseal-owned commands do not run profile injections. Inspection commands are
@@ -311,8 +322,11 @@ read-only; `@tool` is the explicit atomic tool runtime.
   `bash`, `seal`, `powershell`, and `sealir` inputs and outputs for the
   currently recognized intersection.
 - `@tool <namespace> <command> ...` runs an atomic runseal tool command. Cold
-  start supports JSON, string, regex, integer, process, filesystem, GitHub, and
-  Cloudflare helpers. Run `runseal @tool --help` for the complete tool index.
+  start supports JSON, string, regex, integer, process, filesystem, archive,
+  SSH config, GitHub, Gitee, and Cloudflare helpers. Run `runseal @tool --help`
+  for the complete tool index. Tools are reusable atoms: they may read generic
+  defaults such as service tokens, but profile-specific paths and env names
+  should be supplied by the calling wrapper.
 - `@wrappers` lists the effective wrappers visible to the current profile.
 - `@which :<name>` prints the wrapper file that `:<name>` resolves to.
 
