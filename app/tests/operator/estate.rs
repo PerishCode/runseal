@@ -260,6 +260,21 @@ fn ssh_remote_args() {
 }
 
 #[test]
+fn ssh_help() {
+    let fx = fixture();
+
+    let output = run_wrapper(&fx, "ssh", &["--help"]);
+
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout should be UTF-8"),
+        "Usage: runseal :ssh <host> [--run <script> [-- <args>...] | -- <remote-command>...]\n"
+    );
+    assert!(output.stderr.is_empty());
+    assert!(log(&fx).is_empty());
+}
+
+#[test]
 fn ssh_run_mode() {
     let fx = fixture();
     let init = run_wrapper(&fx, "admin", &["init"]);
