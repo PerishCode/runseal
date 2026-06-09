@@ -245,9 +245,10 @@ The child working directory is not changed. A resolved wrapper receives:
 - `RUNSEAL_WRAPPER_FILE`
 
 Seal wrappers use the `.seal` suffix and are interpreted directly by runseal.
-On Unix, shell wrappers use the `.sh` suffix and must be executable. On Windows,
-runseal also checks `.exe`, `.cmd`, and `.bat` when the wrapper name has no
-extension.
+On Unix, shell wrappers use the `.sh` suffix and must be executable.
+Extensionless files in `.runseal/wrappers` are not wrapper entrypoints; migrate
+legacy wrappers to `<name>.seal` or `<name>.sh`. On Windows, runseal also
+checks `.exe`, `.cmd`, and `.bat` when the wrapper name has no extension.
 
 ### Seal wrappers
 

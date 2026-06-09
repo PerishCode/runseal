@@ -153,6 +153,22 @@ fn seal_wrapper_resolves() {
 }
 
 #[test]
+#[cfg(unix)]
+fn extensionless_is_ignored() {
+    let fx = fixture();
+    make_wrapper(&fx.project_wrappers.join("legacy"), "legacy");
+
+    let output = run_in(&fx, &[":legacy"]);
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("wrapper not found: :legacy"));
+    assert!(stderr.contains("legacy.seal"));
+    assert!(stderr.contains("legacy.sh"));
+    assert!(!stderr.contains(".runseal/wrappers/legacy\n"));
+}
+
+#[test]
 fn seal_wrapper_runs_directly() {
     let fx = fixture();
     make_seal_wrapper(

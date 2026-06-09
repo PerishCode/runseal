@@ -123,8 +123,10 @@ Lookup order:
 
 Profile-local wrappers shadow home wrappers with the same name. On Unix, wrapper
 shell files use the .sh suffix and must be executable. Seal wrappers use the
-.seal suffix and are interpreted directly by runseal. On Windows, runseal also
-checks .exe, .cmd, and .bat when the wrapper name has no extension.
+.seal suffix and are interpreted directly by runseal. Extensionless files in a
+wrappers directory are not wrapper entrypoints; migrate legacy wrappers to
+<name>.seal or <name>.sh. On Windows, runseal also checks .exe, .cmd, and .bat
+when the wrapper name has no extension.
 
 .seal wrappers are bash-runnable wrapper glue. They are intended for
 cross-platform repository operations where bash and PowerShell share a clear
