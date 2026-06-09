@@ -1,4 +1,5 @@
 #[path = "internal_tool/archive.rs"]
+#[cfg(unix)]
 mod archive;
 #[path = "internal_tool/gitee.rs"]
 mod gitee;
