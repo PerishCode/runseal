@@ -90,7 +90,7 @@ fn tool_help_is_progressive() {
         ),
         (
             vec!["@tool", "json", "get", "--help"],
-            "usage: runseal @tool json get <json> <path>",
+            "Usage: runseal @tool json get <json> <path>",
         ),
         (
             vec!["@tool", "string", "--help"],
@@ -182,6 +182,14 @@ fn richer_help() {
         (
             vec!["@tool", "github", "pr", "checks", "probe", "--help"],
             "usage: runseal @tool github pr checks probe <number>",
+        ),
+        (
+            vec!["@tool", "gitee", "pr", "merge", "--help"],
+            "Merge a Gitee pull request and print the API response JSON.",
+        ),
+        (
+            vec!["@tool", "archive", "local", "import", "--help"],
+            "Decrypt one .local-style directory archive into the source directory.",
         ),
     ] {
         let output = bin()
