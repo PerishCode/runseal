@@ -78,6 +78,46 @@ fn tool_runs_without_profile() {
 }
 
 #[test]
+fn tool_help_is_progressive() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let cwd = temp.path().join("empty");
+    std::fs::create_dir_all(&cwd).expect("empty cwd should be created");
+
+    for (args, expected) in [
+        (
+            vec!["@tool", "json", "--help"],
+            "Usage: runseal @tool json <command> [args]",
+        ),
+        (
+            vec!["@tool", "json", "get", "--help"],
+            "usage: runseal @tool json get <json> <path>",
+        ),
+        (
+            vec!["@tool", "ssh", "script", "--help"],
+            "usage: runseal @tool ssh script run|capture --config <path> --host <host> --file <path> -- <args...>",
+        ),
+        (
+            vec!["@tool", "cloudflare", "zone", "dns-record", "--help"],
+            "usage: runseal @tool cloudflare zone dns-record list|create|update ...",
+        ),
+    ] {
+        let output = bin()
+            .current_dir(&cwd)
+            .env("RUNSEAL_HOME", temp.path().join("home"))
+            .args(args.clone())
+            .output()
+            .expect("runseal should run");
+
+        assert!(output.status.success(), "{args:?} should succeed");
+        let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+        assert!(
+            stdout.contains(expected),
+            "{args:?} should contain {expected:?}, got {stdout:?}"
+        );
+    }
+}
+
+#[test]
 fn fs_runs_without_profile() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("empty");
