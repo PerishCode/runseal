@@ -231,6 +231,7 @@ printf 'captured\n'
     std::fs::set_permissions(path, permissions).expect("ssh stub should be executable");
 }
 
+#[cfg(unix)]
 fn prepend_path_for_test(first: &std::path::Path) -> std::ffi::OsString {
     let mut paths = vec![first.to_path_buf()];
     if let Some(existing) = std::env::var_os("PATH") {
