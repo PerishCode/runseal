@@ -93,12 +93,95 @@ fn tool_help_is_progressive() {
             "usage: runseal @tool json get <json> <path>",
         ),
         (
+            vec!["@tool", "string", "--help"],
+            "Usage: runseal @tool string <command> [args]",
+        ),
+        (
+            vec!["@tool", "archive", "local", "--help"],
+            "Usage: runseal @tool archive local <command> [args]",
+        ),
+        (
+            vec!["@tool", "cloudflare", "config", "--help"],
+            "Cloudflare config helpers:",
+        ),
+        (
             vec!["@tool", "ssh", "script", "--help"],
-            "usage: runseal @tool ssh script run|capture --config <path> --host <host> --file <path> -- <args...>",
+            "Usage: runseal @tool ssh script <command> [options] -- [args...]",
         ),
         (
             vec!["@tool", "cloudflare", "zone", "dns-record", "--help"],
-            "usage: runseal @tool cloudflare zone dns-record list|create|update ...",
+            "Usage: runseal @tool cloudflare zone dns-record <command> [args]",
+        ),
+    ] {
+        let output = bin()
+            .current_dir(&cwd)
+            .env("RUNSEAL_HOME", temp.path().join("home"))
+            .args(args.clone())
+            .output()
+            .expect("runseal should run");
+
+        assert!(output.status.success(), "{args:?} should succeed");
+        let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+        assert!(
+            stdout.contains(expected),
+            "{args:?} should contain {expected:?}, got {stdout:?}"
+        );
+    }
+}
+
+#[test]
+fn richer_help() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let cwd = temp.path().join("empty");
+    std::fs::create_dir_all(&cwd).expect("empty cwd should be created");
+
+    for (args, expected) in [
+        (
+            vec!["@tool", "ssh", "config", "--help"],
+            "identities --config <path> [--base <path>]",
+        ),
+        (
+            vec!["@tool", "ssh", "config", "identities", "--help"],
+            "Relative IdentityFile paths resolve from `--base`",
+        ),
+        (
+            vec!["@tool", "ssh", "script", "capture", "--help"],
+            "Run one local script on the SSH host and print stdout to the caller.",
+        ),
+        (
+            vec!["@tool", "cloudflare", "zone", "--help"],
+            "Cloudflare zone helpers:",
+        ),
+        (
+            vec!["@tool", "cloudflare", "zone", "ruleset", "--help"],
+            "Cloudflare zone ruleset helpers:",
+        ),
+        (
+            vec![
+                "@tool",
+                "cloudflare",
+                "zone",
+                "dns-record",
+                "update",
+                "--help",
+            ],
+            "--record-id <id> --json <json>",
+        ),
+        (
+            vec!["@tool", "fs", "list", "--help"],
+            "[--require-nonempty]",
+        ),
+        (
+            vec!["@tool", "gitee", "repo", "--help"],
+            "Gitee repo helpers:",
+        ),
+        (
+            vec!["@tool", "cloudflare", "redirect-rule", "exact", "--help"],
+            "Build one exact-match redirect rule payload as JSON.",
+        ),
+        (
+            vec!["@tool", "github", "pr", "checks", "probe", "--help"],
+            "usage: runseal @tool github pr checks probe <number>",
         ),
     ] {
         let output = bin()
