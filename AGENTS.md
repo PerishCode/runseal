@@ -1,25 +1,68 @@
 # AGENTS
 
-## Core Principle
+## 1. AGENTS.md Meta Constraints
 
-Small CLI. Explicit profile. No hidden orchestration.
+This top-level `AGENTS.md` is the repository navigation and policy layer.
 
+- Keep this file focused on shared constraints, navigation, and recurring
+  operating guidance.
+- Push local implementation detail downward into child `AGENTS.md` files when a
+  directory starts carrying its own stable rules.
+- Do not duplicate large bodies of module-specific instruction here once a child
+  `AGENTS.md` exists.
+- Treat this file as the default contract for the whole repository unless a
+  deeper `AGENTS.md` overrides a narrower scope.
+- Keep `.task/` out of git by default. Use it only for long-running work and
+  update it as live task state, not as archival prose.
+
+Core product stance:
+
+- Small CLI. Explicit profile. No hidden orchestration.
 - Keep the Rust core thin and concrete.
-- Support only `env`, `symlink`, fixed-prefix `argv`, explicit `:wrapper` command resolution, and read-only `@internal` introspection unless a new product decision explicitly expands the surface.
-- Use mature CLI parsing through `clap`; do not hand-roll argument parsing.
+- Support only `env`, `symlink`, fixed-prefix `argv`, explicit `:wrapper`
+  resolution, direct `.seal` execution, and read-only `@internal`
+  introspection unless a new product decision explicitly expands the surface.
+- Use `clap` for CLI parsing. Do not hand-roll argument parsing.
+- Preserve command lifecycle semantics: load profile, register symlinks, export
+  env, run command, clean up symlinks.
+- Keep command namespaces explicit: `<cmd>` is external, `:<cmd>` is a profile
+  wrapper, `@<cmd>` is runseal internal.
+
+Runtime path rules:
+
 - Treat `RUNSEAL_HOME` as the runseal configuration root.
-- Treat `RUNSEAL_PROFILE_HOME` as the profile directory, defaulting to `<RUNSEAL_HOME>/profiles`.
+- Treat `RUNSEAL_PROFILE_HOME` as the profile directory, defaulting to
+  `<RUNSEAL_HOME>/profiles`.
 - Resolve one concrete `RUNSEAL_PROFILE_PATH` during app initialization.
+
+Tooling rules:
+
 - Treat `runseal` and `flavor` as installed developer infrastructure, at the
   same level as `git`, `gh`, and `cargo`; this repository does not bootstrap
   them.
-- Preserve command lifecycle semantics: load profile, register symlinks, export env, run command, cleanup symlinks.
-- Keep command namespaces explicit: `<cmd>` is external, `:<cmd>` is profile wrapper, `@<cmd>` is runseal internal.
-- Treat `.runseal/wrappers/*.seal` as first-class wrappers executed directly by
-  runseal. `@transpile` is an isomorphic debug/export tool, not the normal
-  wrapper execution path.
 
-## Directory Conventions
+## 2. Directory Conventions
+
+Direct child directories with their own `AGENTS.md`:
+
+- None yet.
+
+Direct child directories that are likely future candidates for a child
+`AGENTS.md` once their local rules become stable:
+
+- `app/`: Rust application code, tests, and core runtime behavior.
+- `.runseal/`: repo-local wrappers and operator-facing workflow glue.
+- `.github/`: CI, release automation, and workflow support scripts.
+- `docs/`: durable operator or contributor documentation, if this area starts
+  carrying rules distinct from code.
+
+When a direct child directory gains its own stable constraints, add an
+`AGENTS.md` there and link it from this section.
+
+## 3. Core File Index
+
+There are no child `AGENTS.md` targets yet, so this index currently points to
+the repository-owned canonical files directly.
 
 - `app/src/bin/runseal.rs`: CLI entrypoint.
 - `app/src/core/config.rs`: app configuration and profile discovery.
@@ -27,16 +70,61 @@ Small CLI. Explicit profile. No hidden orchestration.
 - `app/src/core/runtime.rs`: command execution lifecycle.
 - `app/src/core/transpile/runner.rs`: direct Seal wrapper runtime.
 - `app/src/core/injections/`: `env` and `symlink` implementations.
-- `app/tests/`: integration tests and focused unit tests.
-- `runseal.toml`: repo-local operator profile.
+- `app/src/core/tool/`: built-in atomic `@tool` surface.
+- `app/tests/`: integration tests and focused behavioral coverage.
 - `.runseal/wrappers/`: repo-local `:wrapper` entrypoints. Prefer `.seal`
   wrappers; platform scripts exist only while a wrapper has not migrated.
-- `manage.sh` and `manage.ps1`: public install/uninstall managers.
-- `.task/`: branch-bound task state, ignored by git.
+- `runseal.toml`: repo-local operator profile.
+- `manage.sh` and `manage.ps1`: public install and uninstall managers.
 
-## Profile Discovery
+Once child `AGENTS.md` files exist, this section should prefer links to those
+local guides over repeating their detail here.
 
-Priority order:
+## 4. Daily Iteration Workflow And Commands
+
+Normal workflow:
+
+1. Work on a feature branch.
+2. Keep changes scoped to the current product boundary.
+3. Validate locally before PR.
+4. Use repo wrappers for recurring operator flows when they already encode the
+   intended path.
+
+Common validation commands:
+
+```bash
+cargo fmt --check
+cargo test --locked --workspace
+flavor check
+```
+
+Common repo workflow commands:
+
+```bash
+runseal :init
+runseal :cloudflare
+runseal :pr
+runseal :release beta
+```
+
+Manager install/update path:
+
+```bash
+./manage.sh install --channel beta
+```
+
+Release and distribution rules:
+
+- Release and manager downloads use R2 metadata and artifacts as the source of
+  truth.
+- Public install and uninstall entrypoints are `manage.sh` and `manage.ps1`.
+- Release and smoke flows should reference those root files.
+- Cloudflare manager redirects are exact-path rules for
+  `runseal.perish.uk/manage.sh` and `runseal.perish.uk/manage.ps1`, pointing to
+  `releases.runseal.perish.uk/manage.sh` and
+  `releases.runseal.perish.uk/manage.ps1`.
+
+Profile discovery order:
 
 1. `--profile <path>`
 2. From `<cwd>` upward to filesystem root, at each directory:
@@ -52,30 +140,42 @@ Priority order:
 Format priority is TOML, YAML, then JSON within each searched directory.
 Successful profile and wrapper paths are normalized absolute paths.
 
-## Development Workflow
+## 5. FAQ
 
-1. Work on a feature branch.
-2. Use `runseal :init`, `runseal :cloudflare`, `runseal :pr`, and
-   `runseal :release` for repo management.
-3. Keep changes scoped to the reduced CLI surface.
-4. Run:
+### Why keep the CLI surface small?
 
-```bash
-cargo fmt --check
-cargo test
-```
+Because this repository is building explicit runtime glue, not a hidden
+orchestrator. New behavior should be added only when it fits the existing
+surface cleanly.
 
-Release and manager downloads use R2 metadata and artifacts as the source of
-truth. Public install/uninstall entrypoints are `manage.sh` and `manage.ps1`;
-release and smoke scripts should reference those root files.
+### When should behavior become Seal syntax?
 
-Cloudflare manager redirects are exact-path rules for
-`runseal.perish.uk/manage.sh` and `runseal.perish.uk/manage.ps1`, pointing to
-`releases.runseal.perish.uk/manage.sh` and
-`releases.runseal.perish.uk/manage.ps1`.
+Only when bash and PowerShell share an elegant, stable semantic shape that is
+worth making first-class.
 
-## Commit Rules
+### When should behavior become `@tool`?
 
-- Prefer small focused commits.
-- Do not commit `.task/`.
-- Do not reintroduce broader command surfaces without an explicit product decision.
+When native CLI coverage is insufficient for an atomic, reusable operation and
+the result still fits the small explicit model.
+
+### When should logic stay outside runseal?
+
+When the behavior cannot be described cleanly as shared shell-shape syntax or a
+small atomic tool, keep it in Python, Ruby, JavaScript, or another external
+script.
+
+### Should `.seal` wrappers be treated as first-class runtime entrypoints?
+
+Yes. Treat `.runseal/wrappers/*.seal` as first-class wrappers executed directly
+by runseal. `@transpile` is a debug/export tool, not the normal wrapper
+execution path.
+
+### What should never be committed?
+
+- `.task/`
+- accidental broad surface expansions that were not backed by an explicit
+  product decision
+
+### What is the commit style?
+
+Prefer small focused commits.
