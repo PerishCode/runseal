@@ -1,5 +1,6 @@
 mod basic;
 mod cloudflare;
+mod hash_version;
 mod json;
 mod ssh;
 
@@ -21,6 +22,7 @@ pub struct Section {
 const ENTRIES: &[Entry] = &[
     json::JSON,
     json::JSON_GET,
+    json::JSON_HAS,
     json::JSON_EMPTY,
     json::JSON_LEN,
     json::JSON_PRETTY,
@@ -29,6 +31,8 @@ const ENTRIES: &[Entry] = &[
     json::JSON_PRETTY_FILE,
     json::JSON_FIND,
     json::JSON_FILTER,
+    hash_version::HASH,
+    hash_version::HASH_TREE,
     basic::STRING,
     basic::STRING_TRIM,
     basic::STRING_JOIN,
@@ -52,6 +56,9 @@ const ENTRIES: &[Entry] = &[
     basic::GITEE_PR_CREATE,
     basic::GITEE_PR_PASS_GATES,
     basic::GITEE_PR_MERGE,
+    hash_version::VERSION,
+    hash_version::VERSION_PART,
+    hash_version::VERSION_COMPARE,
     basic::GITHUB,
     basic::GITHUB_PR,
     basic::GITHUB_PR_CHECKS,
@@ -97,12 +104,14 @@ Run an atomic runseal tool command.
 
 Tools:
   json ...                               JSON helpers
+  hash ...                               hash helpers
   string ...                             string helpers
   regex ...                              regex helpers
   int ...                                integer helpers
   process ...                            process helpers
   archive ...                            archive helpers
   fs ...                                 filesystem helpers
+  version ...                            version helpers
   gitee ...                              gitee helpers
   ssh ...                                ssh helpers
   github ...                             github helpers

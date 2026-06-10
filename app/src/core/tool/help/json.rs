@@ -8,6 +8,7 @@ pub const JSON: Entry = Entry {
         title: "JSON helpers",
         items: &[
             ("get <json> <path>", "print one JSON value"),
+            ("has <json> <path>", "print true when the JSON path exists"),
             ("empty <json>", "print true when JSON length is zero"),
             ("len <json>", "print JSON array/object/string length"),
             ("pretty <mode> ...", "print formatted JSON"),
@@ -36,6 +37,22 @@ pub const JSON_GET: Entry = Entry {
         ],
     }],
     examples: &["runseal @tool json get '[{\"databaseId\":123}]' '.[0].databaseId'"],
+};
+
+pub const JSON_HAS: Entry = Entry {
+    key: "json.has",
+    usage: "runseal @tool json has <json> <path>",
+    about: Some("Print `true` when the JSON path exists, otherwise `false`."),
+    sections: &[Section {
+        title: "Arguments",
+        items: &[
+            ("<json>", "input JSON text"),
+            ("<path>", "path expression such as `.guard.version.hash`"),
+        ],
+    }],
+    examples: &[
+        "runseal @tool json has '{\"guard\":{\"version\":{\"hash\":\"x\"}}}' .guard.version.hash",
+    ],
 };
 
 pub const JSON_EMPTY: Entry = Entry {

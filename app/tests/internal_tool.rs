@@ -3,6 +3,8 @@
 mod archive;
 #[path = "internal_tool/gitee.rs"]
 mod gitee;
+#[path = "internal_tool/hash_version.rs"]
+mod hash_version;
 #[path = "internal_tool/ssh.rs"]
 mod ssh;
 #[path = "internal_tool/string.rs"]
@@ -40,6 +42,16 @@ fn tool_runs_without_profile() {
                 ".[0].databaseId",
             ],
             "123\n",
+        ),
+        (
+            vec![
+                "@tool",
+                "json",
+                "has",
+                r#"{"guard":{"version":{"hash":"x"}}}"#,
+                ".guard.version.hash",
+            ],
+            "true\n",
         ),
         (vec!["@tool", "string", "trim", "  value  "], "value\n"),
         (
@@ -99,6 +111,10 @@ fn tool_help_is_progressive() {
         (
             vec!["@tool", "json", "get", "--help"],
             "Usage: runseal @tool json get <json> <path>",
+        ),
+        (
+            vec!["@tool", "json", "has", "--help"],
+            "Usage: runseal @tool json has <json> <path>",
         ),
         (
             vec!["@tool", "json", "pretty", "--help"],

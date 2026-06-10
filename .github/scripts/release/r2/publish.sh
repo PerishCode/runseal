@@ -117,6 +117,10 @@ metadata = {
     },
 }
 
+guard_hash = env.get("GUARD_VERSION_HASH", "")
+if guard_hash:
+    metadata["guard"] = {"version": {"hash": guard_hash}}
+
 if env["RELEASE_CHANNEL"] == "beta":
     match = re.match(r"^v?(\d+\.\d+\.\d+)-beta\.([1-9][0-9]*)$", env["RELEASE_VERSION"])
     if not match:
@@ -130,6 +134,9 @@ if env["RELEASE_CHANNEL"] == "beta":
     metadata["baseVersion"] = base_version
     metadata["betaNumber"] = beta_number
     metadata["betaVersion"] = env["RELEASE_VERSION"]
+    metadata["stateSource"] = env.get("STATE_SOURCE") or "workflow input"
+else:
+    metadata["stableVersion"] = env["RELEASE_VERSION"]
     metadata["stateSource"] = env.get("STATE_SOURCE") or "workflow input"
 
 Path(env["METADATA_PATH"]).write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")

@@ -1,6 +1,6 @@
 [package]
 name = "runseal"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 
 [dependencies]
@@ -15,6 +15,7 @@ toml = "0.8"
 yaml_serde = "0.10"
 tempfile = "3.12"
 base64 = "0.22"
+sha2 = "0.10"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 
 [dev-dependencies]

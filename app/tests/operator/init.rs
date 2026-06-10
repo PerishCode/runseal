@@ -48,7 +48,10 @@ fn write_required_files(project: &Path) {
         "manage.sh",
         "manage.ps1",
         "runseal.toml",
+        ".runseal/hooks/pre-commit",
+        ".runseal/hooks/commit-msg",
         ".runseal/wrappers/cloudflare.seal",
+        ".runseal/wrappers/guard.seal",
         ".runseal/wrappers/init.seal",
         ".runseal/wrappers/pr.seal",
         ".runseal/wrappers/release.seal",
@@ -72,6 +75,24 @@ fn write_required_files(project: &Path) {
             .expect("repo init seal should be readable"),
     )
     .expect("init seal should be copied");
+    std::fs::write(
+        project.join(".runseal/wrappers/guard.seal"),
+        std::fs::read_to_string(repo_root().join(".runseal/wrappers/guard.seal"))
+            .expect("repo guard seal should be readable"),
+    )
+    .expect("guard seal should be copied");
+    std::fs::write(
+        project.join(".runseal/hooks/pre-commit"),
+        std::fs::read_to_string(repo_root().join(".runseal/hooks/pre-commit"))
+            .expect("repo pre-commit hook should be readable"),
+    )
+    .expect("pre-commit hook should be copied");
+    std::fs::write(
+        project.join(".runseal/hooks/commit-msg"),
+        std::fs::read_to_string(repo_root().join(".runseal/hooks/commit-msg"))
+            .expect("repo commit-msg hook should be readable"),
+    )
+    .expect("commit-msg hook should be copied");
     std::fs::write(project.join("runseal.toml"), "injections = []\n")
         .expect("profile should be written");
 }
@@ -133,7 +154,7 @@ fn init_installs_generated_hooks() {
     let pre_commit_text = std::fs::read_to_string(&pre_commit).expect("pre-commit should exist");
     let commit_msg_text = std::fs::read_to_string(&commit_msg).expect("commit-msg should exist");
     assert!(pre_commit_text.contains("runseal init hook"));
-    assert!(pre_commit_text.contains(".runseal/wrappers/init.seal"));
+    assert!(pre_commit_text.contains("runseal :guard"));
     assert!(commit_msg_text.contains("runseal init hook"));
 }
 

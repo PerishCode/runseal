@@ -51,6 +51,11 @@ jobs:
         id: beta
         run: python3 .github/scripts/release/metadata/beta.py
 
+      - name: Guard version policy
+        run: |
+          set -euo pipefail
+          PATH="$PWD/target/debug:$PATH" cargo run --quiet --locked -p runseal -- :guard version-check
+
   verify:
     needs: metadata
     runs-on: ubuntu-latest
@@ -157,6 +162,14 @@ jobs:
           path: dist/${{ needs.metadata.outputs.release_version }}
           merge-multiple: true
 
+      - name: Resolve guard version hash
+        id: guard_hash
+        run: |
+          set -euo pipefail
+          PATH="$PWD/target/debug:$PATH"
+          hash=$(cargo run --quiet --locked -p runseal -- :guard version-hash)
+          echo "value=$hash" >> "$GITHUB_OUTPUT"
+
       - name: Create checksums
         run: sh .github/scripts/release/assets/checksums.sh "${RELEASE_VERSION}" "${RELEASE_ROOT}"
 
@@ -168,6 +181,8 @@ jobs:
 
       - name: Publish to R2
         id: r2
+        env:
+          GUARD_VERSION_HASH: ${{ steps.guard_hash.outputs.value }}
         run: bash .github/scripts/release/r2/publish.sh
 
       - name: Verify R2 publish
