@@ -11,172 +11,7 @@ const CORE_REPOS: &[&str] = &[
     "PerishCode/sidecar",
 ];
 
-pub fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
-    match command {
-        "issue" => issue(args),
-        "pr" => pr(args),
-        _ => bail!("unknown tool command: github {command}"),
-    }
-}
-
-fn issue(args: &[String]) -> Result<Option<String>> {
-    let [command, rest @ ..] = args else {
-        bail!("usage: runseal @tool github issue comment|body ...");
-    };
-    match command.as_str() {
-        "comment" => issue_comment(rest),
-        "body" => issue_body(rest),
-        _ => bail!("usage: runseal @tool github issue comment|body ..."),
-    }
-}
-
-fn pr(args: &[String]) -> Result<Option<String>> {
-    let [command, rest @ ..] = args else {
-        bail!("usage: runseal @tool github pr checks probe <number>");
-    };
-    match command.as_str() {
-        "checks" => pr_checks(rest),
-        _ => bail!("usage: runseal @tool github pr checks probe <number>"),
-    }
-}
-
-fn pr_checks(args: &[String]) -> Result<Option<String>> {
-    let [command, rest @ ..] = args else {
-        bail!("usage: runseal @tool github pr checks probe <number>");
-    };
-    match command.as_str() {
-        "probe" => pr_checks_probe(rest),
-        _ => bail!("usage: runseal @tool github pr checks probe <number>"),
-    }
-}
-
-fn pr_checks_probe(args: &[String]) -> Result<Option<String>> {
-    let [number] = args else {
-        bail!("usage: runseal @tool github pr checks probe <number>");
-    };
-    match pr_checks_probe_http(number, args) {
-        Ok(value) => Ok(Some(value)),
-        Err(_) => Ok(Some("true".to_string())),
-    }
-}
-
-fn pr_checks_probe_http(number: &str, args: &[String]) -> Result<String> {
-    let current_repo = current_github_repo_id()?;
-    let token = optional_token(args)?;
-    let pr: JsonValue = github_request(
-        "GET",
-        &format!("/repos/{current_repo}/pulls/{number}"),
-        token.as_deref(),
-        None,
-    )?;
-    let Some(sha) = pr
-        .get("head")
-        .and_then(|value| value.get("sha"))
-        .and_then(JsonValue::as_str)
-    else {
-        bail!("GitHub API pull request payload missing head.sha");
-    };
-    let checks: JsonValue = github_request(
-        "GET",
-        &format!("/repos/{current_repo}/commits/{sha}/check-runs"),
-        token.as_deref(),
-        None,
-    )?;
-    let statuses: JsonValue = github_request(
-        "GET",
-        &format!("/repos/{current_repo}/commits/{sha}/status"),
-        token.as_deref(),
-        None,
-    )?;
-    let check_runs = checks
-        .get("total_count")
-        .and_then(JsonValue::as_u64)
-        .unwrap_or(0);
-    let status_count = statuses
-        .get("statuses")
-        .and_then(JsonValue::as_array)
-        .map(|value| value.len())
-        .unwrap_or(0);
-    Ok(if check_runs > 0 || status_count > 0 {
-        "true"
-    } else {
-        "false"
-    }
-    .to_string())
-}
-
-fn issue_comment(args: &[String]) -> Result<Option<String>> {
-    let [command, rest @ ..] = args else {
-        bail!("usage: runseal @tool github issue comment create ...");
-    };
-    match command.as_str() {
-        "create" => issue_comment_create(rest),
-        _ => bail!("usage: runseal @tool github issue comment create ..."),
-    }
-}
-
-fn issue_body(args: &[String]) -> Result<Option<String>> {
-    let [command, rest @ ..] = args else {
-        bail!("usage: runseal @tool github issue body update ...");
-    };
-    match command.as_str() {
-        "update" => issue_body_update(rest),
-        _ => bail!("usage: runseal @tool github issue body update ..."),
-    }
-}
-
-fn issue_comment_create(args: &[String]) -> Result<Option<String>> {
-    let repo = required_option(args, "--repo")?;
-    let number = required_option(args, "--number")?;
-    let token = token(args)?;
-    let body = prepared_body(args, &repo, 100)?;
-    github_request_text(
-        "POST",
-        &format!("/repos/{repo}/issues/{number}/comments"),
-        &token,
-        body,
-    )
-}
-
-fn issue_body_update(args: &[String]) -> Result<Option<String>> {
-    let repo = required_option(args, "--repo")?;
-    let number = required_option(args, "--number")?;
-    let token = token(args)?;
-    let body = prepared_body(args, &repo, 0)?;
-    github_request_text(
-        "PATCH",
-        &format!("/repos/{repo}/issues/{number}"),
-        &token,
-        body,
-    )
-}
-
-fn prepared_body(args: &[String], target_repo: &str, default_body_max: usize) -> Result<String> {
-    let mut body = read_body(args)?;
-    validate_body_max(args, &body, default_body_max)?;
-    if prefix_enabled(args)? {
-        body = prefix_body(target_repo, &body)?;
-    }
-    Ok(body)
-}
-
-fn prefix_body(target_repo: &str, body: &str) -> Result<String> {
-    if !core_repo_contains(target_repo) {
-        return Ok(body.to_string());
-    }
-    let current_repo = current_repo_id()?;
-    if current_repo.eq_ignore_ascii_case(target_repo) {
-        return Ok(body.to_string());
-    }
-    let branch = current_branch()?;
-    let prefix = format!("Requested-By-Repo: {current_repo}\nRequested-By-Branch: {branch}\n\n");
-    if body.starts_with(&prefix) {
-        return Ok(body.to_string());
-    }
-    Ok(format!("{prefix}{body}"))
-}
-
-fn github_request_text(
+pub fn github_request_text(
     method: &str,
     path: &str,
     token: &str,
@@ -193,7 +28,7 @@ fn github_request_text(
     .map(|payload| Some(serde_json::to_string(&payload).expect("GitHub payload should serialize")))
 }
 
-fn github_request(
+pub fn github_request(
     method: &str,
     path: &str,
     token: Option<&str>,
@@ -243,7 +78,7 @@ fn github_request(
         .with_context(|| format!("GitHub API returned invalid JSON for {path}"))
 }
 
-fn read_body(args: &[String]) -> Result<String> {
+pub fn read_body(args: &[String]) -> Result<String> {
     let inline = optional_option(args, "--body");
     let file = optional_option(args, "--body-file");
     match (inline, file) {
@@ -255,7 +90,7 @@ fn read_body(args: &[String]) -> Result<String> {
     }
 }
 
-fn validate_body_max(args: &[String], body: &str, default_body_max: usize) -> Result<()> {
+pub fn validate_body_max(args: &[String], body: &str, default_body_max: usize) -> Result<()> {
     let body_max = body_max(args, default_body_max)?;
     if body_max == 0 {
         return Ok(());
@@ -267,16 +102,7 @@ fn validate_body_max(args: &[String], body: &str, default_body_max: usize) -> Re
     Ok(())
 }
 
-fn body_max(args: &[String], default: usize) -> Result<usize> {
-    let Some(value) = optional_option(args, "--body-max") else {
-        return Ok(default);
-    };
-    value
-        .parse::<usize>()
-        .with_context(|| format!("invalid --body-max: {value}"))
-}
-
-fn token(args: &[String]) -> Result<String> {
+pub fn token(args: &[String]) -> Result<String> {
     if let Some(token) = optional_option(args, "--token")
         && !token.is_empty()
     {
@@ -305,7 +131,7 @@ fn token(args: &[String]) -> Result<String> {
     bail!("missing GitHub token: pass --token, --token-file, --token-env, or set GITHUB_TOKEN")
 }
 
-fn optional_token(args: &[String]) -> Result<Option<String>> {
+pub fn optional_token(args: &[String]) -> Result<Option<String>> {
     if let Some(token) = optional_option(args, "--token")
         && !token.is_empty()
     {
@@ -331,8 +157,71 @@ fn optional_token(args: &[String]) -> Result<Option<String>> {
         .filter(|value| !value.is_empty()))
 }
 
-fn prefix_enabled(args: &[String]) -> Result<bool> {
+pub fn prefix_enabled(args: &[String]) -> Result<bool> {
     optional_bool_option(args, "--prefix-enable").map(|value| value.unwrap_or(false))
+}
+
+pub fn current_repo_id() -> Result<String> {
+    let output = Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .output()
+        .with_context(|| "failed to execute command: git")?;
+    if !output.status.success() {
+        bail!(
+            "git remote get-url origin failed with status {}",
+            output.status.code().unwrap_or(1)
+        );
+    }
+    let url = String::from_utf8(output.stdout)
+        .with_context(|| "git remote get-url origin returned non-UTF-8 output")?;
+    parse_repo_id(url.trim())
+}
+
+pub fn current_github_repo_id() -> Result<String> {
+    let repo = current_repo_id()?;
+    if repo.contains('/') {
+        return Ok(repo);
+    }
+    bail!("cannot parse GitHub owner/repo from current repository")
+}
+
+pub fn current_branch() -> Result<String> {
+    let output = Command::new("git")
+        .args(["branch", "--show-current"])
+        .output()
+        .with_context(|| "failed to execute command: git")?;
+    if !output.status.success() {
+        bail!(
+            "git branch --show-current failed with status {}",
+            output.status.code().unwrap_or(1)
+        );
+    }
+    let branch = String::from_utf8(output.stdout)
+        .with_context(|| "git branch --show-current returned non-UTF-8 output")?;
+    let branch = branch.trim();
+    if branch.is_empty() {
+        bail!("git branch --show-current returned an empty branch name");
+    }
+    Ok(branch.to_string())
+}
+
+pub fn required_option(args: &[String], name: &str) -> Result<String> {
+    optional_option(args, name).ok_or_else(|| anyhow::anyhow!("{name} is required"))
+}
+
+pub fn core_repo_contains(repo: &str) -> bool {
+    CORE_REPOS
+        .iter()
+        .any(|value| value.eq_ignore_ascii_case(repo))
+}
+
+fn body_max(args: &[String], default: usize) -> Result<usize> {
+    let Some(value) = optional_option(args, "--body-max") else {
+        return Ok(default);
+    };
+    value
+        .parse::<usize>()
+        .with_context(|| format!("invalid --body-max: {value}"))
 }
 
 fn optional_bool_option(args: &[String], name: &str) -> Result<Option<bool>> {
@@ -366,50 +255,6 @@ fn parse_bool(name: &str, value: &str) -> Result<bool> {
         "false" => Ok(false),
         _ => bail!("{name} expects true or false"),
     }
-}
-
-fn current_repo_id() -> Result<String> {
-    let output = Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .output()
-        .with_context(|| "failed to execute command: git")?;
-    if !output.status.success() {
-        bail!(
-            "git remote get-url origin failed with status {}",
-            output.status.code().unwrap_or(1)
-        );
-    }
-    let url = String::from_utf8(output.stdout)
-        .with_context(|| "git remote get-url origin returned non-UTF-8 output")?;
-    parse_repo_id(url.trim())
-}
-
-fn current_github_repo_id() -> Result<String> {
-    let repo = current_repo_id()?;
-    if repo.contains('/') {
-        return Ok(repo);
-    }
-    bail!("cannot parse GitHub owner/repo from current repository")
-}
-
-fn current_branch() -> Result<String> {
-    let output = Command::new("git")
-        .args(["branch", "--show-current"])
-        .output()
-        .with_context(|| "failed to execute command: git")?;
-    if !output.status.success() {
-        bail!(
-            "git branch --show-current failed with status {}",
-            output.status.code().unwrap_or(1)
-        );
-    }
-    let branch = String::from_utf8(output.stdout)
-        .with_context(|| "git branch --show-current returned non-UTF-8 output")?;
-    let branch = branch.trim();
-    if branch.is_empty() {
-        bail!("git branch --show-current returned an empty branch name");
-    }
-    Ok(branch.to_string())
 }
 
 fn parse_repo_id(url: &str) -> Result<String> {
@@ -485,10 +330,6 @@ fn parse_env_file(path: &Path) -> Result<BTreeMap<String, String>> {
     Ok(values)
 }
 
-fn required_option(args: &[String], name: &str) -> Result<String> {
-    optional_option(args, name).ok_or_else(|| anyhow::anyhow!("{name} is required"))
-}
-
 fn optional_option(args: &[String], name: &str) -> Option<String> {
     let prefix = format!("{name}=");
     let mut index = 0;
@@ -503,10 +344,4 @@ fn optional_option(args: &[String], name: &str) -> Option<String> {
         index += 1;
     }
     None
-}
-
-fn core_repo_contains(repo: &str) -> bool {
-    CORE_REPOS
-        .iter()
-        .any(|value| value.eq_ignore_ascii_case(repo))
 }

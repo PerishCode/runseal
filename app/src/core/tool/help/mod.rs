@@ -1,5 +1,6 @@
 mod basic;
 mod cloudflare;
+mod github;
 mod hash_version;
 mod json;
 mod ssh;
@@ -60,10 +61,12 @@ const ENTRIES: &[Entry] = &[
     hash_version::VERSION,
     hash_version::VERSION_PART,
     hash_version::VERSION_COMPARE,
-    basic::GITHUB,
-    basic::GITHUB_PR,
-    basic::GITHUB_PR_CHECKS,
-    basic::GITHUB_PR_CHECKS_PROBE,
+    github::GITHUB,
+    github::GITHUB_ISSUE,
+    github::GITHUB_ISSUE_COMMENT,
+    github::GITHUB_ISSUE_COMMENT_CREATE,
+    github::GITHUB_ISSUE_BODY,
+    github::GITHUB_ISSUE_BODY_UPDATE,
     ssh::SSH,
     ssh::SSH_CONFIG,
     ssh::SSH_CONFIG_HOST,

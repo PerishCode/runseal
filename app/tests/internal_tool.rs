@@ -3,6 +3,9 @@
 mod archive;
 #[path = "internal_tool/gitee.rs"]
 mod gitee;
+#[path = "internal_tool/github.rs"]
+#[cfg(unix)]
+mod github;
 #[path = "internal_tool/hash_version.rs"]
 mod hash_version;
 #[path = "internal_tool/process.rs"]
@@ -222,8 +225,8 @@ fn richer_help() {
             "Build one exact-match redirect rule payload as JSON.",
         ),
         (
-            vec!["@tool", "github", "pr", "checks", "probe", "--help"],
-            "usage: runseal @tool github pr checks probe <number>",
+            vec!["@tool", "github", "issue", "comment", "create", "--help"],
+            "--prefix-enable=<true|false>",
         ),
         (
             vec!["@tool", "gitee", "pr", "merge", "--help"],

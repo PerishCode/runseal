@@ -34,6 +34,11 @@ case "${1:-}" in
     [ "${2:-}" = "--show-current" ] || exit 9
     printf '%s\n' "${RUNSEAL_TEST_BRANCH:-feat/seal}"
     ;;
+  remote)
+    [ "${2:-}" = "get-url" ] || exit 9
+    [ "${3:-}" = "origin" ] || exit 9
+    printf '%s\n' "${RUNSEAL_TEST_REMOTE_ORIGIN:-git@github.com:PerishCode/runseal.git}"
+    ;;
   rev-parse)
     printf '%s\n' "${RUNSEAL_TEST_REF_SHA:-abc123}"
     ;;
@@ -326,7 +331,6 @@ git push -u origin feat/seal
 gh pr list --head feat/seal --json number,title,state,url,isDraft
 gh pr create --base develop --head feat/seal --title Seal migration --body-file body.md
 gh pr list --head feat/seal --json number,title,state,url,isDraft
-gh pr checks 77
 gh pr checks 77 --watch --interval 10
 gh pr merge 77 --squash --delete-branch
 "

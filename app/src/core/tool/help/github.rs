@@ -1,0 +1,133 @@
+use super::{Entry, Section};
+
+pub const GITHUB: Entry = Entry {
+    key: "github",
+    usage: "runseal @tool github <scope> <command> [args]",
+    about: Some("GitHub helpers for collaboration rules that need more than plain gh ergonomics."),
+    sections: &[Section {
+        title: "GitHub helpers",
+        items: &[
+            (
+                "issue comment create",
+                "create one issue-style comment; also applies to top-level PR comments",
+            ),
+            (
+                "issue body update",
+                "update one issue-style body; also applies to top-level PR bodies",
+            ),
+        ],
+    }],
+    examples: &[],
+};
+
+pub const GITHUB_ISSUE: Entry = Entry {
+    key: "github.issue",
+    usage: "runseal @tool github issue <scope> <command> [args]",
+    about: Some(
+        "GitHub issue-style write helpers. GitHub PR top-level bodies and timeline comments also use this issue model.",
+    ),
+    sections: &[Section {
+        title: "GitHub issue helpers",
+        items: &[
+            ("comment create", "create one issue-style comment"),
+            ("body update", "update one issue-style body"),
+        ],
+    }],
+    examples: &[],
+};
+
+pub const GITHUB_ISSUE_COMMENT: Entry = Entry {
+    key: "github.issue.comment",
+    usage: "runseal @tool github issue comment create [args]",
+    about: None,
+    sections: &[Section {
+        title: "GitHub issue comment helpers",
+        items: &[("create", "create one issue-style comment")],
+    }],
+    examples: &[],
+};
+
+pub const GITHUB_ISSUE_COMMENT_CREATE: Entry = Entry {
+    key: "github.issue.comment.create",
+    usage: "runseal @tool github issue comment create --repo <owner/name> --number <n> (--body <text>|--body-file <path>) [--body-max <n>] [--prefix-enable=<true|false>] [--token <text>|--token-file <path>|--token-env <name>]",
+    about: Some(
+        "Create one GitHub issue-style comment and print the API response JSON. Default `--body-max` is `100`; over-limit bodies fail fast.",
+    ),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--repo <owner/name>", "target GitHub repository"),
+            ("--number <n>", "issue or pull request number"),
+            ("--body <text>", "inline comment body"),
+            ("--body-file <path>", "read comment body from one file"),
+            (
+                "--body-max <n>",
+                "maximum user-body length; `0` disables the limit; default `100`",
+            ),
+            (
+                "--prefix-enable=<true|false>",
+                "prepend requested-by metadata for matching cross-repo writes",
+            ),
+            ("--token <text>", "explicit GitHub token"),
+            (
+                "--token-file <path>",
+                "env-style file containing `GITHUB_TOKEN`",
+            ),
+            (
+                "--token-env <name>",
+                "read the token from one named environment variable",
+            ),
+        ],
+    }],
+    examples: &[
+        "runseal @tool github issue comment create --repo PerishCode/runseal --number 46 --body-file body.md --prefix-enable=true",
+    ],
+};
+
+pub const GITHUB_ISSUE_BODY: Entry = Entry {
+    key: "github.issue.body",
+    usage: "runseal @tool github issue body update [args]",
+    about: None,
+    sections: &[Section {
+        title: "GitHub issue body helpers",
+        items: &[("update", "update one issue-style body")],
+    }],
+    examples: &[],
+};
+
+pub const GITHUB_ISSUE_BODY_UPDATE: Entry = Entry {
+    key: "github.issue.body.update",
+    usage: "runseal @tool github issue body update --repo <owner/name> --number <n> (--body <text>|--body-file <path>) [--body-max <n>] [--prefix-enable=<true|false>] [--token <text>|--token-file <path>|--token-env <name>]",
+    about: Some(
+        "Update one GitHub issue-style body and print the API response JSON. Default `--body-max` is `0`, which means unlimited.",
+    ),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--repo <owner/name>", "target GitHub repository"),
+            ("--number <n>", "issue or pull request number"),
+            ("--body <text>", "inline body text"),
+            ("--body-file <path>", "read body text from one file"),
+            (
+                "--body-max <n>",
+                "maximum user-body length; `0` disables the limit; default `0`",
+            ),
+            (
+                "--prefix-enable=<true|false>",
+                "prepend requested-by metadata for matching cross-repo writes",
+            ),
+            ("--token <text>", "explicit GitHub token"),
+            (
+                "--token-file <path>",
+                "env-style file containing `GITHUB_TOKEN`",
+            ),
+            (
+                "--token-env <name>",
+                "read the token from one named environment variable",
+            ),
+        ],
+    }],
+    examples: &[
+        "runseal @tool github issue body update --repo PerishCode/runseal --number 46 --body-file body.md --prefix-enable=true",
+    ],
+};
