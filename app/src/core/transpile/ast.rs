@@ -18,6 +18,12 @@ pub enum Statement {
         name: String,
         value: Value,
     },
+    ExecWrite {
+        stream: OutputStream,
+        path: Value,
+        append: bool,
+        argv: Vec<Value>,
+    },
     ExecChecked {
         argv: Vec<Value>,
     },
@@ -124,5 +130,12 @@ pub enum Predicate {
     JsonNotEmpty { value: Value },
     FileExists { path: Value },
     DirExists { path: Value },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputStream {
+    Stdout,
+    Stderr,
 }
 use serde::{Deserialize, Serialize};

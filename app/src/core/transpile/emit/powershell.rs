@@ -1,6 +1,7 @@
+use super::powershell_support::{emit_positional_bindings, max_positional_statements};
 use super::support::{generated_header, option_name};
 use crate::core::transpile::ast::{
-    ArgvKind, ArgvSpec, EnvAssign, Item, Predicate, Program, Statement, Value,
+    ArgvKind, ArgvSpec, EnvAssign, Item, OutputStream, Predicate, Program, Statement, Value,
 };
 
 pub(crate) fn emit_powershell(program: &Program, source_name: Option<&str>) -> String {
@@ -58,6 +59,26 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
     match statement {
         Statement::Assign { name, value } => {
             out.push_str(&format!("{pad}${name} = {}\n", powershell_value(value)));
+        }
+        Statement::ExecWrite {
+            stream,
+            path,
+            append,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str("& ");
+            out.push_str(&join_values(argv, powershell_value));
+            out.push(' ');
+            out.push_str(match (stream, append) {
+                (OutputStream::Stdout, false) => ">",
+                (OutputStream::Stdout, true) => ">>",
+                (OutputStream::Stderr, false) => "2>",
+                (OutputStream::Stderr, true) => "2>>",
+            });
+            out.push(' ');
+            out.push_str(&powershell_value(path));
+            out.push('\n');
         }
         Statement::ExecChecked { argv } => {
             out.push_str(&pad);
@@ -135,21 +156,6 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
             out.push_str(&format!("{pad}Start-Sleep -Seconds {seconds}\n"));
         }
     }
-}
-
-fn emit_positional_bindings(out: &mut String, indent: usize, max: usize) -> bool {
-    if max == 0 {
-        return false;
-    }
-    let pad = "    ".repeat(indent);
-    out.push_str(&format!("{pad}$0 = $args.Count\n"));
-    for index in 1..=max {
-        let offset = index - 1;
-        out.push_str(&format!(
-            "{pad}${index} = if ($args.Count -ge {index}) {{ $args[{offset}] }} else {{ '' }}\n"
-        ));
-    }
-    true
 }
 
 fn emit_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
@@ -373,52 +379,6 @@ fn powershell_value(value: &Value) -> String {
     }
 }
 
-fn max_positional_statements<'a>(statements: impl IntoIterator<Item = &'a Statement>) -> usize {
-    statements
-        .into_iter()
-        .map(max_positional_statement)
-        .max()
-        .unwrap_or_default()
-}
-
-fn max_positional_statement(statement: &Statement) -> usize {
-    match statement {
-        Statement::Assign { value, .. } => max_positional_value(value),
-        Statement::ExecChecked { argv }
-        | Statement::EnvExecChecked { argv, .. }
-        | Statement::CaptureChecked { argv, .. }
-        | Statement::CallFunction { argv, .. } => argv
-            .iter()
-            .map(max_positional_value)
-            .max()
-            .unwrap_or_default(),
-        Statement::If {
-            predicate,
-            then_body,
-            else_body,
-        } => max_positional_predicate(predicate)
-            .max(max_positional_statements(then_body.iter()))
-            .max(max_positional_statements(else_body.iter())),
-        Statement::While { predicate, body } => {
-            max_positional_predicate(predicate).max(max_positional_statements(body.iter()))
-        }
-        Statement::Case { value, arms } => arms
-            .iter()
-            .map(|arm| max_positional_statements(arm.body.iter()))
-            .max()
-            .unwrap_or_default()
-            .max(max_positional_value(value)),
-        Statement::Print { value } | Statement::Error { value } | Statement::Fail { value } => {
-            max_positional_value(value)
-        }
-        Statement::ArgvParse { .. }
-        | Statement::Shift { .. }
-        | Statement::Exit { .. }
-        | Statement::Break
-        | Statement::Sleep { .. } => 0,
-    }
-}
-
 fn emit_env_exec(out: &mut String, pad: &str, env: &[EnvAssign], argv: &[Value]) {
     out.push_str(&format!("{pad}& {{\n"));
     for item in env {
@@ -447,47 +407,6 @@ fn emit_env_exec(out: &mut String, pad: &str, env: &[EnvAssign], argv: &[Value])
     }
     out.push_str(&format!("{pad}    }}\n"));
     out.push_str(&format!("{pad}}}\n"));
-}
-
-fn max_positional_predicate(predicate: &Predicate) -> usize {
-    match predicate {
-        Predicate::Command { argv } => argv
-            .iter()
-            .map(max_positional_value)
-            .max()
-            .unwrap_or_default(),
-        Predicate::Empty { value }
-        | Predicate::NotEmpty { value }
-        | Predicate::JsonEmpty { value }
-        | Predicate::JsonNotEmpty { value } => max_positional_value(value),
-        Predicate::Eq { left, right }
-        | Predicate::Neq { left, right }
-        | Predicate::IntLt { left, right }
-        | Predicate::IntLte { left, right }
-        | Predicate::IntGt { left, right }
-        | Predicate::IntGte { left, right } => {
-            max_positional_value(left).max(max_positional_value(right))
-        }
-        Predicate::FileExists { path } | Predicate::DirExists { path } => {
-            max_positional_value(path)
-        }
-    }
-}
-
-fn max_positional_value(value: &Value) -> usize {
-    match value {
-        Value::Var { name } => name.parse::<usize>().unwrap_or_default(),
-        Value::Concat { parts } => parts
-            .iter()
-            .map(max_positional_value)
-            .max()
-            .unwrap_or_default(),
-        Value::Literal { .. }
-        | Value::Argc
-        | Value::Args
-        | Value::Env { .. }
-        | Value::EnvDefault { .. } => 0,
-    }
 }
 
 fn join_values(values: &[Value], format: fn(&Value) -> String) -> String {

@@ -3,6 +3,7 @@ use anyhow::{Result, bail};
 use super::ast::{CaseArm, EnvAssign, Item, Predicate, Program, Statement, Value};
 use super::lower::lower_functions;
 use super::parse_argv::parse_argv_block;
+use super::parse_command::{parse_exec_write, validate_external_tokens, validate_shell_command};
 use super::parse_lex::{
     assignment, is_safe_command_name, is_valid_name, split_test_words, split_words, strip_comment,
 };
@@ -231,6 +232,9 @@ fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
         });
     }
     let tokens = split_words(&line.text, line.number)?;
+    if let Some(statement) = parse_exec_write(&tokens, line.number)? {
+        return Ok(statement);
+    }
     if let Some(statement) = parse_env_exec(&tokens, line.number)? {
         return Ok(statement);
     }
@@ -243,6 +247,7 @@ fn parse_simple_statement(line: &SourceLine) -> Result<Statement> {
     let Some((command, args)) = tokens.split_first() else {
         bail!("{}: expected statement", line.number);
     };
+    validate_shell_command(command, args, line.number)?;
     match command.as_str() {
         "printf" => parse_printf(args, line.number),
         "eval" => bail!("{}: unsupported statement: eval", line.number),
@@ -323,6 +328,7 @@ fn parse_env_exec(tokens: &[String], line: usize) -> Result<Option<Statement>> {
     let Some(command) = argv_tokens.first() else {
         return Ok(None);
     };
+    validate_shell_command(command, &argv_tokens[1..], line)?;
     if !is_safe_command_name(command) {
         bail!("{line}: unsupported statement: {}", tokens.join(" "));
     }
@@ -342,23 +348,15 @@ fn parse_printf(args: &[String], line: usize) -> Result<Statement> {
                 value: parse_value_text(value, line)?,
             })
         }
+        [format, value, redirect, target]
+            if format == "'%s\\n'" && redirect == ">" && target == "&2" =>
+        {
+            Ok(Statement::Error {
+                value: parse_value_text(value, line)?,
+            })
+        }
         _ => bail!("{line}: unsupported printf form"),
     }
-}
-
-fn validate_external_tokens(tokens: &[String], line: usize) -> Result<()> {
-    for token in tokens {
-        if token.starts_with('"') || token.starts_with('\'') {
-            continue;
-        }
-        if token
-            .chars()
-            .any(|ch| matches!(ch, '|' | '>' | '<' | '&' | ';' | '`'))
-        {
-            bail!("{line}: unsupported shell metacharacter in token: {token}");
-        }
-    }
-    Ok(())
 }
 
 pub(super) fn option_to_name(option: &str, line: usize) -> Result<String> {
@@ -406,6 +404,7 @@ fn parse_predicate(text: &str, line: usize) -> Result<Predicate> {
     let Some(command) = tokens.first() else {
         bail!("{line}: command predicate cannot be empty");
     };
+    validate_shell_command(command, &tokens[1..], line)?;
     if !is_safe_command_name(command) {
         bail!("{line}: unsupported predicate: {text}");
     }
@@ -415,7 +414,7 @@ fn parse_predicate(text: &str, line: usize) -> Result<Predicate> {
     })
 }
 
-fn parse_values(tokens: &[String], line: usize) -> Result<Vec<Value>> {
+pub(super) fn parse_values(tokens: &[String], line: usize) -> Result<Vec<Value>> {
     tokens
         .iter()
         .map(|arg| parse_value_text(arg, line))

@@ -43,6 +43,7 @@ const ENTRIES: &[Entry] = &[
     basic::INT_ADD,
     basic::PROCESS,
     basic::PROCESS_EXISTS,
+    basic::PROCESS_WRITE,
     basic::ARCHIVE,
     basic::ARCHIVE_LOCAL,
     basic::ARCHIVE_LOCAL_EXPORT,

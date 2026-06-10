@@ -9,6 +9,7 @@ mod guards;
 mod lower;
 mod parse;
 mod parse_argv;
+mod parse_command;
 mod parse_lex;
 mod runner;
 mod value;

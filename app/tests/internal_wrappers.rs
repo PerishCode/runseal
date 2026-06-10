@@ -237,7 +237,7 @@ fn seal_wrapper_shadows() {
 }
 
 #[test]
-fn seal_env_overlay() {
+fn seal_env_overlay_fails() {
     let fx = fixture();
     make_seal_wrapper(
         &fx.project_wrappers.join("env-tool.seal"),
@@ -248,9 +248,10 @@ RUNSEAL_MARKER=sealed sh -c 'printf %s "$RUNSEAL_MARKER"'
 
     let output = run_in(&fx, &[":env-tool"]);
 
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "sealed");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("shell-specific construct is not supported in .seal"));
+    assert!(stderr.contains("sh -c"));
 }
 
 #[test]

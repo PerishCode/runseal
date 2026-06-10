@@ -9,7 +9,8 @@ pub(super) fn split_words(text: &str, line: usize) -> Result<Vec<String>> {
     let mut words = Vec::new();
     let mut current = String::new();
     let mut quote = None;
-    for ch in text.chars() {
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
         match quote {
             Some(q) if ch == q => {
                 current.push(ch);
@@ -19,6 +20,35 @@ pub(super) fn split_words(text: &str, line: usize) -> Result<Vec<String>> {
             None if ch == '\'' || ch == '"' => {
                 current.push(ch);
                 quote = Some(ch);
+            }
+            None if ch == '2' && matches!(chars.peek(), Some('>')) => {
+                if !current.is_empty() {
+                    words.push(std::mem::take(&mut current));
+                }
+                chars.next();
+                if matches!(chars.peek(), Some('>')) {
+                    chars.next();
+                    words.push("2>>".to_string());
+                } else {
+                    words.push("2>".to_string());
+                }
+            }
+            None if ch == '>' => {
+                if !current.is_empty() {
+                    words.push(std::mem::take(&mut current));
+                }
+                if matches!(chars.peek(), Some('>')) {
+                    chars.next();
+                    words.push(">>".to_string());
+                } else {
+                    words.push(">".to_string());
+                }
+            }
+            None if ch == '|' => {
+                if !current.is_empty() {
+                    words.push(std::mem::take(&mut current));
+                }
+                words.push("|".to_string());
             }
             None if ch.is_whitespace() => {
                 if !current.is_empty() {

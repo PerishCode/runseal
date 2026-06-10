@@ -89,7 +89,13 @@ pub const PROCESS: Entry = Entry {
     about: None,
     sections: &[Section {
         title: "Process helpers",
-        items: &[("exists <name>", "print true when command exists on PATH")],
+        items: &[
+            ("exists <name>", "print true when command exists on PATH"),
+            (
+                "write <stdout|stderr> <path> [--append] -- <command> [args...]",
+                "run one command and write one stream to a file",
+            ),
+        ],
     }],
     examples: &[],
 };
@@ -100,6 +106,22 @@ pub const PROCESS_EXISTS: Entry = Entry {
     about: None,
     sections: &[],
     examples: &[],
+};
+
+pub const PROCESS_WRITE: Entry = Entry {
+    key: "process.write",
+    usage: "runseal @tool process write <stdout|stderr> <path> [--append] -- <command> [args...]",
+    about: Some(
+        "Run one command, write one selected stream to a file, and pass the other stream through.",
+    ),
+    sections: &[Section {
+        title: "Flags",
+        items: &[("--append", "append instead of overwriting the target file")],
+    }],
+    examples: &[
+        "runseal @tool process write stdout openapi.json -- cargo run -- export-openapi",
+        "runseal @tool process write stderr build.log --append -- cargo build",
+    ],
 };
 
 pub const ARCHIVE: Entry = Entry {

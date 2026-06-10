@@ -5,6 +5,8 @@ mod archive;
 mod gitee;
 #[path = "internal_tool/hash_version.rs"]
 mod hash_version;
+#[path = "internal_tool/process.rs"]
+mod process;
 #[path = "internal_tool/ssh.rs"]
 mod ssh;
 #[path = "internal_tool/string.rs"]
@@ -230,6 +232,10 @@ fn richer_help() {
         (
             vec!["@tool", "archive", "local", "import", "--help"],
             "Decrypt one .local-style directory archive into the source directory.",
+        ),
+        (
+            vec!["@tool", "process", "write", "--help"],
+            "<stdout|stderr> <path> [--append] -- <command> [args...]",
         ),
     ] {
         let output = bin()

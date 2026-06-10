@@ -1,7 +1,8 @@
-use super::ast::{ArgvKind, ArgvSpec, Item, Program, Statement};
+use super::ast::{ArgvKind, ArgvSpec, Item, OutputStream, Program, Statement};
 use super::guards::{bash_required_tools, emit_bash_guards};
 
 mod powershell;
+mod powershell_support;
 mod support;
 
 pub(crate) use powershell::emit_powershell;
@@ -40,6 +41,25 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
         Statement::ExecChecked { argv } => {
             out.push_str(&pad);
             out.push_str(&join_values(argv, seal_value));
+            out.push('\n');
+        }
+        Statement::ExecWrite {
+            stream,
+            path,
+            append,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(&join_values(argv, seal_value));
+            out.push(' ');
+            out.push_str(match (stream, append) {
+                (OutputStream::Stdout, false) => ">",
+                (OutputStream::Stdout, true) => ">>",
+                (OutputStream::Stderr, false) => "2>",
+                (OutputStream::Stderr, true) => "2>>",
+            });
+            out.push(' ');
+            out.push_str(&seal_value(path));
             out.push('\n');
         }
         Statement::EnvExecChecked { env, argv } => {
@@ -217,6 +237,25 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
     match statement {
         Statement::Assign { name, value } => {
             out.push_str(&format!("{pad}{name}={}\n", bash_value(value)));
+        }
+        Statement::ExecWrite {
+            stream,
+            path,
+            append,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(&join_values(argv, bash_value));
+            out.push(' ');
+            out.push_str(match (stream, append) {
+                (OutputStream::Stdout, false) => ">",
+                (OutputStream::Stdout, true) => ">>",
+                (OutputStream::Stderr, false) => "2>",
+                (OutputStream::Stderr, true) => "2>>",
+            });
+            out.push(' ');
+            out.push_str(&bash_value(path));
+            out.push('\n');
         }
         Statement::ExecChecked { argv } => {
             out.push_str(&pad);

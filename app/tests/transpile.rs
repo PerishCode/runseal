@@ -124,6 +124,13 @@ print "$run_id"
 "#
 }
 
+fn redirect_source() -> &'static str {
+    r#"
+gh run list --json databaseId > build/openapi.json
+gh run view 123 2>> build/errors.log
+"#
+}
+
 fn powershell_json_get_source() -> &'static str {
     r#"
 $raw = '[{"databaseId":123}]'
@@ -161,6 +168,33 @@ fn sealir_without_profile() {
     assert_eq!(payload["version"], 1);
     assert!(stdout.contains("env_default"));
     assert!(stdout.contains("exec_checked"));
+}
+
+#[test]
+fn redirect_ir_and_targets() {
+    let fx = fixture(redirect_source());
+
+    let sealir = run_transpile(&fx, "seal", "sealir");
+    assert!(sealir.status.success());
+    let sealir = String::from_utf8(sealir.stdout).expect("stdout should be UTF-8");
+    assert!(sealir.contains("exec_write"));
+    assert!(sealir.contains("stdout"));
+    assert!(sealir.contains("stderr"));
+
+    let bash = run_transpile(&fx, "seal", "bash");
+    let powershell = run_transpile(&fx, "seal", "powershell");
+    assert!(bash.status.success());
+    assert!(powershell.status.success());
+    let bash = String::from_utf8(bash.stdout).expect("stdout should be UTF-8");
+    let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
+    assert!(bash.contains("gh run list --json databaseId > build/openapi.json"));
+    assert!(bash.contains("gh run view 123 2>> build/errors.log"));
+    assert!(
+        powershell.contains("& 'gh' 'run' 'list' '--json' 'databaseId' > 'build/openapi.json'")
+    );
+    assert!(powershell.contains("& 'gh' 'run' 'view' '123' 2>> 'build/errors.log'"));
+    syntax::assert_bash(&bash);
+    syntax::assert_pwsh(&powershell);
 }
 
 #[test]
@@ -424,7 +458,13 @@ fn hyphen_exec() {
 
 #[test]
 fn metacharacters_fail() {
-    for source in ["printf ok | cat\n", "eval something\n"] {
+    for source in [
+        "printf ok | cat\n",
+        "eval something\n",
+        "echo ok 2>&1\n",
+        "exec echo ok\n",
+        "sh -c 'echo ok'\n",
+    ] {
         let fx = fixture(source);
 
         let output = run_transpile(&fx, "seal", "sealir");
@@ -432,7 +472,7 @@ fn metacharacters_fail() {
         assert!(!output.status.success(), "{source:?} should fail");
         let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
         assert!(
-            stderr.contains("unsupported"),
+            stderr.contains("unsupported") || stderr.contains("shell-specific construct"),
             "expected unsupported error, got {stderr:?}"
         );
     }

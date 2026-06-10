@@ -1,16 +1,17 @@
-use std::{
-    collections::BTreeMap,
-    path::Path,
-    process::{Command, Stdio},
-    time::Duration,
-};
+use std::{collections::BTreeMap, path::Path, process::Command, time::Duration};
 
 use anyhow::{Context, Result, bail};
 
 use crate::core::tool;
 
+use self::support::{
+    CaptureMode, CommandOutput, case_matches, find_spec, option_name, shell_words, split_words,
+    write_stream_file,
+};
 use super::ast::{ArgvKind, ArgvSpec, Item, Predicate, Program, Statement, Value};
 use super::parse::parse_seal;
+
+mod support;
 
 pub(crate) fn run_seal_file(
     path: &Path,
@@ -97,6 +98,19 @@ impl<'a> Runner<'a> {
                 let code = self.run_external(argv, CaptureMode::None)?.code;
                 if code != 0 {
                     return Ok(Flow::Exit(code));
+                }
+            }
+            Statement::ExecWrite {
+                stream,
+                path,
+                append,
+                argv,
+            } => {
+                let output = self.run_external(argv, CaptureMode::All)?;
+                let path = self.value(path);
+                write_stream_file(stream, Path::new(&path), *append, &output)?;
+                if output.code != 0 {
+                    return Ok(Flow::Exit(output.code));
                 }
             }
             Statement::EnvExecChecked { env, argv } => {
@@ -325,16 +339,18 @@ impl<'a> Runner<'a> {
             return Ok(CommandOutput {
                 code: status.code().unwrap_or(1),
                 stdout: String::new(),
+                stderr: String::new(),
             });
         }
-        command.stdout(Stdio::piped());
         let output = command
             .output()
             .with_context(|| format!("failed to execute command: {program}"))?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         Ok(CommandOutput {
             code: output.status.code().unwrap_or(1),
             stdout,
+            stderr,
         })
     }
 
@@ -419,42 +435,5 @@ impl<'a> Runner<'a> {
         self.vars.insert("0".to_string(), values.len().to_string());
         self.vars
             .insert("__seal_argv".to_string(), shell_words(values));
-    }
-}
-
-enum CaptureMode {
-    None,
-    Stdout,
-}
-
-struct CommandOutput {
-    code: i32,
-    stdout: String,
-}
-
-fn find_spec<'a>(specs: &'a [ArgvSpec], arg: &str) -> Option<&'a ArgvSpec> {
-    specs.iter().find(|spec| {
-        let option = option_name(&spec.name);
-        arg == option || arg.starts_with(&(option + "="))
-    })
-}
-
-fn option_name(name: &str) -> String {
-    format!("--{}", name.replace('_', "-"))
-}
-
-fn case_matches(pattern: &str, value: &str) -> bool {
-    pattern == "*" || pattern == value
-}
-
-fn shell_words(argv: &[String]) -> String {
-    argv.join("\u{1f}")
-}
-
-fn split_words(value: &str) -> Vec<String> {
-    if value.is_empty() {
-        Vec::new()
-    } else {
-        value.split('\u{1f}').map(str::to_string).collect()
     }
 }
