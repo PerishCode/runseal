@@ -18,12 +18,13 @@ pub fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
 
 fn issue(args: &[String]) -> Result<Option<String>> {
     let [command, rest @ ..] = args else {
-        bail!("usage: runseal @tool github issue comment|body ...");
+        bail!("usage: runseal @tool github issue create|comment|body ...");
     };
     match command.as_str() {
+        "create" => issue_create(rest),
         "comment" => issue_comment(rest),
         "body" => issue_body(rest),
-        _ => bail!("usage: runseal @tool github issue comment|body ..."),
+        _ => bail!("usage: runseal @tool github issue create|comment|body ..."),
     }
 }
 
@@ -112,6 +113,25 @@ fn issue_comment(args: &[String]) -> Result<Option<String>> {
     }
 }
 
+fn issue_create(args: &[String]) -> Result<Option<String>> {
+    let repo = support::required_option(args, "--repo")?;
+    let title = support::required_option(args, "--title")?;
+    let token = token(args)?;
+    let body = optional_prepared_body(args, &repo, 0)?;
+    let mut payload = serde_json::Map::new();
+    payload.insert("title".to_string(), serde_json::Value::String(title));
+    if let Some(body) = body {
+        payload.insert("body".to_string(), serde_json::Value::String(body));
+    }
+    github_request(
+        "POST",
+        &format!("/repos/{repo}/issues"),
+        Some(&token),
+        Some(serde_json::Value::Object(payload)),
+    )
+    .map(|payload| Some(serde_json::to_string(&payload).expect("GitHub payload should serialize")))
+}
+
 fn issue_body(args: &[String]) -> Result<Option<String>> {
     let [command, rest @ ..] = args else {
         bail!("usage: runseal @tool github issue body update ...");
@@ -155,6 +175,23 @@ fn prepared_body(args: &[String], target_repo: &str, default_body_max: usize) ->
         body = prefix_body(target_repo, &body)?;
     }
     Ok(body)
+}
+
+fn optional_prepared_body(
+    args: &[String],
+    target_repo: &str,
+    default_body_max: usize,
+) -> Result<Option<String>> {
+    let has_body = args
+        .iter()
+        .any(|arg| arg == "--body" || arg.starts_with("--body="));
+    let has_body_file = args
+        .iter()
+        .any(|arg| arg == "--body-file" || arg.starts_with("--body-file="));
+    match (has_body, has_body_file) {
+        (false, false) => Ok(None),
+        _ => prepared_body(args, target_repo, default_body_max).map(Some),
+    }
 }
 
 fn prefix_body(target_repo: &str, body: &str) -> Result<String> {

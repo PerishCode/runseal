@@ -63,6 +63,7 @@ const ENTRIES: &[Entry] = &[
     hash_version::VERSION_COMPARE,
     github::GITHUB,
     github::GITHUB_ISSUE,
+    github::GITHUB_ISSUE_CREATE,
     github::GITHUB_ISSUE_COMMENT,
     github::GITHUB_ISSUE_COMMENT_CREATE,
     github::GITHUB_ISSUE_BODY,

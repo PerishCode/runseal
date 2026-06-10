@@ -118,6 +118,65 @@ fn issue_comment_write() {
 }
 
 #[test]
+fn issue_create() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let cwd = temp.path().join("repo");
+    let bin_dir = temp.path().join("bin");
+    std::fs::create_dir_all(&cwd).expect("cwd should be created");
+    std::fs::create_dir_all(&bin_dir).expect("bin dir should be created");
+    write_git_stub(
+        &bin_dir.join("git"),
+        "git@gitee.com:perishme/perish.top.git",
+        "feat/prefix",
+    );
+
+    let body_file = cwd.join("body.md");
+    std::fs::write(&body_file, "Issue body\n").expect("body file should be written");
+    let (api_base, handle) = mock_github(
+        |request| {
+            assert!(request.starts_with("POST /repos/PerishCode/runseal/issues "));
+            assert!(request.contains("authorization: Bearer env-token"));
+            assert!(request.contains(r#""title":"Open one issue""#));
+            assert!(request.contains(
+                r#"Requested-By-Repo: perishme/perish.top\nRequested-By-Branch: feat/prefix\n\nIssue body\n"#
+            ));
+        },
+        r#"{"number":88,"html_url":"https://github.test/issues/88"}"#,
+    );
+    let output = bin()
+        .current_dir(&cwd)
+        .env("PATH", prepend_path_for_test(&bin_dir))
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .env("RUNSEAL_GITHUB_API_BASE", api_base)
+        .env("GITHUB_TOKEN", "env-token")
+        .args([
+            "@tool",
+            "github",
+            "issue",
+            "create",
+            "--repo",
+            "PerishCode/runseal",
+            "--title",
+            "Open one issue",
+            "--body-file",
+            body_file.to_str().unwrap(),
+            "--prefix-enable=true",
+        ])
+        .output()
+        .expect("runseal should run");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    handle.join().expect("mock server should finish");
+
+    let payload: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout should be JSON");
+    assert_eq!(payload["number"], 88);
+}
+
+#[test]
 fn issue_prefix_rules() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("repo");

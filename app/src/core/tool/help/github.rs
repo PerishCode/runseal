@@ -8,6 +8,10 @@ pub const GITHUB: Entry = Entry {
         title: "GitHub helpers",
         items: &[
             (
+                "issue create",
+                "create one issue with optional body shaping",
+            ),
+            (
                 "issue comment create",
                 "create one issue-style comment; also applies to top-level PR comments",
             ),
@@ -29,11 +33,49 @@ pub const GITHUB_ISSUE: Entry = Entry {
     sections: &[Section {
         title: "GitHub issue helpers",
         items: &[
+            ("create", "create one issue"),
             ("comment create", "create one issue-style comment"),
             ("body update", "update one issue-style body"),
         ],
     }],
     examples: &[],
+};
+
+pub const GITHUB_ISSUE_CREATE: Entry = Entry {
+    key: "github.issue.create",
+    usage: "runseal @tool github issue create --repo <owner/name> --title <text> [--body <text>|--body-file <path>] [--body-max <n>] [--prefix-enable=<true|false>] [--token <text>|--token-file <path>|--token-env <name>]",
+    about: Some(
+        "Create one GitHub issue and print the API response JSON. Body is optional. Default `--body-max` is `0`, which means unlimited.",
+    ),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--repo <owner/name>", "target GitHub repository"),
+            ("--title <text>", "issue title"),
+            ("--body <text>", "inline body text"),
+            ("--body-file <path>", "read body text from one file"),
+            (
+                "--body-max <n>",
+                "maximum user-body length; `0` disables the limit; default `0`",
+            ),
+            (
+                "--prefix-enable=<true|false>",
+                "prepend requested-by metadata for matching cross-repo writes",
+            ),
+            ("--token <text>", "explicit GitHub token"),
+            (
+                "--token-file <path>",
+                "env-style file containing `GITHUB_TOKEN`",
+            ),
+            (
+                "--token-env <name>",
+                "read the token from one named environment variable",
+            ),
+        ],
+    }],
+    examples: &[
+        "runseal @tool github issue create --repo PerishCode/runseal --title demo --body-file body.md --prefix-enable=true",
+    ],
 };
 
 pub const GITHUB_ISSUE_COMMENT: Entry = Entry {
