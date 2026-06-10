@@ -1,4 +1,13 @@
-kube_dir=${PERISH_TOP_KUBE_DIR}
+case "${1:-}" in
+  -h|--help|help)
+    print "Usage: runseal :kube [kubectl args...]"
+    print ""
+    print "Assemble KUBECONFIG from .local/kube/*.yaml and run kubectl with it."
+    exit 0
+    ;;
+esac
+
+kube_dir=${PERISH_TOP_KUBE_DIR:?kube: missing PERISH_TOP_KUBE_DIR}
 configs=$(runseal @tool fs list "$kube_dir" --glob "*.yaml" --files --require-nonempty)
 kubeconfig=$(runseal @tool string join "$configs" --separator path)
 KUBECONFIG="$kubeconfig" kubectl "$@"

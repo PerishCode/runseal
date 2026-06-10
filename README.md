@@ -272,21 +272,20 @@ round trips. For example, a wrapper can expose `:ssh <host> --run <script>`
 while `runseal @tool ssh script run` owns the stdin, argv forwarding, and host
 config details.
 
-For example:
+For example, a repo-local `:kube` wrapper can stay pure `.seal` by pushing file
+enumeration and path joining into atomic tools:
 
 ```bash
-fail() {
-  printf '%s\n' "$1" >&2
-  exit 1
-}
-
-if [ -z "$channel" ]; then
-  fail "channel missing"
-fi
-
-raw=$(gh run list --json databaseId)
-run_id=$(runseal @tool json get "$raw" '.[0].databaseId')
+kube_dir=${PERISH_TOP_KUBE_DIR:?kube: missing PERISH_TOP_KUBE_DIR}
+configs=$(runseal @tool fs list "$kube_dir" --glob "*.yaml" --files --require-nonempty)
+kubeconfig=$(runseal @tool string join "$configs" --separator path)
+KUBECONFIG="$kubeconfig" kubectl "$@"
 ```
+
+Prefer visible repo or local artifacts under `.runseal/` or `.local/` for
+multi-line config and payload text. The wrapper should usually validate
+preconditions, choose files, assemble arguments, and invoke the operational
+flow, rather than build inline heredoc-style configuration.
 
 Runseal interprets `.seal` wrappers directly when called as `runseal :name`.
 Use `runseal @transpile --input-lang=seal --output-lang=bash <file>` or

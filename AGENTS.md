@@ -203,6 +203,34 @@ When the behavior cannot be described cleanly as shared shell-shape syntax or a
 clear atomic tool, keep it in Python, Ruby, JavaScript, or another external
 script.
 
+### Should `.seal` wrappers build multi-line config or payload text inline?
+
+Usually no.
+
+For operations work, persistent or semi-persistent structured text should
+normally live as explicit repo material under `.runseal/` or `.local/`, not as
+inline heredoc-style wrapper content. That includes things like:
+
+- config templates
+- YAML or JSON fragments
+- kube-related files
+- long request bodies
+- other operator-facing text payloads
+
+The wrapper should usually do the smaller, clearer job:
+
+- validate preconditions
+- choose the right file or template
+- assemble paths and arguments
+- set environment for the invoked command
+- execute the operational flow
+
+This is an intentional product boundary. `runseal` is meant to reduce
+environment and runtime dependency complexity in operations workflows, not to
+turn `.seal` into a general inline text-construction language. If a multi-line
+artifact is important enough to exist, prefer making it a visible repo or local
+artifact first.
+
 ### Should `.seal` wrappers be treated as first-class runtime entrypoints?
 
 Yes. Treat `.runseal/wrappers/*.seal` as first-class wrappers executed directly

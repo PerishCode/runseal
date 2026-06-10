@@ -405,6 +405,23 @@ fn admin_archive() {
 }
 
 #[test]
+fn kube_help() {
+    let fx = fixture();
+
+    let output = run_wrapper(&fx, "kube", &["--help"]);
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(log(&fx), "");
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout should be UTF-8"),
+        "Usage: runseal :kube [kubectl args...]\n\nAssemble KUBECONFIG from .local/kube/*.yaml and run kubectl with it.\n"
+    );
+}
+
+#[test]
 fn kube_env() {
     let fx = fixture();
     std::fs::create_dir_all(fx.project.join(".local/kube")).expect("kube dir should be created");
@@ -433,6 +450,19 @@ fn kube_env() {
                 .display()
         )
     );
+}
+
+#[test]
+fn kube_requires_matching_files() {
+    let fx = fixture();
+    std::fs::create_dir_all(fx.project.join(".local/kube")).expect("kube dir should be created");
+
+    let output = run_wrapper(&fx, "kube", &["auth", "whoami"]);
+    assert!(
+        !output.status.success(),
+        "wrapper should fail without kube files"
+    );
+    assert_eq!(log(&fx), "");
 }
 
 fn set_mode(path: &Path, mode: u32) {
