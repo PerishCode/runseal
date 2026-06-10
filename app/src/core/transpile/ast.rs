@@ -105,13 +105,33 @@ pub enum ArgvKind {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Value {
-    Literal { text: String },
+    Literal {
+        text: String,
+    },
     Argc,
-    Var { name: String },
     Args,
+    Expand {
+        source: ValueSource,
+        op: ExpansionOp,
+    },
+    Concat {
+        parts: Vec<Value>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ValueSource {
+    Var { name: String },
     Env { name: String },
-    EnvDefault { name: String, default: String },
-    Concat { parts: Vec<Value> },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ExpansionOp {
+    Plain,
+    DefaultIfUnsetOrEmpty { fallback: String },
+    RequireNonEmpty { message: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -1,7 +1,8 @@
 use super::powershell_support::{emit_positional_bindings, max_positional_statements};
 use super::support::{generated_header, option_name};
 use crate::core::transpile::ast::{
-    ArgvKind, ArgvSpec, EnvAssign, Item, OutputStream, Predicate, Program, Statement, Value,
+    ArgvKind, ArgvSpec, EnvAssign, ExpansionOp, Item, OutputStream, Predicate, Program, Statement,
+    Value, ValueSource,
 };
 
 pub(crate) fn emit_powershell(program: &Program, source_name: Option<&str>) -> String {
@@ -356,15 +357,8 @@ fn powershell_value(value: &Value) -> String {
     match value {
         Value::Literal { text } => powershell_quote(text),
         Value::Argc => "$args.Count".to_string(),
-        Value::Var { name } => format!("${name}"),
         Value::Args => "@args".to_string(),
-        Value::Env { name } => format!("$env:{name}"),
-        Value::EnvDefault { name, default } => {
-            format!(
-                "$(if ($env:{name}) {{ $env:{name} }} else {{ {} }})",
-                powershell_quote(default)
-            )
-        }
+        Value::Expand { source, op } => powershell_expand(source, op),
         Value::Concat { parts } => {
             if parts.is_empty() {
                 return "''".to_string();
@@ -375,6 +369,48 @@ fn powershell_value(value: &Value) -> String {
                 .collect::<Vec<_>>()
                 .join(" + ");
             format!("({value})")
+        }
+    }
+}
+
+fn powershell_expand(source: &ValueSource, op: &ExpansionOp) -> String {
+    match op {
+        ExpansionOp::Plain => powershell_source_value(source),
+        ExpansionOp::DefaultIfUnsetOrEmpty { fallback } => {
+            powershell_guarded_expand(source, fallback, false)
+        }
+        ExpansionOp::RequireNonEmpty { message } => {
+            powershell_guarded_expand(source, message, true)
+        }
+    }
+}
+
+fn powershell_source_value(source: &ValueSource) -> String {
+    match source {
+        ValueSource::Var { name } => format!("${name}"),
+        ValueSource::Env { name } => format!("$env:{name}"),
+    }
+}
+
+fn powershell_guarded_expand(source: &ValueSource, text: &str, require: bool) -> String {
+    let fallback_or_message = powershell_quote(text);
+    let action = if require {
+        format!("throw {fallback_or_message}")
+    } else {
+        fallback_or_message
+    };
+    match source {
+        ValueSource::Env { name } => format!(
+            "$(if ([string]::IsNullOrEmpty($env:{name})) {{ {action} }} else {{ $env:{name} }})"
+        ),
+        ValueSource::Var { name } if name.bytes().all(|byte| byte.is_ascii_digit()) => {
+            let index = name.parse::<usize>().unwrap_or_default();
+            format!(
+                "$(if (($args.Count -lt {index}) -or [string]::IsNullOrEmpty(${name})) {{ {action} }} else {{ ${name} }})"
+            )
+        }
+        ValueSource::Var { name } => {
+            format!("$(if ([string]::IsNullOrEmpty(${name})) {{ {action} }} else {{ ${name} }})")
         }
     }
 }

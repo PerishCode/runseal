@@ -8,7 +8,9 @@ use self::support::{
     CaptureMode, CommandOutput, case_matches, find_spec, option_name, shell_words, split_words,
     write_stream_file,
 };
-use super::ast::{ArgvKind, ArgvSpec, Item, Predicate, Program, Statement, Value};
+use super::ast::{
+    ArgvKind, ArgvSpec, ExpansionOp, Item, Predicate, Program, Statement, Value, ValueSource,
+};
 use super::parse::parse_seal;
 
 mod support;
@@ -40,6 +42,12 @@ enum Flow {
 struct ArgSnapshot {
     argv: Option<String>,
     values: Vec<Option<String>>,
+}
+
+enum SourceState {
+    Unset,
+    Empty,
+    Present(String),
 }
 
 impl<'a> Runner<'a> {
@@ -89,7 +97,7 @@ impl<'a> Runner<'a> {
     fn run_statement(&mut self, statement: &Statement) -> Result<Flow> {
         match statement {
             Statement::Assign { name, value } => {
-                let value = self.value(value);
+                let value = self.try_value(value)?;
                 self.vars.insert(name.clone(), value);
             }
             Statement::ArgvParse { specs } => self.parse_argv(specs)?,
@@ -107,7 +115,7 @@ impl<'a> Runner<'a> {
                 argv,
             } => {
                 let output = self.run_external(argv, CaptureMode::All)?;
-                let path = self.value(path);
+                let path = self.try_value(path)?;
                 write_stream_file(stream, Path::new(&path), *append, &output)?;
                 if output.code != 0 {
                     return Ok(Flow::Exit(output.code));
@@ -116,8 +124,8 @@ impl<'a> Runner<'a> {
             Statement::EnvExecChecked { env, argv } => {
                 let overlay = env
                     .iter()
-                    .map(|item| (item.name.clone(), self.value(&item.value)))
-                    .collect::<Vec<_>>();
+                    .map(|item| Ok((item.name.clone(), self.try_value(&item.value)?)))
+                    .collect::<Result<Vec<_>>>()?;
                 let code = self
                     .run_external_with_env(argv, CaptureMode::None, &overlay)?
                     .code;
@@ -157,7 +165,7 @@ impl<'a> Runner<'a> {
                 }
             }
             Statement::Case { value, arms } => {
-                let value = self.value(value);
+                let value = self.try_value(value)?;
                 for arm in arms {
                     if arm
                         .patterns
@@ -173,17 +181,17 @@ impl<'a> Runner<'a> {
                 }
             }
             Statement::CallFunction { name, argv } => {
-                let old_args = self.set_function_args(argv);
+                let old_args = self.set_function_args(argv)?;
                 let flow = self.run_function(name)?;
                 self.restore_function_args(old_args);
                 if !matches!(flow, Flow::Continue) {
                     return Ok(flow);
                 }
             }
-            Statement::Print { value } => println!("{}", self.value(value)),
-            Statement::Error { value } => eprintln!("{}", self.value(value)),
+            Statement::Print { value } => println!("{}", self.try_value(value)?),
+            Statement::Error { value } => eprintln!("{}", self.try_value(value)?),
             Statement::Fail { value } => {
-                eprintln!("{}", self.value(value));
+                eprintln!("{}", self.try_value(value)?);
                 return Ok(Flow::Exit(1));
             }
             Statement::Exit { code } => return Ok(Flow::Exit(*code)),
@@ -263,30 +271,29 @@ impl<'a> Runner<'a> {
         Ok(())
     }
 
-    fn value(&self, value: &Value) -> String {
-        match value {
+    fn try_value(&self, value: &Value) -> Result<String> {
+        Ok(match value {
             Value::Literal { text } => text.clone(),
             Value::Argc => self.argc().to_string(),
-            Value::Var { name } => self.vars.get(name).cloned().unwrap_or_default(),
             Value::Args => shell_words(&self.current_args()),
-            Value::Env { name } => self.env.get(name).cloned().unwrap_or_default(),
-            Value::EnvDefault { name, default } => self
-                .env
-                .get(name)
-                .filter(|value| !value.is_empty())
-                .cloned()
-                .unwrap_or_else(|| default.clone()),
-            Value::Concat { parts } => parts.iter().map(|part| self.value(part)).collect(),
-        }
+            Value::Expand { source, op } => self.expand_value(source, op)?,
+            Value::Concat { parts } => {
+                let mut combined = String::new();
+                for part in parts {
+                    combined.push_str(&self.try_value(part)?);
+                }
+                combined
+            }
+        })
     }
 
     fn predicate(&self, predicate: &Predicate) -> Result<bool> {
         Ok(match predicate {
             Predicate::Command { argv } => self.run_external(argv, CaptureMode::None)?.code == 0,
-            Predicate::Empty { value } => self.value(value).is_empty(),
-            Predicate::NotEmpty { value } => !self.value(value).is_empty(),
-            Predicate::Eq { left, right } => self.value(left) == self.value(right),
-            Predicate::Neq { left, right } => self.value(left) != self.value(right),
+            Predicate::Empty { value } => self.try_value(value)?.is_empty(),
+            Predicate::NotEmpty { value } => !self.try_value(value)?.is_empty(),
+            Predicate::Eq { left, right } => self.try_value(left)? == self.try_value(right)?,
+            Predicate::Neq { left, right } => self.try_value(left)? != self.try_value(right)?,
             Predicate::IntLt { left, right } => self.int_value(left)? < self.int_value(right)?,
             Predicate::IntLte { left, right } => self.int_value(left)? <= self.int_value(right)?,
             Predicate::IntGt { left, right } => self.int_value(left)? > self.int_value(right)?,
@@ -297,21 +304,55 @@ impl<'a> Runner<'a> {
             Predicate::JsonNotEmpty { value } => {
                 self.tool_path(&["json", "empty"], std::slice::from_ref(value))? == "false"
             }
-            Predicate::FileExists { path } => Path::new(&self.value(path)).is_file(),
-            Predicate::DirExists { path } => Path::new(&self.value(path)).is_dir(),
+            Predicate::FileExists { path } => Path::new(&self.try_value(path)?).is_file(),
+            Predicate::DirExists { path } => Path::new(&self.try_value(path)?).is_dir(),
         })
     }
 
     fn int_value(&self, value: &Value) -> Result<i64> {
-        let value = self.value(value);
+        let value = self.try_value(value)?;
         value
             .parse::<i64>()
             .with_context(|| format!("invalid integer: {value}"))
     }
 
+    fn expand_value(&self, source: &ValueSource, op: &ExpansionOp) -> Result<String> {
+        let state = self.source_state(source);
+        match op {
+            ExpansionOp::Plain => Ok(match state {
+                SourceState::Unset => String::new(),
+                SourceState::Empty => String::new(),
+                SourceState::Present(value) => value,
+            }),
+            ExpansionOp::DefaultIfUnsetOrEmpty { fallback } => Ok(match state {
+                SourceState::Present(value) => value,
+                SourceState::Unset | SourceState::Empty => fallback.clone(),
+            }),
+            ExpansionOp::RequireNonEmpty { message } => match state {
+                SourceState::Present(value) => Ok(value),
+                SourceState::Unset | SourceState::Empty => bail!("{message}"),
+            },
+        }
+    }
+
+    fn source_state(&self, source: &ValueSource) -> SourceState {
+        match source {
+            ValueSource::Env { name } => self.map_source_state(self.env.get(name).cloned()),
+            ValueSource::Var { name } => self.map_source_state(self.vars.get(name).cloned()),
+        }
+    }
+
+    fn map_source_state(&self, value: Option<String>) -> SourceState {
+        match value {
+            None => SourceState::Unset,
+            Some(value) if value.is_empty() => SourceState::Empty,
+            Some(value) => SourceState::Present(value),
+        }
+    }
+
     fn tool_path(&self, path: &[&str], argv: &[Value]) -> Result<String> {
         let mut args = path.iter().map(|part| part.to_string()).collect::<Vec<_>>();
-        args.extend(self.expanded_values(argv));
+        args.extend(self.expanded_values(argv)?);
         Ok(tool::eval(&args)?.unwrap_or_default())
     }
 
@@ -325,7 +366,7 @@ impl<'a> Runner<'a> {
         capture: CaptureMode,
         env_overlay: &[(String, String)],
     ) -> Result<CommandOutput> {
-        let argv = self.expanded_values(argv);
+        let argv = self.expanded_values(argv)?;
         let Some((program, args)) = argv.split_first() else {
             bail!("external command cannot be empty");
         };
@@ -354,8 +395,8 @@ impl<'a> Runner<'a> {
         })
     }
 
-    fn set_function_args(&mut self, argv: &[Value]) -> ArgSnapshot {
-        let values = self.expanded_values(argv);
+    fn set_function_args(&mut self, argv: &[Value]) -> Result<ArgSnapshot> {
+        let values = self.expanded_values(argv)?;
         let old_len = self.argc();
         let old = (0..=old_len)
             .map(|index| self.vars.remove(&index.to_string()))
@@ -365,7 +406,7 @@ impl<'a> Runner<'a> {
             values: old,
         };
         self.set_positional_args(&values);
-        snapshot
+        Ok(snapshot)
     }
 
     fn restore_function_args(&mut self, old: ArgSnapshot) {
@@ -393,16 +434,16 @@ impl<'a> Runner<'a> {
         }
     }
 
-    fn expanded_values(&self, values: &[Value]) -> Vec<String> {
+    fn expanded_values(&self, values: &[Value]) -> Result<Vec<String>> {
         let mut expanded = Vec::new();
         for value in values {
             match value {
                 Value::Args => expanded.extend(self.current_args()),
                 Value::Argc => expanded.push(self.argc().to_string()),
-                _ => expanded.push(self.value(value)),
+                _ => expanded.push(self.try_value(value)?),
             }
         }
-        expanded
+        Ok(expanded)
     }
 
     fn argc(&self) -> usize {

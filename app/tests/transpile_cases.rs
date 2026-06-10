@@ -4,6 +4,8 @@ mod argv;
 mod command_predicate;
 #[path = "transpile_cases/env.rs"]
 mod env;
+#[path = "transpile_cases/expansion.rs"]
+mod expansion;
 #[path = "transpile_cases/regex.rs"]
 mod regex;
 #[path = "transpile_cases/release.rs"]

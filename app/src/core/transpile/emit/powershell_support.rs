@@ -1,4 +1,4 @@
-use crate::core::transpile::ast::{Predicate, Statement, Value};
+use crate::core::transpile::ast::{ExpansionOp, Predicate, Statement, Value, ValueSource};
 
 pub(super) fn emit_positional_bindings(out: &mut String, indent: usize, max: usize) -> bool {
     if max == 0 {
@@ -96,16 +96,24 @@ fn max_positional_predicate(predicate: &Predicate) -> usize {
 
 fn max_positional_value(value: &Value) -> usize {
     match value {
-        Value::Var { name } => name.parse::<usize>().unwrap_or_default(),
+        Value::Expand { source, op } => max_positional_expand(source, op),
         Value::Concat { parts } => parts
             .iter()
             .map(max_positional_value)
             .max()
             .unwrap_or_default(),
-        Value::Literal { .. }
-        | Value::Argc
-        | Value::Args
-        | Value::Env { .. }
-        | Value::EnvDefault { .. } => 0,
+        Value::Literal { .. } | Value::Argc | Value::Args => 0,
+    }
+}
+
+fn max_positional_expand(source: &ValueSource, op: &ExpansionOp) -> usize {
+    let source_max = match source {
+        ValueSource::Var { name } => name.parse::<usize>().unwrap_or_default(),
+        ValueSource::Env { .. } => 0,
+    };
+    match op {
+        ExpansionOp::Plain
+        | ExpansionOp::DefaultIfUnsetOrEmpty { .. }
+        | ExpansionOp::RequireNonEmpty { .. } => source_max,
     }
 }

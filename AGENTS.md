@@ -17,7 +17,18 @@ This top-level `AGENTS.md` is the repository navigation and policy layer.
 
 Core product stance:
 
-- Small CLI. Explicit profile. No hidden orchestration.
+- `runseal` exists to reduce environment-dependency complexity in real
+  cross-platform operations work: too many environment variables, too many
+  machine-specific assumptions, and too much operational glue falling back to
+  Python or JavaScript even when the underlying workflow is clear and finite.
+- Explicit profile. No hidden orchestration.
+- Prefer a stable shared subset of `bash` and PowerShell for `.seal`, plus
+  explicit atomic `@tool` capabilities for needs that do not fit that shared
+  shell surface cleanly.
+- Preserve cross-shell semantic equivalence as the hard constraint. Do not
+  require local syntax symmetry or IR-level elegance when a `.seal` behavior is
+  still clear, finite, and can be translated reliably into a more awkward
+  PowerShell form.
 - Keep the Rust core thin and concrete.
 - Support only `env`, `symlink`, fixed-prefix `argv`, explicit `:wrapper`
   resolution, direct `.seal` execution, and read-only `@internal`
@@ -142,11 +153,39 @@ Successful profile and wrapper paths are normalized absolute paths.
 
 ## 5. FAQ
 
-### Why keep the CLI surface small?
+### What defines the CLI surface?
 
-Because this repository is building explicit runtime glue, not a hidden
-orchestrator. New behavior should be added only when it fits the existing
-surface cleanly.
+This repository is building explicit runtime glue, not a hidden orchestrator.
+New behavior should be added only when it fits one of two shapes cleanly:
+
+- shared `bash` and PowerShell semantics that are worth making first-class in
+  `.seal`
+- an explicit atomic `@tool`
+
+This boundary comes from the actual problem `runseal` is trying to solve:
+clear operational workflows should not need to depend on heavyweight language
+runtimes or repository-local script stacks just to survive environment drift,
+cross-platform differences, and routine operator setup friction.
+
+The goal is not "be as small as possible". The goal is to absorb the
+right kind of complexity:
+
+- clear, finite, cross-platform operational flow control should fit in
+  `runseal`
+- shell-specific cleverness, open-ended scripting power, and accidental runtime
+  dependency sprawl should not
+
+That is why the product boundary is a shared shell subset plus explicit atomic
+tools, rather than a general scripting platform or a partial shell clone.
+
+The hard promise is behavioral equivalence across `bash` and PowerShell, not
+surface-level symmetry in generated code. Some worthwhile `.seal` semantics may
+compile into elegant `bash` and relatively ugly PowerShell. That tradeoff is
+acceptable when:
+
+- the `.seal` behavior is clear and finite
+- the translation is reliable and testable
+- the result still serves explicit cross-platform operations flow control
 
 ### When should behavior become Seal syntax?
 
@@ -156,12 +195,12 @@ worth making first-class.
 ### When should behavior become `@tool`?
 
 When native CLI coverage is insufficient for an atomic, reusable operation and
-the result still fits the small explicit model.
+the result still fits the explicit atomic-tool model.
 
 ### When should logic stay outside runseal?
 
 When the behavior cannot be described cleanly as shared shell-shape syntax or a
-small atomic tool, keep it in Python, Ruby, JavaScript, or another external
+clear atomic tool, keep it in Python, Ruby, JavaScript, or another external
 script.
 
 ### Should `.seal` wrappers be treated as first-class runtime entrypoints?

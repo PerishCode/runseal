@@ -61,7 +61,7 @@ esac
 
 fn powershell_source() -> &'static str {
     r#"
-$channel = $(if ($env:RUNSEAL_CHANNEL) { $env:RUNSEAL_CHANNEL } else { 'stable' })
+$channel = $(if ([string]::IsNullOrEmpty($env:RUNSEAL_CHANNEL)) { 'stable' } else { $env:RUNSEAL_CHANNEL })
 function release_run {
     if ([string]::IsNullOrEmpty($channel)) {
         throw 'channel missing'
@@ -166,7 +166,7 @@ fn sealir_without_profile() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     let payload: serde_json::Value = serde_json::from_str(&stdout).expect("stdout should be JSON");
     assert_eq!(payload["version"], 1);
-    assert!(stdout.contains("env_default"));
+    assert!(stdout.contains("default_if_unset_or_empty"));
     assert!(stdout.contains("exec_checked"));
 }
 
@@ -205,7 +205,7 @@ fn bash_frontend_sealir() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("env_default"));
+    assert!(stdout.contains("default_if_unset_or_empty"));
     assert!(stdout.contains("exec_checked"));
 }
 
@@ -217,7 +217,7 @@ fn powershell_frontend_sealir() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("env_default"));
+    assert!(stdout.contains("default_if_unset_or_empty"));
     assert!(stdout.contains("call_function"));
     assert!(stdout.contains("exec_checked"));
 }
