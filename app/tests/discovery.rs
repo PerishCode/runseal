@@ -3,7 +3,10 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_runseal"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_runseal"));
+    command.env_remove("RUNSEAL_PROFILE_HOME");
+    command.env_remove("RUNSEAL_PROFILE_PATH");
+    command
 }
 
 #[cfg(unix)]
