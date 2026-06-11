@@ -75,6 +75,17 @@ runseal --profile ./runseal.toml bash -lc 'echo "$RUNSEAL_PROFILE_PATH"'
 
 Use `runseal profile` without `@` to run an external command named `profile`.
 
+## Examples
+
+Repository-owned examples for canonical `.seal` and `@tool` shapes live under
+[docs/examples](./docs/examples/README.md).
+
+Start here when a wrapper shape feels "obvious in shell" but still needs the
+exact runseal form:
+
+- [Seal `case` / argv parser shapes](./docs/examples/seal/case.md)
+- [GitHub tool examples](./docs/examples/tools/github.md)
+
 ## Fit
 
 Fits well:
