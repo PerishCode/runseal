@@ -50,4 +50,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PATH="$PWD/target/debug:$PATH" cargo run --quiet --locked -p runseal -- :guard
+          cargo build --quiet --locked -p runseal
+          exe=runseal
+          if [ "${RUNNER_OS:-}" = "Windows" ]; then
+            exe=runseal.exe
+          fi
+          bin_dir="$PWD/.local/tmp/ci-guard-bin"
+          mkdir -p "$bin_dir"
+          cp "target/debug/$exe" "$bin_dir/$exe"
+          PATH="$bin_dir:$PWD/target/debug:$PATH" "$bin_dir/$exe" :guard
