@@ -34,13 +34,61 @@ fn repo_parse_origin(args: &[String]) -> Result<Option<String>> {
 
 fn pr(args: &[String]) -> Result<Option<String>> {
     let [command, rest @ ..] = args else {
-        bail!("usage: runseal @tool gitee pr create|pass-gates|merge ...");
+        bail!("usage: runseal @tool gitee pr find|create|pass-gates|merge ...");
     };
     match command.as_str() {
+        "find" => pr_find(rest),
         "create" => pr_create(rest),
         "pass-gates" => pr_pass_gates(rest),
         "merge" => pr_merge(rest),
-        _ => bail!("usage: runseal @tool gitee pr create|pass-gates|merge ..."),
+        _ => bail!("usage: runseal @tool gitee pr find|create|pass-gates|merge ..."),
+    }
+}
+
+fn pr_find(args: &[String]) -> Result<Option<String>> {
+    let owner = required_option(args, "--owner")?;
+    let repo = required_option(args, "--repo")?;
+    let token = token(args)?;
+    let head = required_option(args, "--head")?;
+    let base = optional_option(args, "--base");
+    let state = optional_option(args, "--state").unwrap_or_else(|| "open".to_string());
+    if !matches!(state.as_str(), "open" | "merged" | "closed" | "all") {
+        bail!("--state must be one of: open, merged, closed, all");
+    }
+
+    let mut query = vec![
+        ("head".to_string(), head.clone()),
+        ("state".to_string(), state),
+    ];
+    if let Some(base) = &base {
+        query.push(("base".to_string(), base.clone()));
+    }
+
+    let raw = request_json(
+        "GET",
+        &format!("/repos/{owner}/{repo}/pulls"),
+        &token,
+        None,
+        &query,
+    )?;
+    let Some(items) = raw.as_array() else {
+        bail!("Gitee API returned non-array JSON for pull request listing");
+    };
+
+    let matches = items
+        .iter()
+        .filter(|item| pr_matches(item, &head, base.as_deref()))
+        .cloned()
+        .collect::<Vec<_>>();
+    match matches.len() {
+        0 => Ok(Some("null".to_string())),
+        1 => Ok(Some(serde_json::to_string(&matches[0])?)),
+        count => bail!(
+            "Gitee PR find is ambiguous for head `{head}`{}: found {count} matches",
+            base.as_deref()
+                .map(|value| format!(" and base `{value}`"))
+                .unwrap_or_default()
+        ),
     }
 }
 
@@ -100,14 +148,18 @@ fn pr_merge(args: &[String]) -> Result<Option<String>> {
     )
 }
 
-fn request(method: &str, path: &str, token: &str, mut body: JsonValue) -> Result<Option<String>> {
-    let Some(object) = body.as_object_mut() else {
-        bail!("Gitee request body must be a JSON object");
-    };
-    object.insert(
-        "access_token".to_string(),
-        JsonValue::String(token.to_string()),
-    );
+fn request(method: &str, path: &str, token: &str, body: JsonValue) -> Result<Option<String>> {
+    let payload = request_json(method, path, token, Some(body), &[])?;
+    Ok(Some(serde_json::to_string(&payload)?))
+}
+
+fn request_json(
+    method: &str,
+    path: &str,
+    token: &str,
+    body: Option<JsonValue>,
+    query: &[(String, String)],
+) -> Result<JsonValue> {
     let base = std::env::var("RUNSEAL_GITEE_API_BASE")
         .unwrap_or_else(|_| "https://gitee.com/api/v5".to_string());
     let path = if path.starts_with('/') {
@@ -122,14 +174,33 @@ fn request(method: &str, path: &str, token: &str, mut body: JsonValue) -> Result
     let method = method
         .parse::<reqwest::Method>()
         .with_context(|| format!("invalid HTTP method: {method}"))?;
-    let response = client
-        .request(method.clone(), &url)
-        .header(reqwest::header::ACCEPT, "application/json")
-        .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .header(reqwest::header::AUTHORIZATION, format!("token {token}"))
-        .json(&body)
-        .send()
-        .with_context(|| format!("Gitee API {method} {path} unreachable"))?;
+    let response = if let Some(mut body) = body {
+        let Some(object) = body.as_object_mut() else {
+            bail!("Gitee request body must be a JSON object");
+        };
+        object.insert(
+            "access_token".to_string(),
+            JsonValue::String(token.to_string()),
+        );
+        client
+            .request(method.clone(), &url)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::AUTHORIZATION, format!("token {token}"))
+            .query(query)
+            .json(&body)
+            .send()
+            .with_context(|| format!("Gitee API {method} {path} unreachable"))?
+    } else {
+        client
+            .request(method.clone(), &url)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::AUTHORIZATION, format!("token {token}"))
+            .query(query)
+            .send()
+            .with_context(|| format!("Gitee API {method} {path} unreachable"))?
+    };
     let status = response.status();
     let raw = response
         .text()
@@ -137,13 +208,40 @@ fn request(method: &str, path: &str, token: &str, mut body: JsonValue) -> Result
     if !status.is_success() {
         bail!("Gitee API {method} {path} -> {}: {raw}", status.as_u16());
     }
-    let payload: JsonValue = if raw.trim().is_empty() {
-        JsonValue::Object(Default::default())
-    } else {
-        serde_json::from_str(&raw)
-            .with_context(|| format!("Gitee API returned invalid JSON for {path}"))?
+    if raw.trim().is_empty() {
+        return Ok(JsonValue::Object(Default::default()));
+    }
+    serde_json::from_str(&raw)
+        .with_context(|| format!("Gitee API returned invalid JSON for {path}"))
+}
+
+fn pr_matches(item: &JsonValue, head: &str, base: Option<&str>) -> bool {
+    let Some(item_head) = pr_head_branch(item) else {
+        return false;
     };
-    Ok(Some(serde_json::to_string(&payload)?))
+    if item_head != head {
+        return false;
+    }
+    match base {
+        Some(expected) => pr_base_branch(item).is_some_and(|value| value == expected),
+        None => true,
+    }
+}
+
+fn pr_head_branch(item: &JsonValue) -> Option<&str> {
+    item.get("head")
+        .and_then(|value| value.get("ref").or_else(|| value.get("label")))
+        .and_then(JsonValue::as_str)
+        .or_else(|| item.get("head").and_then(JsonValue::as_str))
+        .map(|value| value.rsplit(':').next().unwrap_or(value))
+}
+
+fn pr_base_branch(item: &JsonValue) -> Option<&str> {
+    item.get("base")
+        .and_then(|value| value.get("ref").or_else(|| value.get("label")))
+        .and_then(JsonValue::as_str)
+        .or_else(|| item.get("base").and_then(JsonValue::as_str))
+        .map(|value| value.rsplit(':').next().unwrap_or(value))
 }
 
 fn token(args: &[String]) -> Result<String> {

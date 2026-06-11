@@ -17,6 +17,10 @@ This top-level `AGENTS.md` is the repository navigation and policy layer.
 
 Core product stance:
 
+- `runseal` is not just an operations toolkit. It is an operations methodology
+  plus a derived tool system: the main value is deciding which operational
+  complexity belongs in wrappers, atomic tools, repo/local artifacts, or
+  external scripts, then keeping those layers explicit.
 - `runseal` exists to reduce environment-dependency complexity in real
   cross-platform operations work: too many environment variables, too many
   machine-specific assumptions, and too much operational glue falling back to
@@ -161,6 +165,19 @@ New behavior should be added only when it fits one of two shapes cleanly:
 - shared `bash` and PowerShell semantics that are worth making first-class in
   `.seal`
 - an explicit atomic `@tool`
+
+`runseal` should not be treated as a grab-bag operations toolkit where every
+pain point becomes another command. Its value is methodological first:
+
+- decide what should be flow control in `.seal`
+- decide what should be an atomic `@tool`
+- decide what should be a visible repo or local artifact under `.runseal/` or
+  `.local/`
+- decide what should remain an external script because it carries the wrong
+  kind of complexity
+
+The concrete tools matter, but they are derived from that layering model rather
+than the other way around.
 
 This boundary comes from the actual problem `runseal` is trying to solve:
 clear operational workflows should not need to depend on heavyweight language

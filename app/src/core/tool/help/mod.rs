@@ -55,6 +55,7 @@ const ENTRIES: &[Entry] = &[
     basic::GITEE_REPO,
     basic::GITEE_REPO_PARSE_ORIGIN,
     basic::GITEE_PR,
+    basic::GITEE_PR_FIND,
     basic::GITEE_PR_CREATE,
     basic::GITEE_PR_PASS_GATES,
     basic::GITEE_PR_MERGE,
