@@ -51,6 +51,7 @@ jobs:
         run: python3 .github/scripts/release/metadata/stable.py
 
       - name: Guard version policy
+        shell: bash
         run: |
           set -euo pipefail
           PATH="$PWD/target/debug:$PATH" cargo run --quiet --locked -p runseal -- :guard version-check
@@ -77,6 +78,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
       - name: Install Flavor
+        shell: bash
         run: |
           set -euo pipefail
           curl -fsSL https://flavor.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-flavor.sh"
@@ -162,6 +164,7 @@ jobs:
 
       - name: Resolve guard version hash
         id: guard_hash
+        shell: bash
         run: |
           set -euo pipefail
           PATH="$PWD/target/debug:$PATH"
@@ -189,6 +192,7 @@ jobs:
         run: bash .github/scripts/release/r2/verify.sh
 
       - name: Create and push git tag
+        shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

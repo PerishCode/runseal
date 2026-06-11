@@ -47,6 +47,7 @@ jobs:
           $binDir | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
       - name: Guard
+        shell: bash
         run: |
           set -euo pipefail
           PATH="$PWD/target/debug:$PATH" cargo run --quiet --locked -p runseal -- :guard
