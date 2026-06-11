@@ -69,7 +69,7 @@ pub const GITHUB_ISSUE_CREATE: Entry = Entry {
             ),
             (
                 "--token-env <name>",
-                "read the token from one named environment variable",
+                "read the token from one named environment variable; default fallback is `GITHUB_TOKEN`",
             ),
         ],
     }],
@@ -117,7 +117,7 @@ pub const GITHUB_ISSUE_COMMENT_CREATE: Entry = Entry {
             ),
             (
                 "--token-env <name>",
-                "read the token from one named environment variable",
+                "read the token from one named environment variable; default fallback is `GITHUB_TOKEN`",
             ),
         ],
     }],
@@ -165,7 +165,7 @@ pub const GITHUB_ISSUE_BODY_UPDATE: Entry = Entry {
             ),
             (
                 "--token-env <name>",
-                "read the token from one named environment variable",
+                "read the token from one named environment variable; default fallback is `GITHUB_TOKEN`",
             ),
         ],
     }],

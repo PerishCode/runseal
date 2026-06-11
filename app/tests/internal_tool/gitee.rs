@@ -202,6 +202,44 @@ fn gitee_pr() {
         String::from_utf8_lossy(&find_ambiguous.stderr)
             .contains("Gitee PR find is ambiguous for head `feat/dup`: found 2 matches")
     );
+
+    let (api_base, handle) = mock_gitee(
+        |request| {
+            assert!(request.starts_with("POST /repos/perishme/perish.top/pulls "));
+            assert!(request.contains("authorization: token custom-env-token"));
+            assert!(request.contains("Env override"));
+        },
+        r#"{"number":77,"html_url":"https://gitee.test/pr/77"}"#,
+    );
+    let create_with_token_env = bin()
+        .current_dir(&cwd)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .env("RUNSEAL_GITEE_API_BASE", api_base)
+        .env("CUSTOM_GITEE_TOKEN", "custom-env-token")
+        .args([
+            "@tool",
+            "gitee",
+            "pr",
+            "create",
+            "--owner",
+            "perishme",
+            "--repo",
+            "perish.top",
+            "--token-env",
+            "CUSTOM_GITEE_TOKEN",
+            "--base",
+            "main",
+            "--head",
+            "feat/env",
+            "--title",
+            "Env override",
+            "--body",
+            "Body",
+        ])
+        .output()
+        .expect("runseal should run");
+    assert!(create_with_token_env.status.success());
+    handle.join().expect("mock server should finish");
 }
 
 #[test]

@@ -319,7 +319,7 @@ pub const GITEE_PR: Entry = Entry {
 
 pub const GITEE_PR_FIND: Entry = Entry {
     key: "gitee.pr.find",
-    usage: "runseal @tool gitee pr find --owner <name> --repo <name> --head <branch> [--base <branch>] [--state <open|merged|closed|all>] [--token <text>|--token-file <path>]",
+    usage: "runseal @tool gitee pr find --owner <name> --repo <name> --head <branch> [--base <branch>] [--state <open|merged|closed|all>] [--token <text>|--token-file <path>|--token-env <name>]",
     about: Some(
         "Find one Gitee pull request by branch filters. Prints the PR JSON object or `null` when no match exists.",
     ),
@@ -339,6 +339,10 @@ pub const GITEE_PR_FIND: Entry = Entry {
                 "--token-file <path>",
                 "env-style file containing `GITEE_TOKEN`",
             ),
+            (
+                "--token-env <name>",
+                "read the token from one named environment variable; default fallback is `GITEE_TOKEN`",
+            ),
         ],
     }],
     examples: &[
@@ -349,7 +353,7 @@ pub const GITEE_PR_FIND: Entry = Entry {
 
 pub const GITEE_PR_CREATE: Entry = Entry {
     key: "gitee.pr.create",
-    usage: "runseal @tool gitee pr create --owner <name> --repo <name> --base <branch> --head <branch> --title <text> --body <text> [--token <text>|--token-file <path>]",
+    usage: "runseal @tool gitee pr create --owner <name> --repo <name> --base <branch> --head <branch> --title <text> --body <text> [--token <text>|--token-file <path>|--token-env <name>]",
     about: Some("Create a Gitee pull request and print the API response JSON."),
     sections: &[Section {
         title: "Flags",
@@ -365,6 +369,10 @@ pub const GITEE_PR_CREATE: Entry = Entry {
                 "--token-file <path>",
                 "env-style file containing `GITEE_TOKEN`",
             ),
+            (
+                "--token-env <name>",
+                "read the token from one named environment variable; default fallback is `GITEE_TOKEN`",
+            ),
         ],
     }],
     examples: &[
@@ -374,7 +382,7 @@ pub const GITEE_PR_CREATE: Entry = Entry {
 
 pub const GITEE_PR_PASS_GATES: Entry = Entry {
     key: "gitee.pr.pass-gates",
-    usage: "runseal @tool gitee pr pass-gates --owner <name> --repo <name> --number <n> [--token <text>|--token-file <path>]",
+    usage: "runseal @tool gitee pr pass-gates --owner <name> --repo <name> --number <n> [--token <text>|--token-file <path>|--token-env <name>]",
     about: Some("Best-effort pass available Gitee PR gates and print the result JSON."),
     sections: &[Section {
         title: "Flags",
@@ -387,6 +395,10 @@ pub const GITEE_PR_PASS_GATES: Entry = Entry {
                 "--token-file <path>",
                 "env-style file containing `GITEE_TOKEN`",
             ),
+            (
+                "--token-env <name>",
+                "read the token from one named environment variable; default fallback is `GITEE_TOKEN`",
+            ),
         ],
     }],
     examples: &[
@@ -396,7 +408,7 @@ pub const GITEE_PR_PASS_GATES: Entry = Entry {
 
 pub const GITEE_PR_MERGE: Entry = Entry {
     key: "gitee.pr.merge",
-    usage: "runseal @tool gitee pr merge --owner <name> --repo <name> --number <n> [--method <merge|rebase|squash>] [--token <text>|--token-file <path>]",
+    usage: "runseal @tool gitee pr merge --owner <name> --repo <name> --number <n> [--method <merge|rebase|squash>] [--token <text>|--token-file <path>|--token-env <name>]",
     about: Some("Merge a Gitee pull request and print the API response JSON."),
     sections: &[Section {
         title: "Flags",
@@ -412,6 +424,10 @@ pub const GITEE_PR_MERGE: Entry = Entry {
             (
                 "--token-file <path>",
                 "env-style file containing `GITEE_TOKEN`",
+            ),
+            (
+                "--token-env <name>",
+                "read the token from one named environment variable; default fallback is `GITEE_TOKEN`",
             ),
         ],
     }],

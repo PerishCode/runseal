@@ -257,12 +257,20 @@ fn token(args: &[String]) -> Result<String> {
         }
         bail!("GITEE_TOKEN not set in {path}");
     }
+    if let Some(name) = optional_option(args, "--token-env") {
+        let token = std::env::var(&name)
+            .with_context(|| format!("environment variable not set: {name}"))?;
+        if token.is_empty() {
+            bail!("environment variable is empty: {name}");
+        }
+        return Ok(token);
+    }
     if let Ok(token) = std::env::var("GITEE_TOKEN")
         && !token.is_empty()
     {
         return Ok(token);
     }
-    bail!("missing Gitee token: pass --token, --token-file, or set GITEE_TOKEN")
+    bail!("missing Gitee token: pass --token, --token-file, --token-env, or set GITEE_TOKEN")
 }
 
 fn parse_env_file(path: &Path) -> Result<BTreeMap<String, String>> {
