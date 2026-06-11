@@ -18,6 +18,12 @@ pub enum Statement {
         name: String,
         value: Value,
     },
+    ExecWrite {
+        stream: OutputStream,
+        path: Value,
+        append: bool,
+        argv: Vec<Value>,
+    },
     ExecChecked {
         argv: Vec<Value>,
     },
@@ -30,9 +36,15 @@ pub enum Statement {
     },
     ArgvParse {
         specs: Vec<ArgvSpec>,
+        positional: Option<ArgvPositional>,
     },
     CaptureChecked {
         name: String,
+        argv: Vec<Value>,
+    },
+    CaptureFunction {
+        name: String,
+        function: String,
         argv: Vec<Value>,
     },
     If {
@@ -84,6 +96,13 @@ pub struct ArgvSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ArgvPositional {
+    pub name: String,
+    pub default: String,
+    pub extra_error: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EnvAssign {
     pub name: String,
     pub value: Value,
@@ -99,13 +118,33 @@ pub enum ArgvKind {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Value {
-    Literal { text: String },
+    Literal {
+        text: String,
+    },
     Argc,
-    Var { name: String },
     Args,
+    Expand {
+        source: ValueSource,
+        op: ExpansionOp,
+    },
+    Concat {
+        parts: Vec<Value>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ValueSource {
+    Var { name: String },
     Env { name: String },
-    EnvDefault { name: String, default: String },
-    Concat { parts: Vec<Value> },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ExpansionOp {
+    Plain,
+    DefaultIfUnsetOrEmpty { fallback: String },
+    RequireNonEmpty { message: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -124,5 +163,12 @@ pub enum Predicate {
     JsonNotEmpty { value: Value },
     FileExists { path: Value },
     DirExists { path: Value },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputStream {
+    Stdout,
+    Stderr,
 }
 use serde::{Deserialize, Serialize};

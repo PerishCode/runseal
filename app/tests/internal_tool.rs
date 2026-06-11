@@ -3,6 +3,13 @@
 mod archive;
 #[path = "internal_tool/gitee.rs"]
 mod gitee;
+#[path = "internal_tool/github.rs"]
+#[cfg(unix)]
+mod github;
+#[path = "internal_tool/hash_version.rs"]
+mod hash_version;
+#[path = "internal_tool/process.rs"]
+mod process;
 #[path = "internal_tool/ssh.rs"]
 mod ssh;
 #[path = "internal_tool/string.rs"]
@@ -40,6 +47,16 @@ fn tool_runs_without_profile() {
                 ".[0].databaseId",
             ],
             "123\n",
+        ),
+        (
+            vec![
+                "@tool",
+                "json",
+                "has",
+                r#"{"guard":{"version":{"hash":"x"}}}"#,
+                ".guard.version.hash",
+            ],
+            "true\n",
         ),
         (vec!["@tool", "string", "trim", "  value  "], "value\n"),
         (
@@ -99,6 +116,10 @@ fn tool_help_is_progressive() {
         (
             vec!["@tool", "json", "get", "--help"],
             "Usage: runseal @tool json get <json> <path>",
+        ),
+        (
+            vec!["@tool", "json", "has", "--help"],
+            "Usage: runseal @tool json has <json> <path>",
         ),
         (
             vec!["@tool", "json", "pretty", "--help"],
@@ -204,8 +225,8 @@ fn richer_help() {
             "Build one exact-match redirect rule payload as JSON.",
         ),
         (
-            vec!["@tool", "github", "pr", "checks", "probe", "--help"],
-            "usage: runseal @tool github pr checks probe <number>",
+            vec!["@tool", "github", "issue", "comment", "create", "--help"],
+            "--prefix-enable=<true|false>",
         ),
         (
             vec!["@tool", "gitee", "pr", "merge", "--help"],
@@ -214,6 +235,10 @@ fn richer_help() {
         (
             vec!["@tool", "archive", "local", "import", "--help"],
             "Decrypt one .local-style directory archive into the source directory.",
+        ),
+        (
+            vec!["@tool", "process", "write", "--help"],
+            "<stdout|stderr> <path> [--append] -- <command> [args...]",
         ),
     ] {
         let output = bin()

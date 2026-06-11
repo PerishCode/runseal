@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 
-use super::ast::Value;
+use super::ast::{ExpansionOp, Value, ValueSource};
 
 pub(crate) fn parse_value_text(text: &str, line: usize) -> Result<Value> {
     if text == "$@" || text == "\"$@\"" {
@@ -25,29 +25,25 @@ pub(crate) fn parse_value_text(text: &str, line: usize) -> Result<Value> {
     }
     if let Some(name) = text.strip_prefix('$') {
         if is_positional_name(name) {
-            return Ok(Value::Var {
-                name: name.to_string(),
+            return Ok(Value::Expand {
+                source: ValueSource::Var {
+                    name: name.to_string(),
+                },
+                op: ExpansionOp::Plain,
             });
         }
         if let Some(name) = name
             .strip_prefix('{')
             .and_then(|name| name.strip_suffix('}'))
         {
-            if let Some((name, default)) = name.split_once(":-") {
-                validate_name(name, line)?;
-                return Ok(Value::EnvDefault {
-                    name: name.to_string(),
-                    default: default.to_string(),
-                });
-            }
-            validate_name(name, line)?;
-            return Ok(Value::Env {
-                name: name.to_string(),
-            });
+            return parse_braced_expansion(name, line);
         }
         validate_name(name, line)?;
-        return Ok(Value::Var {
-            name: name.to_string(),
+        return Ok(Value::Expand {
+            source: ValueSource::Var {
+                name: name.to_string(),
+            },
+            op: ExpansionOp::Plain,
         });
     }
     if text.contains('$') {
@@ -81,16 +77,7 @@ fn parse_template(text: &str, line: usize) -> Result<Value> {
                 }
                 inner.push(next);
             }
-            if let Some((name, default)) = inner.split_once(":-") {
-                validate_name(name, line)?;
-                parts.push(Value::EnvDefault {
-                    name: name.to_string(),
-                    default: default.to_string(),
-                });
-            } else {
-                validate_name(&inner, line)?;
-                parts.push(Value::Env { name: inner });
-            }
+            parts.push(parse_braced_expansion(&inner, line)?);
             continue;
         }
         let mut name = String::new();
@@ -104,7 +91,10 @@ fn parse_template(text: &str, line: usize) -> Result<Value> {
         {
             name.push(next);
             chars.next();
-            parts.push(Value::Var { name });
+            parts.push(Value::Expand {
+                source: ValueSource::Var { name },
+                op: ExpansionOp::Plain,
+            });
             continue;
         }
         while let Some(next) = chars.peek().copied() {
@@ -116,7 +106,10 @@ fn parse_template(text: &str, line: usize) -> Result<Value> {
             }
         }
         validate_name(&name, line)?;
-        parts.push(Value::Var { name });
+        parts.push(Value::Expand {
+            source: ValueSource::Var { name },
+            op: ExpansionOp::Plain,
+        });
     }
     if !literal.is_empty() {
         parts.push(Value::Literal { text: literal });
@@ -128,7 +121,45 @@ fn parse_template(text: &str, line: usize) -> Result<Value> {
 }
 
 fn is_positional_name(name: &str) -> bool {
-    name.len() == 1 && name.bytes().all(|byte| byte.is_ascii_digit())
+    !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn parse_braced_expansion(text: &str, line: usize) -> Result<Value> {
+    if let Some((name, message)) = text.split_once(":?") {
+        let source = parse_braced_source(name, line)?;
+        return Ok(Value::Expand {
+            source,
+            op: ExpansionOp::RequireNonEmpty {
+                message: message.to_string(),
+            },
+        });
+    }
+    if let Some((name, fallback)) = text.split_once(":-") {
+        let source = parse_braced_source(name, line)?;
+        return Ok(Value::Expand {
+            source,
+            op: ExpansionOp::DefaultIfUnsetOrEmpty {
+                fallback: fallback.to_string(),
+            },
+        });
+    }
+    let source = parse_braced_source(text, line)?;
+    Ok(Value::Expand {
+        source,
+        op: ExpansionOp::Plain,
+    })
+}
+
+fn parse_braced_source(name: &str, line: usize) -> Result<ValueSource> {
+    if is_positional_name(name) {
+        return Ok(ValueSource::Var {
+            name: name.to_string(),
+        });
+    }
+    validate_name(name, line)?;
+    Ok(ValueSource::Env {
+        name: name.to_string(),
+    })
 }
 
 fn validate_name(name: &str, line: usize) -> Result<()> {

@@ -1,5 +1,7 @@
 mod basic;
 mod cloudflare;
+mod github;
+mod hash_version;
 mod json;
 mod ssh;
 
@@ -21,6 +23,7 @@ pub struct Section {
 const ENTRIES: &[Entry] = &[
     json::JSON,
     json::JSON_GET,
+    json::JSON_HAS,
     json::JSON_EMPTY,
     json::JSON_LEN,
     json::JSON_PRETTY,
@@ -29,6 +32,8 @@ const ENTRIES: &[Entry] = &[
     json::JSON_PRETTY_FILE,
     json::JSON_FIND,
     json::JSON_FILTER,
+    hash_version::HASH,
+    hash_version::HASH_TREE,
     basic::STRING,
     basic::STRING_TRIM,
     basic::STRING_JOIN,
@@ -39,6 +44,7 @@ const ENTRIES: &[Entry] = &[
     basic::INT_ADD,
     basic::PROCESS,
     basic::PROCESS_EXISTS,
+    basic::PROCESS_WRITE,
     basic::ARCHIVE,
     basic::ARCHIVE_LOCAL,
     basic::ARCHIVE_LOCAL_EXPORT,
@@ -49,13 +55,20 @@ const ENTRIES: &[Entry] = &[
     basic::GITEE_REPO,
     basic::GITEE_REPO_PARSE_ORIGIN,
     basic::GITEE_PR,
+    basic::GITEE_PR_FIND,
     basic::GITEE_PR_CREATE,
     basic::GITEE_PR_PASS_GATES,
     basic::GITEE_PR_MERGE,
-    basic::GITHUB,
-    basic::GITHUB_PR,
-    basic::GITHUB_PR_CHECKS,
-    basic::GITHUB_PR_CHECKS_PROBE,
+    hash_version::VERSION,
+    hash_version::VERSION_PART,
+    hash_version::VERSION_COMPARE,
+    github::GITHUB,
+    github::GITHUB_ISSUE,
+    github::GITHUB_ISSUE_CREATE,
+    github::GITHUB_ISSUE_COMMENT,
+    github::GITHUB_ISSUE_COMMENT_CREATE,
+    github::GITHUB_ISSUE_BODY,
+    github::GITHUB_ISSUE_BODY_UPDATE,
     ssh::SSH,
     ssh::SSH_CONFIG,
     ssh::SSH_CONFIG_HOST,
@@ -97,12 +110,14 @@ Run an atomic runseal tool command.
 
 Tools:
   json ...                               JSON helpers
+  hash ...                               hash helpers
   string ...                             string helpers
   regex ...                              regex helpers
   int ...                                integer helpers
   process ...                            process helpers
   archive ...                            archive helpers
   fs ...                                 filesystem helpers
+  version ...                            version helpers
   gitee ...                              gitee helpers
   ssh ...                                ssh helpers
   github ...                             github helpers

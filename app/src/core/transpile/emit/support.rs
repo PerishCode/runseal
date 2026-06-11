@@ -1,4 +1,4 @@
-use crate::core::transpile::ast::{Predicate, Value};
+use crate::core::transpile::ast::{ExpansionOp, Predicate, Value, ValueSource};
 
 pub(super) fn option_name(name: &str) -> String {
     format!("--{}", name.replace('_', "-"))
@@ -57,10 +57,8 @@ pub(super) fn seal_value(value: &Value) -> String {
     match value {
         Value::Literal { text } => sh_quote(text),
         Value::Argc => "$#".to_string(),
-        Value::Var { name } => format!("${name}"),
         Value::Args => "\"$@\"".to_string(),
-        Value::Env { name } => format!("${{{name}}}"),
-        Value::EnvDefault { name, default } => format!("${{{name}:-{default}}}"),
+        Value::Expand { source, op } => seal_expand(source, op),
         Value::Concat { parts } => {
             let inner = parts
                 .iter()
@@ -80,20 +78,16 @@ pub(super) fn bash_value(value: &Value) -> String {
     match value {
         Value::Literal { text } => sh_quote(text),
         Value::Argc => "\"$#\"".to_string(),
-        Value::Var { name } => format!("\"${name}\""),
         Value::Args => "\"$@\"".to_string(),
-        Value::Env { name } => format!("\"${{{name}}}\""),
-        Value::EnvDefault { name, default } => format!("\"${{{name}:-{default}}}\""),
+        Value::Expand { source, op } => format!("\"{}\"", seal_expand(source, op)),
         Value::Concat { parts } => double_quote(
             &parts
                 .iter()
                 .map(|part| match part {
                     Value::Literal { text } => text.clone(),
                     Value::Argc => "$#".to_string(),
-                    Value::Var { name } => format!("${name}"),
                     Value::Args => "$@".to_string(),
-                    Value::Env { name } => format!("${{{name}}}"),
-                    Value::EnvDefault { name, default } => format!("${{{name}:-{default}}}"),
+                    Value::Expand { source, op } => seal_expand(source, op),
                     Value::Concat { .. } => bash_value(part),
                 })
                 .collect::<String>(),
@@ -104,12 +98,28 @@ pub(super) fn bash_value(value: &Value) -> String {
 pub(super) fn bash_int_value(value: &Value) -> String {
     match value {
         Value::Argc => "$#".to_string(),
-        Value::Var { name } => format!("${name}"),
         Value::Args => "\"$@\"".to_string(),
-        Value::Env { name } => format!("${{{name}}}"),
-        Value::EnvDefault { name, default } => format!("${{{name}:-{default}}}"),
+        Value::Expand { source, op } => seal_expand(source, op),
         Value::Literal { text } => sh_quote(text),
         Value::Concat { .. } => bash_value(value),
+    }
+}
+
+fn seal_expand(source: &ValueSource, op: &ExpansionOp) -> String {
+    let name = match source {
+        ValueSource::Var { name } | ValueSource::Env { name } => name,
+    };
+    match op {
+        ExpansionOp::Plain => match source {
+            ValueSource::Var { .. } => format!("${name}"),
+            ValueSource::Env { .. } => format!("${{{name}}}"),
+        },
+        ExpansionOp::DefaultIfUnsetOrEmpty { fallback } => {
+            format!("${{{name}:-{fallback}}}")
+        }
+        ExpansionOp::RequireNonEmpty { message } => {
+            format!("${{{name}:?{message}}}")
+        }
     }
 }
 

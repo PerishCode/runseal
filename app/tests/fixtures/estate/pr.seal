@@ -140,7 +140,10 @@ fi
 
 git push -u origin "$branch"
 
-pr=$(runseal @tool gitee pr create --owner "$owner" --repo "$repo" --token-file "$token_file" --base "$base" --head "$branch" --title "$message" --body "$body")
+pr=$(runseal @tool gitee pr find --owner "$owner" --repo "$repo" --token-file "$token_file" --head "$branch" --base "$base")
+if [ "$(runseal @tool json empty "$pr")" = true ]; then
+  pr=$(runseal @tool gitee pr create --owner "$owner" --repo "$repo" --token-file "$token_file" --base "$base" --head "$branch" --title "$message" --body "$body")
+fi
 number=$(runseal @tool json get "$pr" .number)
 url=$(runseal @tool json get "$pr" .html_url)
 

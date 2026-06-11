@@ -1,7 +1,12 @@
-use super::support::{generated_header, option_name};
+use super::powershell_support::{emit_positional_bindings, max_positional_statements};
+use super::support::generated_header;
 use crate::core::transpile::ast::{
-    ArgvKind, ArgvSpec, EnvAssign, Item, Predicate, Program, Statement, Value,
+    EnvAssign, ExpansionOp, Item, OutputStream, Predicate, Program, Statement, Value, ValueSource,
 };
+
+#[path = "powershell_argv.rs"]
+mod powershell_argv;
+use self::powershell_argv::emit_argv_parse;
 
 pub(crate) fn emit_powershell(program: &Program, source_name: Option<&str>) -> String {
     let mut out = generated_header("powershell", source_name);
@@ -59,6 +64,26 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
         Statement::Assign { name, value } => {
             out.push_str(&format!("{pad}${name} = {}\n", powershell_value(value)));
         }
+        Statement::ExecWrite {
+            stream,
+            path,
+            append,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str("& ");
+            out.push_str(&join_values(argv, powershell_value));
+            out.push(' ');
+            out.push_str(match (stream, append) {
+                (OutputStream::Stdout, false) => ">",
+                (OutputStream::Stdout, true) => ">>",
+                (OutputStream::Stderr, false) => "2>",
+                (OutputStream::Stderr, true) => "2>>",
+            });
+            out.push(' ');
+            out.push_str(&powershell_value(path));
+            out.push('\n');
+        }
         Statement::ExecChecked { argv } => {
             out.push_str(&pad);
             out.push_str("& ");
@@ -76,11 +101,26 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
             }
             emit_positional_bindings(out, indent, positional_max);
         }
-        Statement::ArgvParse { specs } => emit_argv_parse(out, specs, indent),
+        Statement::ArgvParse { specs, positional } => {
+            emit_argv_parse(out, specs, positional.as_ref(), indent)
+        }
         Statement::CaptureChecked { name, argv } => {
             out.push_str(&pad);
             out.push_str(&format!("${name} = & "));
             out.push_str(&join_values(argv, powershell_value));
+            out.push('\n');
+        }
+        Statement::CaptureFunction {
+            name,
+            function,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(&format!("${name} = & {function}"));
+            if !argv.is_empty() {
+                out.push(' ');
+                out.push_str(&join_values(argv, powershell_value));
+            }
             out.push('\n');
         }
         Statement::If {
@@ -135,97 +175,6 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
             out.push_str(&format!("{pad}Start-Sleep -Seconds {seconds}\n"));
         }
     }
-}
-
-fn emit_positional_bindings(out: &mut String, indent: usize, max: usize) -> bool {
-    if max == 0 {
-        return false;
-    }
-    let pad = "    ".repeat(indent);
-    out.push_str(&format!("{pad}$0 = $args.Count\n"));
-    for index in 1..=max {
-        let offset = index - 1;
-        out.push_str(&format!(
-            "{pad}${index} = if ($args.Count -ge {index}) {{ $args[{offset}] }} else {{ '' }}\n"
-        ));
-    }
-    true
-}
-
-fn emit_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
-    let pad = "    ".repeat(indent);
-    out.push_str(&format!("{pad}$__seal_argc = $args.Count\n"));
-    out.push_str(&format!("{pad}$__seal_help = 'false'\n"));
-    for spec in specs {
-        let value = match spec.kind {
-            ArgvKind::String => powershell_quote(spec.default.as_deref().unwrap_or("")),
-            ArgvKind::Flag => "'false'".to_string(),
-        };
-        out.push_str(&format!("{pad}${} = {value}\n", spec.name));
-    }
-    out.push_str(&format!("{pad}$__seal_index = 0\n"));
-    out.push_str(&format!("{pad}while ($__seal_index -lt $args.Count) {{\n"));
-    out.push_str(&format!("{pad}    $__seal_arg = $args[$__seal_index]\n"));
-    out.push_str(&format!("{pad}    switch -Regex ($__seal_arg) {{\n"));
-    for spec in specs {
-        match spec.kind {
-            ArgvKind::String => emit_string_option(out, spec, indent),
-            ArgvKind::Flag => emit_flag_option(out, spec, indent),
-        }
-    }
-    out.push_str(&format!("{pad}        '^--$' {{\n"));
-    out.push_str(&format!("{pad}            $__seal_index = $args.Count\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-    out.push_str(&format!("{pad}        '^(-h|--help|help)$' {{\n"));
-    out.push_str(&format!("{pad}            $__seal_help = 'true'\n"));
-    out.push_str(&format!("{pad}            $__seal_index += 1\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-    out.push_str(&format!(
-        "{pad}        default {{ throw \"unknown option: $__seal_arg\" }}\n"
-    ));
-    out.push_str(&format!("{pad}    }}\n"));
-    out.push_str(&format!("{pad}}}\n"));
-}
-
-fn emit_string_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
-    let pad = "    ".repeat(indent);
-    let option = option_name(&spec.name);
-    out.push_str(&format!("{pad}        '^{}$' {{\n", regex_quote(&option)));
-    out.push_str(&format!(
-        "{pad}            if ($__seal_index + 1 -ge $args.Count) {{ throw 'missing value for {option}' }}\n"
-    ));
-    out.push_str(&format!(
-        "{pad}            ${} = $args[$__seal_index + 1]\n",
-        spec.name
-    ));
-    out.push_str(&format!("{pad}            $__seal_index += 2\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-    out.push_str(&format!("{pad}        '^{}=' {{\n", regex_quote(&option)));
-    out.push_str(&format!(
-        "{pad}            ${} = $__seal_arg.Substring({})\n",
-        spec.name,
-        option.len() + 1
-    ));
-    out.push_str(&format!("{pad}            $__seal_index += 1\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-}
-
-fn emit_flag_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
-    let pad = "    ".repeat(indent);
-    let option = option_name(&spec.name);
-    out.push_str(&format!("{pad}        '^{}$' {{\n", regex_quote(&option)));
-    out.push_str(&format!("{pad}            ${} = 'true'\n", spec.name));
-    out.push_str(&format!("{pad}            $__seal_index += 1\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-}
-
-fn regex_quote(value: &str) -> String {
-    value.replace('-', "\\-")
 }
 
 fn emit_if(
@@ -350,15 +299,8 @@ fn powershell_value(value: &Value) -> String {
     match value {
         Value::Literal { text } => powershell_quote(text),
         Value::Argc => "$args.Count".to_string(),
-        Value::Var { name } => format!("${name}"),
         Value::Args => "@args".to_string(),
-        Value::Env { name } => format!("$env:{name}"),
-        Value::EnvDefault { name, default } => {
-            format!(
-                "$(if ($env:{name}) {{ $env:{name} }} else {{ {} }})",
-                powershell_quote(default)
-            )
-        }
+        Value::Expand { source, op } => powershell_expand(source, op),
         Value::Concat { parts } => {
             if parts.is_empty() {
                 return "''".to_string();
@@ -373,49 +315,45 @@ fn powershell_value(value: &Value) -> String {
     }
 }
 
-fn max_positional_statements<'a>(statements: impl IntoIterator<Item = &'a Statement>) -> usize {
-    statements
-        .into_iter()
-        .map(max_positional_statement)
-        .max()
-        .unwrap_or_default()
+fn powershell_expand(source: &ValueSource, op: &ExpansionOp) -> String {
+    match op {
+        ExpansionOp::Plain => powershell_source_value(source),
+        ExpansionOp::DefaultIfUnsetOrEmpty { fallback } => {
+            powershell_guarded_expand(source, fallback, false)
+        }
+        ExpansionOp::RequireNonEmpty { message } => {
+            powershell_guarded_expand(source, message, true)
+        }
+    }
 }
 
-fn max_positional_statement(statement: &Statement) -> usize {
-    match statement {
-        Statement::Assign { value, .. } => max_positional_value(value),
-        Statement::ExecChecked { argv }
-        | Statement::EnvExecChecked { argv, .. }
-        | Statement::CaptureChecked { argv, .. }
-        | Statement::CallFunction { argv, .. } => argv
-            .iter()
-            .map(max_positional_value)
-            .max()
-            .unwrap_or_default(),
-        Statement::If {
-            predicate,
-            then_body,
-            else_body,
-        } => max_positional_predicate(predicate)
-            .max(max_positional_statements(then_body.iter()))
-            .max(max_positional_statements(else_body.iter())),
-        Statement::While { predicate, body } => {
-            max_positional_predicate(predicate).max(max_positional_statements(body.iter()))
+fn powershell_source_value(source: &ValueSource) -> String {
+    match source {
+        ValueSource::Var { name } => format!("${name}"),
+        ValueSource::Env { name } => format!("$env:{name}"),
+    }
+}
+
+fn powershell_guarded_expand(source: &ValueSource, text: &str, require: bool) -> String {
+    let fallback_or_message = powershell_quote(text);
+    let action = if require {
+        format!("throw {fallback_or_message}")
+    } else {
+        fallback_or_message
+    };
+    match source {
+        ValueSource::Env { name } => format!(
+            "$(if ([string]::IsNullOrEmpty($env:{name})) {{ {action} }} else {{ $env:{name} }})"
+        ),
+        ValueSource::Var { name } if name.bytes().all(|byte| byte.is_ascii_digit()) => {
+            let index = name.parse::<usize>().unwrap_or_default();
+            format!(
+                "$(if (($args.Count -lt {index}) -or [string]::IsNullOrEmpty(${name})) {{ {action} }} else {{ ${name} }})"
+            )
         }
-        Statement::Case { value, arms } => arms
-            .iter()
-            .map(|arm| max_positional_statements(arm.body.iter()))
-            .max()
-            .unwrap_or_default()
-            .max(max_positional_value(value)),
-        Statement::Print { value } | Statement::Error { value } | Statement::Fail { value } => {
-            max_positional_value(value)
+        ValueSource::Var { name } => {
+            format!("$(if ([string]::IsNullOrEmpty(${name})) {{ {action} }} else {{ ${name} }})")
         }
-        Statement::ArgvParse { .. }
-        | Statement::Shift { .. }
-        | Statement::Exit { .. }
-        | Statement::Break
-        | Statement::Sleep { .. } => 0,
     }
 }
 
@@ -447,47 +385,6 @@ fn emit_env_exec(out: &mut String, pad: &str, env: &[EnvAssign], argv: &[Value])
     }
     out.push_str(&format!("{pad}    }}\n"));
     out.push_str(&format!("{pad}}}\n"));
-}
-
-fn max_positional_predicate(predicate: &Predicate) -> usize {
-    match predicate {
-        Predicate::Command { argv } => argv
-            .iter()
-            .map(max_positional_value)
-            .max()
-            .unwrap_or_default(),
-        Predicate::Empty { value }
-        | Predicate::NotEmpty { value }
-        | Predicate::JsonEmpty { value }
-        | Predicate::JsonNotEmpty { value } => max_positional_value(value),
-        Predicate::Eq { left, right }
-        | Predicate::Neq { left, right }
-        | Predicate::IntLt { left, right }
-        | Predicate::IntLte { left, right }
-        | Predicate::IntGt { left, right }
-        | Predicate::IntGte { left, right } => {
-            max_positional_value(left).max(max_positional_value(right))
-        }
-        Predicate::FileExists { path } | Predicate::DirExists { path } => {
-            max_positional_value(path)
-        }
-    }
-}
-
-fn max_positional_value(value: &Value) -> usize {
-    match value {
-        Value::Var { name } => name.parse::<usize>().unwrap_or_default(),
-        Value::Concat { parts } => parts
-            .iter()
-            .map(max_positional_value)
-            .max()
-            .unwrap_or_default(),
-        Value::Literal { .. }
-        | Value::Argc
-        | Value::Args
-        | Value::Env { .. }
-        | Value::EnvDefault { .. } => 0,
-    }
 }
 
 fn join_values(values: &[Value], format: fn(&Value) -> String) -> String {

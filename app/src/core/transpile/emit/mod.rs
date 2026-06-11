@@ -1,7 +1,8 @@
-use super::ast::{ArgvKind, ArgvSpec, Item, Program, Statement};
+use super::ast::{ArgvKind, ArgvPositional, ArgvSpec, Item, OutputStream, Program, Statement};
 use super::guards::{bash_required_tools, emit_bash_guards};
 
 mod powershell;
+mod powershell_support;
 mod support;
 
 pub(crate) use powershell::emit_powershell;
@@ -42,6 +43,25 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, seal_value));
             out.push('\n');
         }
+        Statement::ExecWrite {
+            stream,
+            path,
+            append,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(&join_values(argv, seal_value));
+            out.push(' ');
+            out.push_str(match (stream, append) {
+                (OutputStream::Stdout, false) => ">",
+                (OutputStream::Stdout, true) => ">>",
+                (OutputStream::Stderr, false) => "2>",
+                (OutputStream::Stderr, true) => "2>>",
+            });
+            out.push(' ');
+            out.push_str(&seal_value(path));
+            out.push('\n');
+        }
         Statement::EnvExecChecked { env, argv } => {
             out.push_str(&pad);
             for item in env {
@@ -62,14 +82,29 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             }
             out.push('\n');
         }
-        Statement::ArgvParse { specs } => {
-            emit_seal_argv_parse(out, specs, indent);
+        Statement::ArgvParse { specs, positional } => {
+            emit_seal_argv_parse(out, specs, positional.as_ref(), indent);
         }
         Statement::CaptureChecked { name, argv } => {
             out.push_str(&pad);
             out.push_str(name);
             out.push_str("=$(");
             out.push_str(&join_values(argv, seal_value));
+            out.push_str(")\n");
+        }
+        Statement::CaptureFunction {
+            name,
+            function,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(name);
+            out.push_str("=$(");
+            out.push_str(function);
+            if !argv.is_empty() {
+                out.push(' ');
+                out.push_str(&join_values(argv, seal_value));
+            }
             out.push_str(")\n");
         }
         Statement::If {
@@ -117,7 +152,12 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
     }
 }
 
-fn emit_seal_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
+fn emit_seal_argv_parse(
+    out: &mut String,
+    specs: &[ArgvSpec],
+    positional: Option<&ArgvPositional>,
+    indent: usize,
+) {
     let pad = "  ".repeat(indent);
     out.push_str(&format!("{pad}__seal_argc=$#\n"));
     out.push_str(&format!("{pad}__seal_help=false\n"));
@@ -127,6 +167,12 @@ fn emit_seal_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
             ArgvKind::Flag => "false",
         };
         out.push_str(&format!("{pad}{}={value}\n", spec.name));
+    }
+    if let Some(positional) = positional {
+        out.push_str(&format!(
+            "{pad}{}={}\n",
+            positional.name, positional.default
+        ));
     }
     out.push_str(&format!("{pad}while [ \"$#\" -gt 0 ]; do\n"));
     out.push_str(&format!("{pad}  case \"$1\" in\n"));
@@ -144,7 +190,24 @@ fn emit_seal_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
     out.push_str(&format!("{pad}      __seal_help=true\n"));
     out.push_str(&format!("{pad}      shift\n"));
     out.push_str(&format!("{pad}      ;;\n"));
-    out.push_str(&format!("{pad}    *) fail \"unknown option: $1\" ;;\n"));
+    if let Some(positional) = positional {
+        out.push_str(&format!("{pad}    *)\n"));
+        out.push_str(&format!(
+            "{pad}      if [ -z \"${}\" ]; then\n",
+            positional.name
+        ));
+        out.push_str(&format!("{pad}        {}=$1\n", positional.name));
+        out.push_str(&format!("{pad}        shift\n"));
+        out.push_str(&format!("{pad}      else\n"));
+        out.push_str(&format!(
+            "{pad}        fail \"{}\"\n",
+            positional.extra_error
+        ));
+        out.push_str(&format!("{pad}      fi\n"));
+        out.push_str(&format!("{pad}      ;;\n"));
+    } else {
+        out.push_str(&format!("{pad}    *) fail \"unknown option: $1\" ;;\n"));
+    }
     out.push_str(&format!("{pad}  esac\n"));
     out.push_str(&format!("{pad}done\n"));
 }
@@ -218,6 +281,25 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
         Statement::Assign { name, value } => {
             out.push_str(&format!("{pad}{name}={}\n", bash_value(value)));
         }
+        Statement::ExecWrite {
+            stream,
+            path,
+            append,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(&join_values(argv, bash_value));
+            out.push(' ');
+            out.push_str(match (stream, append) {
+                (OutputStream::Stdout, false) => ">",
+                (OutputStream::Stdout, true) => ">>",
+                (OutputStream::Stderr, false) => "2>",
+                (OutputStream::Stderr, true) => "2>>",
+            });
+            out.push(' ');
+            out.push_str(&bash_value(path));
+            out.push('\n');
+        }
         Statement::ExecChecked { argv } => {
             out.push_str(&pad);
             out.push_str(&join_values(argv, bash_value));
@@ -243,12 +325,29 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             }
             out.push('\n');
         }
-        Statement::ArgvParse { specs } => emit_bash_argv_parse(out, specs, indent),
+        Statement::ArgvParse { specs, positional } => {
+            emit_bash_argv_parse(out, specs, positional.as_ref(), indent)
+        }
         Statement::CaptureChecked { name, argv } => {
             out.push_str(&pad);
             out.push_str(name);
             out.push_str("=$(");
             out.push_str(&join_values(argv, bash_value));
+            out.push_str(")\n");
+        }
+        Statement::CaptureFunction {
+            name,
+            function,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(name);
+            out.push_str("=$(");
+            out.push_str(function);
+            if !argv.is_empty() {
+                out.push(' ');
+                out.push_str(&join_values(argv, bash_value));
+            }
             out.push_str(")\n");
         }
         Statement::If {
@@ -302,7 +401,12 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
     }
 }
 
-fn emit_bash_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
+fn emit_bash_argv_parse(
+    out: &mut String,
+    specs: &[ArgvSpec],
+    positional: Option<&ArgvPositional>,
+    indent: usize,
+) {
     let pad = "  ".repeat(indent);
     out.push_str(&format!("{pad}__seal_argc=$#\n"));
     out.push_str(&format!("{pad}__seal_help=false\n"));
@@ -312,6 +416,13 @@ fn emit_bash_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
             ArgvKind::Flag => "false".to_string(),
         };
         out.push_str(&format!("{pad}{}={value}\n", spec.name));
+    }
+    if let Some(positional) = positional {
+        out.push_str(&format!(
+            "{pad}{}={}\n",
+            positional.name,
+            sh_quote(&positional.default)
+        ));
     }
     out.push_str(&format!("{pad}while [ \"$#\" -gt 0 ]; do\n"));
     out.push_str(&format!("{pad}  case \"$1\" in\n"));
@@ -329,9 +440,26 @@ fn emit_bash_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
     out.push_str(&format!("{pad}      __seal_help=true\n"));
     out.push_str(&format!("{pad}      shift\n"));
     out.push_str(&format!("{pad}      ;;\n"));
-    out.push_str(&format!(
-        "{pad}    *) seal_fail \"unknown option: $1\" ;;\n"
-    ));
+    if let Some(positional) = positional {
+        out.push_str(&format!("{pad}    *)\n"));
+        out.push_str(&format!(
+            "{pad}      if [ -z \"${}\" ]; then\n",
+            positional.name
+        ));
+        out.push_str(&format!("{pad}        {}=$1\n", positional.name));
+        out.push_str(&format!("{pad}        shift\n"));
+        out.push_str(&format!("{pad}      else\n"));
+        out.push_str(&format!(
+            "{pad}        seal_fail \"{}\"\n",
+            positional.extra_error
+        ));
+        out.push_str(&format!("{pad}      fi\n"));
+        out.push_str(&format!("{pad}      ;;\n"));
+    } else {
+        out.push_str(&format!(
+            "{pad}    *) seal_fail \"unknown option: $1\" ;;\n"
+        ));
+    }
     out.push_str(&format!("{pad}  esac\n"));
     out.push_str(&format!("{pad}done\n"));
 }

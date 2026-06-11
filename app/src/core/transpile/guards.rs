@@ -47,10 +47,12 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         }
         Statement::Assign { .. }
         | Statement::ArgvParse { .. }
+        | Statement::ExecWrite { .. }
         | Statement::ExecChecked { .. }
         | Statement::EnvExecChecked { .. }
         | Statement::Shift { .. }
         | Statement::CaptureChecked { .. }
+        | Statement::CaptureFunction { .. }
         | Statement::CallFunction { .. }
         | Statement::Print { .. }
         | Statement::Error { .. }

@@ -6,6 +6,7 @@ use serde_json::Value as JsonValue;
 pub fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
     match command {
         "get" => get(args),
+        "has" => has(args),
         "empty" => empty(args),
         "len" => len(args),
         "pretty" => pretty(args),
@@ -29,6 +30,14 @@ fn get(args: &[String]) -> Result<Option<String>> {
         JsonValue::Array(_) | JsonValue::Object(_) => Some(serde_json::to_string(selected)?),
     };
     Ok(output)
+}
+
+fn has(args: &[String]) -> Result<Option<String>> {
+    let [json, path] = args else {
+        bail!("usage: runseal @tool json has <json> <path>");
+    };
+    let value: JsonValue = serde_json::from_str(json).context("invalid JSON input")?;
+    Ok(Some(path_exists(&value, path).to_string()))
 }
 
 fn empty(args: &[String]) -> Result<Option<String>> {
@@ -167,6 +176,18 @@ fn value_is_empty(value: &JsonValue) -> bool {
 }
 
 fn select_path<'a>(value: &'a JsonValue, path: &str) -> Result<&'a JsonValue> {
+    select_path_impl(value, path, true)
+}
+
+fn path_exists(value: &JsonValue, path: &str) -> bool {
+    select_path_impl(value, path, false).is_ok()
+}
+
+fn select_path_impl<'a>(
+    value: &'a JsonValue,
+    path: &str,
+    error_on_missing: bool,
+) -> Result<&'a JsonValue> {
     let mut input = path.strip_prefix('.').unwrap_or(path);
     if input.is_empty() {
         bail!("json path cannot be empty");
@@ -180,18 +201,26 @@ fn select_path<'a>(value: &'a JsonValue, path: &str) -> Result<&'a JsonValue> {
             let index = index
                 .parse::<usize>()
                 .with_context(|| format!("invalid json path index: {index}"))?;
-            current = current
-                .get(index)
-                .with_context(|| format!("json path not found: {path}"))?;
+            current = current.get(index).ok_or_else(|| {
+                if error_on_missing {
+                    anyhow::anyhow!("json path not found: {path}")
+                } else {
+                    anyhow::anyhow!("missing")
+                }
+            })?;
             input = rest.strip_prefix('.').unwrap_or(rest);
             continue;
         }
         let end = input.find(['.', '[']).unwrap_or(input.len());
         let field = &input[..end];
         validate_field(field)?;
-        current = current
-            .get(field)
-            .with_context(|| format!("json path not found: {path}"))?;
+        current = current.get(field).ok_or_else(|| {
+            if error_on_missing {
+                anyhow::anyhow!("json path not found: {path}")
+            } else {
+                anyhow::anyhow!("missing")
+            }
+        })?;
         input = input[end..].strip_prefix('.').unwrap_or(&input[end..]);
     }
     Ok(current)

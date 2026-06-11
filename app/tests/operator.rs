@@ -2,6 +2,8 @@
 mod cloudflare;
 #[path = "operator/estate.rs"]
 mod estate;
+#[path = "operator/guard.rs"]
+mod guard;
 #[path = "operator/init.rs"]
 mod init;
 #[path = "operator/repo.rs"]

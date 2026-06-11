@@ -30,15 +30,6 @@ jobs:
           components: rustfmt, clippy
 
       - name: Format
-        run: cargo fmt --all --check
-
-      - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
-
-      - name: Test
-        run: cargo test --locked --workspace
-
-      - name: Install Flavor
         if: runner.os != 'Windows'
         run: |
           set -euo pipefail
@@ -55,5 +46,16 @@ jobs:
           & (Join-Path $env:RUNNER_TEMP 'manage-flavor.ps1') install --bin-dir $binDir
           $binDir | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
-      - name: Flavor self-check
-        run: flavor check --root . --config flavor.toml
+      - name: Guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --quiet --locked -p runseal
+          exe=runseal
+          if [ "${RUNNER_OS:-}" = "Windows" ]; then
+            exe=runseal.exe
+          fi
+          bin_dir="$PWD/.local/tmp/ci-guard-bin"
+          mkdir -p "$bin_dir"
+          cp "target/debug/$exe" "$bin_dir/$exe"
+          PATH="$bin_dir:$PWD/target/debug:$PATH" "$bin_dir/$exe" :guard

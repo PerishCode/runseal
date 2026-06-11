@@ -224,6 +224,130 @@ fi
 }
 
 #[test]
+fn seal_captures_local_output() {
+    let fx = fixture();
+    make_seal_wrapper(
+        &fx.project_wrappers.join("capture-local.seal"),
+        r#"
+helper() {
+  print "hello $1"
+}
+
+value=$(helper seal)
+print "$value"
+"#,
+    );
+
+    let output = run_in(&fx, &[":capture-local"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout, "hello seal\n");
+}
+
+#[test]
+fn seal_argv_positional() {
+    let fx = fixture();
+    make_seal_wrapper(
+        &fx.project_wrappers.join("argv-positional.seal"),
+        r#"
+print() {
+  printf '%s\n' "$1"
+}
+
+fail() {
+  print "$1"
+  exit 1
+}
+
+__seal_argc=$#
+__seal_help=false
+body=
+message=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --body)
+      if [ "$#" -lt 2 ]; then fail "missing value for --body"; fi
+      body=$2
+      shift 2
+      ;;
+    --body=*)
+      body=${1#--body=}
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -h|--help|help)
+      __seal_help=true
+      shift
+      ;;
+    *)
+      if [ -z "$message" ]; then
+        message=$1
+        shift
+      else
+        fail "unexpected argument: $1"
+      fi
+      ;;
+  esac
+done
+
+print "$body|$message"
+"#,
+    );
+
+    let output = run_in(&fx, &[":argv-positional", "--body=demo", "hello"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout, "demo|hello\n");
+}
+
+#[test]
+fn seal_argv_multiline_guard() {
+    let fx = fixture();
+    make_seal_wrapper(
+        &fx.project_wrappers.join("argv-multiline-guard.seal"),
+        r#"
+print() {
+  printf '%s\n' "$1"
+}
+
+fail() {
+  print "$1"
+  exit 1
+}
+
+__seal_argc=$#
+__seal_help=false
+body=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --body)
+      if [ "$#" -lt 2 ]; then
+        fail "missing value for --body"
+      fi
+      body=$2
+      shift 2
+      ;;
+    *) fail "unknown option: $1" ;;
+  esac
+done
+
+print "$body"
+"#,
+    );
+
+    let output = run_in(&fx, &[":argv-multiline-guard", "--body", "demo"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout, "demo\n");
+}
+
+#[test]
 fn seal_wrapper_shadows() {
     let fx = fixture();
     make_wrapper(&wrapper_file(&fx.project_wrappers, "tool"), "shell");
@@ -237,7 +361,7 @@ fn seal_wrapper_shadows() {
 }
 
 #[test]
-fn seal_env_overlay() {
+fn seal_env_overlay_fails() {
     let fx = fixture();
     make_seal_wrapper(
         &fx.project_wrappers.join("env-tool.seal"),
@@ -248,9 +372,10 @@ RUNSEAL_MARKER=sealed sh -c 'printf %s "$RUNSEAL_MARKER"'
 
     let output = run_in(&fx, &[":env-tool"]);
 
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "sealed");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("shell-specific construct is not supported in .seal"));
+    assert!(stderr.contains("sh -c"));
 }
 
 #[test]

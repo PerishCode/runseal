@@ -38,6 +38,21 @@ fn lower_statement(statement: &mut Statement, functions: &BTreeSet<String>) {
                 *statement = Statement::CallFunction { name, argv };
             }
         }
+        Statement::CaptureChecked { name, argv } => {
+            let Some(Value::Literal { text }) = argv.first() else {
+                return;
+            };
+            if functions.contains(text) {
+                let destination = name.clone();
+                let function = text.clone();
+                let argv = argv[1..].to_vec();
+                *statement = Statement::CaptureFunction {
+                    name: destination,
+                    function,
+                    argv,
+                };
+            }
+        }
         Statement::If {
             then_body,
             else_body,
@@ -56,9 +71,10 @@ fn lower_statement(statement: &mut Statement, functions: &BTreeSet<String>) {
         }
         Statement::Assign { .. }
         | Statement::ArgvParse { .. }
+        | Statement::ExecWrite { .. }
         | Statement::EnvExecChecked { .. }
         | Statement::Shift { .. }
-        | Statement::CaptureChecked { .. }
+        | Statement::CaptureFunction { .. }
         | Statement::CallFunction { .. }
         | Statement::Print { .. }
         | Statement::Error { .. }

@@ -9,7 +9,15 @@ pub(super) fn split_words(text: &str, line: usize) -> Result<Vec<String>> {
     let mut words = Vec::new();
     let mut current = String::new();
     let mut quote = None;
-    for ch in text.chars() {
+    let mut parameter_depth = 0_usize;
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if quote.is_none() && ch == '$' && chars.peek() == Some(&'{') {
+            current.push(ch);
+            current.push(chars.next().expect("peeked char should exist"));
+            parameter_depth += 1;
+            continue;
+        }
         match quote {
             Some(q) if ch == q => {
                 current.push(ch);
@@ -20,7 +28,40 @@ pub(super) fn split_words(text: &str, line: usize) -> Result<Vec<String>> {
                 current.push(ch);
                 quote = Some(ch);
             }
-            None if ch.is_whitespace() => {
+            None if ch == '}' && parameter_depth > 0 => {
+                current.push(ch);
+                parameter_depth -= 1;
+            }
+            None if ch == '2' && matches!(chars.peek(), Some('>')) => {
+                if !current.is_empty() {
+                    words.push(std::mem::take(&mut current));
+                }
+                chars.next();
+                if matches!(chars.peek(), Some('>')) {
+                    chars.next();
+                    words.push("2>>".to_string());
+                } else {
+                    words.push("2>".to_string());
+                }
+            }
+            None if ch == '>' => {
+                if !current.is_empty() {
+                    words.push(std::mem::take(&mut current));
+                }
+                if matches!(chars.peek(), Some('>')) {
+                    chars.next();
+                    words.push(">>".to_string());
+                } else {
+                    words.push(">".to_string());
+                }
+            }
+            None if ch == '|' => {
+                if !current.is_empty() {
+                    words.push(std::mem::take(&mut current));
+                }
+                words.push("|".to_string());
+            }
+            None if ch.is_whitespace() && parameter_depth == 0 => {
                 if !current.is_empty() {
                     words.push(std::mem::take(&mut current));
                 }
@@ -30,6 +71,9 @@ pub(super) fn split_words(text: &str, line: usize) -> Result<Vec<String>> {
     }
     if let Some(q) = quote {
         bail!("{line}: unterminated {q} quote");
+    }
+    if parameter_depth != 0 {
+        bail!("{line}: unterminated parameter expansion");
     }
     if !current.is_empty() {
         words.push(current);
@@ -42,8 +86,15 @@ pub(super) fn split_test_words(text: &str, line: usize) -> Result<Vec<String>> {
     let mut current = String::new();
     let mut quote = None;
     let mut command_depth = 0_usize;
+    let mut parameter_depth = 0_usize;
     let mut chars = text.chars().peekable();
     while let Some(ch) = chars.next() {
+        if quote.is_none() && ch == '$' && chars.peek() == Some(&'{') {
+            current.push(ch);
+            current.push(chars.next().expect("peeked char should exist"));
+            parameter_depth += 1;
+            continue;
+        }
         if ch == '$' && chars.peek() == Some(&'(') {
             current.push(ch);
             current.push(chars.next().expect("peeked char should exist"));
@@ -66,7 +117,11 @@ pub(super) fn split_test_words(text: &str, line: usize) -> Result<Vec<String>> {
                 current.push(ch);
                 quote = Some(ch);
             }
-            None if ch.is_whitespace() => {
+            None if ch == '}' && parameter_depth > 0 => {
+                current.push(ch);
+                parameter_depth -= 1;
+            }
+            None if ch.is_whitespace() && parameter_depth == 0 => {
                 if !current.is_empty() {
                     words.push(std::mem::take(&mut current));
                 }
@@ -79,6 +134,9 @@ pub(super) fn split_test_words(text: &str, line: usize) -> Result<Vec<String>> {
     }
     if command_depth != 0 {
         bail!("{line}: unterminated command substitution");
+    }
+    if parameter_depth != 0 {
+        bail!("{line}: unterminated parameter expansion");
     }
     if !current.is_empty() {
         words.push(current);

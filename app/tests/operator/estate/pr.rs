@@ -13,7 +13,7 @@ fn api_flow() {
     std::fs::create_dir_all(&secrets).expect("secrets dir should exist");
     std::fs::write(secrets.join("gitee.env"), "GITEE_TOKEN=test-token\n")
         .expect("token file should be written");
-    let (api_base, handle) = mock_gitee_sequence("feat/seal", true);
+    let (api_base, handle) = mock_gitee_sequence("feat/seal", true, false);
 
     let output = run_wrapper_env(
         &fx,
@@ -43,7 +43,7 @@ fn default_branch() {
     std::fs::create_dir_all(&secrets).expect("secrets dir should exist");
     std::fs::write(secrets.join("gitee.env"), "GITEE_TOKEN=test-token\n")
         .expect("token file should be written");
-    let (api_base, handle) = mock_gitee_sequence("auto/land-change", true);
+    let (api_base, handle) = mock_gitee_sequence("auto/land-change", true, false);
 
     let output = run_wrapper_env(
         &fx,
@@ -95,7 +95,7 @@ fn no_merge() {
     std::fs::create_dir_all(&secrets).expect("secrets dir should exist");
     std::fs::write(secrets.join("gitee.env"), "GITEE_TOKEN=test-token\n")
         .expect("token file should be written");
-    let (api_base, handle) = mock_gitee_sequence("feat/no-merge", false);
+    let (api_base, handle) = mock_gitee_sequence("feat/no-merge", false, false);
 
     let output = run_wrapper_env(
         &fx,
@@ -118,13 +118,43 @@ fn no_merge() {
 }
 
 #[test]
+fn reuse_existing_pr() {
+    let fx = fixture();
+    let secrets = fx.project.join(".local/secrets");
+    std::fs::create_dir_all(&secrets).expect("secrets dir should exist");
+    std::fs::write(secrets.join("gitee.env"), "GITEE_TOKEN=test-token\n")
+        .expect("token file should be written");
+    let (api_base, handle) = mock_gitee_sequence("feat/reuse", false, true);
+
+    let output = run_wrapper_env(
+        &fx,
+        "pr",
+        &["--branch", "feat/reuse", "--no-merge", "Reuse existing"],
+        &[("RUNSEAL_GITEE_API_BASE", api_base)],
+    );
+
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    handle.join().expect("mock server should finish");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("https://gitee.test/pr/42"));
+    assert_eq!(
+        log(&fx),
+        "git|checkout|-b|feat/reuse\ngit|add|-A\ngit|commit|-m|Reuse existing\ngit|push|-u|origin|feat/reuse\ngit|checkout|main\n"
+    );
+}
+
+#[test]
 fn resume_local() {
     let fx = fixture();
     let secrets = fx.project.join(".local/secrets");
     std::fs::create_dir_all(&secrets).expect("secrets dir should exist");
     std::fs::write(secrets.join("gitee.env"), "GITEE_TOKEN=test-token\n")
         .expect("token file should be written");
-    let (api_base, handle) = mock_gitee_sequence("feat/resume", true);
+    let (api_base, handle) = mock_gitee_sequence("feat/resume", true, true);
 
     let output = run_wrapper_env(
         &fx,
@@ -157,7 +187,7 @@ fn resume_remote() {
     std::fs::create_dir_all(&secrets).expect("secrets dir should exist");
     std::fs::write(secrets.join("gitee.env"), "GITEE_TOKEN=test-token\n")
         .expect("token file should be written");
-    let (api_base, handle) = mock_gitee_sequence("feat/remote", true);
+    let (api_base, handle) = mock_gitee_sequence("feat/remote", true, true);
 
     let output = run_wrapper_env(
         &fx,
@@ -225,13 +255,17 @@ fn resume_clean() {
 fn mock_gitee_sequence(
     expected_head: &'static str,
     merge: bool,
+    existing_pr: bool,
 ) -> (String, thread::JoinHandle<()>) {
     let server = TcpListener::bind("127.0.0.1:0").expect("mock server should bind");
     let address = server
         .local_addr()
         .expect("mock server address should exist");
     let handle = thread::spawn(move || {
-        let mut expected = vec![("POST", "/repos/perishme/perish.top/pulls")];
+        let mut expected = vec![("GET", "/repos/perishme/perish.top/pulls")];
+        if !existing_pr {
+            expected.push(("POST", "/repos/perishme/perish.top/pulls"));
+        }
         if merge {
             expected.push(("POST", "/repos/perishme/perish.top/pulls/42/review"));
             expected.push(("POST", "/repos/perishme/perish.top/pulls/42/test"));
@@ -244,14 +278,38 @@ fn mock_gitee_sequence(
                 .read(&mut request)
                 .expect("request should be readable");
             let request = String::from_utf8_lossy(&request[..read]);
-            assert!(
-                request.starts_with(&format!("{} {} ", expected.0, expected.1)),
-                "unexpected request: {request}"
-            );
+            if expected.0 == "GET" {
+                assert!(
+                    request.starts_with(&format!("{} {}?", expected.0, expected.1)),
+                    "unexpected request: {request}"
+                );
+            } else {
+                assert!(
+                    request.starts_with(&format!("{} {} ", expected.0, expected.1)),
+                    "unexpected request: {request}"
+                );
+            }
             assert!(request.contains("authorization: token test-token"));
-            assert!(request.contains(r#""access_token":"test-token""#));
             let body = if index == 0 {
-                assert!(request.contains(&format!(r#""head":"{expected_head}""#)));
+                assert!(request.contains(&format!("head={}", expected_head.replace('/', "%2F"))));
+                assert!(request.contains("state=open"));
+                if request.contains("base=main") {
+                } else {
+                    panic!("expected base=main filter in request: {request}");
+                }
+                if existing_pr {
+                    Box::leak(
+                        format!(
+                            r#"[{{"number":42,"head":{{"ref":"{expected_head}"}},"base":{{"ref":"main"}},"html_url":"https://gitee.test/pr/42"}}]"#
+                        )
+                        .into_boxed_str(),
+                    )
+                } else {
+                    r#"[]"#
+                }
+            } else if !existing_pr && index == 1 {
+                assert!(request.contains("test-token"));
+                assert!(request.contains(expected_head));
                 r#"{"number":42,"html_url":"https://gitee.test/pr/42"}"#
             } else {
                 r#"{}"#

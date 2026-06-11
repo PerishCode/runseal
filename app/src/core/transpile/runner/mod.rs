@@ -1,16 +1,22 @@
-use std::{
-    collections::BTreeMap,
-    path::Path,
-    process::{Command, Stdio},
-    time::Duration,
-};
+use std::{collections::BTreeMap, path::Path, process::Command, time::Duration};
 
 use anyhow::{Context, Result, bail};
 
 use crate::core::tool;
 
-use super::ast::{ArgvKind, ArgvSpec, Item, Predicate, Program, Statement, Value};
+use self::support::{
+    ArgSnapshot, CaptureMode, CommandOutput, SourceState, case_matches, find_spec,
+    map_source_state, option_name, shell_words, split_words, write_stderr, write_stderr_line,
+    write_stdout, write_stdout_line, write_stream_file,
+};
+use super::ast::{
+    ArgvKind, ArgvPositional, ArgvSpec, ExpansionOp, Item, Predicate, Program, Statement, Value,
+    ValueSource,
+};
 use super::parse::parse_seal;
+
+mod args;
+mod support;
 
 pub(crate) fn run_seal_file(
     path: &Path,
@@ -28,17 +34,13 @@ struct Runner<'a> {
     program: &'a Program,
     vars: BTreeMap<String, String>,
     env: BTreeMap<String, String>,
+    stdout_stack: Vec<String>,
 }
 
 enum Flow {
     Continue,
     Break,
     Exit(i32),
-}
-
-struct ArgSnapshot {
-    argv: Option<String>,
-    values: Vec<Option<String>>,
 }
 
 impl<'a> Runner<'a> {
@@ -51,7 +53,12 @@ impl<'a> Runner<'a> {
         for (index, value) in argv.iter().enumerate() {
             vars.insert((index + 1).to_string(), value.clone());
         }
-        Self { program, vars, env }
+        Self {
+            program,
+            vars,
+            env,
+            stdout_stack: Vec::new(),
+        }
     }
 
     fn run_program(&mut self) -> Result<i32> {
@@ -88,10 +95,12 @@ impl<'a> Runner<'a> {
     fn run_statement(&mut self, statement: &Statement) -> Result<Flow> {
         match statement {
             Statement::Assign { name, value } => {
-                let value = self.value(value);
+                let value = self.try_value(value)?;
                 self.vars.insert(name.clone(), value);
             }
-            Statement::ArgvParse { specs } => self.parse_argv(specs)?,
+            Statement::ArgvParse { specs, positional } => {
+                self.parse_argv(specs, positional.as_ref())?
+            }
             Statement::Shift { count } => self.shift_args(*count),
             Statement::ExecChecked { argv } => {
                 let code = self.run_external(argv, CaptureMode::None)?.code;
@@ -99,11 +108,24 @@ impl<'a> Runner<'a> {
                     return Ok(Flow::Exit(code));
                 }
             }
+            Statement::ExecWrite {
+                stream,
+                path,
+                append,
+                argv,
+            } => {
+                let output = self.run_external(argv, CaptureMode::All)?;
+                let path = self.try_value(path)?;
+                write_stream_file(stream, Path::new(&path), *append, &output)?;
+                if output.code != 0 {
+                    return Ok(Flow::Exit(output.code));
+                }
+            }
             Statement::EnvExecChecked { env, argv } => {
                 let overlay = env
                     .iter()
-                    .map(|item| (item.name.clone(), self.value(&item.value)))
-                    .collect::<Vec<_>>();
+                    .map(|item| Ok((item.name.clone(), self.try_value(&item.value)?)))
+                    .collect::<Result<Vec<_>>>()?;
                 let code = self
                     .run_external_with_env(argv, CaptureMode::None, &overlay)?
                     .code;
@@ -118,6 +140,24 @@ impl<'a> Runner<'a> {
                 }
                 self.vars
                     .insert(name.clone(), output.stdout.trim().to_string());
+            }
+            Statement::CaptureFunction {
+                name,
+                function,
+                argv,
+            } => {
+                let old_args = self.set_function_args(argv)?;
+                self.stdout_stack.push(String::new());
+                let flow = self.run_function(function)?;
+                let captured = self
+                    .stdout_stack
+                    .pop()
+                    .expect("stdout capture stack should be balanced");
+                self.restore_function_args(old_args);
+                if !matches!(flow, Flow::Continue) {
+                    return Ok(flow);
+                }
+                self.vars.insert(name.clone(), captured.trim().to_string());
             }
             Statement::If {
                 predicate,
@@ -143,7 +183,7 @@ impl<'a> Runner<'a> {
                 }
             }
             Statement::Case { value, arms } => {
-                let value = self.value(value);
+                let value = self.try_value(value)?;
                 for arm in arms {
                     if arm
                         .patterns
@@ -159,17 +199,20 @@ impl<'a> Runner<'a> {
                 }
             }
             Statement::CallFunction { name, argv } => {
-                let old_args = self.set_function_args(argv);
+                let old_args = self.set_function_args(argv)?;
                 let flow = self.run_function(name)?;
                 self.restore_function_args(old_args);
                 if !matches!(flow, Flow::Continue) {
                     return Ok(flow);
                 }
             }
-            Statement::Print { value } => println!("{}", self.value(value)),
-            Statement::Error { value } => eprintln!("{}", self.value(value)),
+            Statement::Print { value } => {
+                let text = self.try_value(value)?;
+                write_stdout_line(&mut self.stdout_stack, &text)?
+            }
+            Statement::Error { value } => write_stderr_line(&self.try_value(value)?)?,
             Statement::Fail { value } => {
-                eprintln!("{}", self.value(value));
+                write_stderr_line(&self.try_value(value)?)?;
                 return Ok(Flow::Exit(1));
             }
             Statement::Exit { code } => return Ok(Flow::Exit(*code)),
@@ -192,87 +235,29 @@ impl<'a> Runner<'a> {
         self.run_body(body)
     }
 
-    fn parse_argv(&mut self, specs: &[ArgvSpec]) -> Result<()> {
-        let argv = self
-            .vars
-            .get("__seal_argv")
-            .map(|value| split_words(value))
-            .unwrap_or_default();
-        self.vars
-            .insert("__seal_argc".to_string(), argv.len().to_string());
-        self.vars
-            .insert("__seal_help".to_string(), "false".to_string());
-        for spec in specs {
-            let value = match spec.kind {
-                ArgvKind::String => spec.default.clone().unwrap_or_default(),
-                ArgvKind::Flag => "false".to_string(),
-            };
-            self.vars.insert(spec.name.clone(), value);
-        }
-        let mut index = 0;
-        while index < argv.len() {
-            let arg = &argv[index];
-            if arg == "--" {
-                break;
-            }
-            if matches!(arg.as_str(), "-h" | "--help" | "help") {
-                self.vars
-                    .insert("__seal_help".to_string(), "true".to_string());
-                index += 1;
-                continue;
-            }
-            let Some(spec) = find_spec(specs, arg) else {
-                eprintln!("unknown option: {arg}");
-                bail!("argv parse failed");
-            };
-            match spec.kind {
-                ArgvKind::Flag => {
-                    self.vars.insert(spec.name.clone(), "true".to_string());
-                    index += 1;
-                }
-                ArgvKind::String => {
-                    let option = option_name(&spec.name);
-                    if let Some(value) = arg.strip_prefix(&(option.clone() + "=")) {
-                        self.vars.insert(spec.name.clone(), value.to_string());
-                        index += 1;
-                    } else {
-                        let Some(value) = argv.get(index + 1) else {
-                            eprintln!("missing value for {option}");
-                            bail!("argv parse failed");
-                        };
-                        self.vars.insert(spec.name.clone(), value.clone());
-                        index += 2;
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn value(&self, value: &Value) -> String {
-        match value {
+    fn try_value(&self, value: &Value) -> Result<String> {
+        Ok(match value {
             Value::Literal { text } => text.clone(),
             Value::Argc => self.argc().to_string(),
-            Value::Var { name } => self.vars.get(name).cloned().unwrap_or_default(),
             Value::Args => shell_words(&self.current_args()),
-            Value::Env { name } => self.env.get(name).cloned().unwrap_or_default(),
-            Value::EnvDefault { name, default } => self
-                .env
-                .get(name)
-                .filter(|value| !value.is_empty())
-                .cloned()
-                .unwrap_or_else(|| default.clone()),
-            Value::Concat { parts } => parts.iter().map(|part| self.value(part)).collect(),
-        }
+            Value::Expand { source, op } => self.expand_value(source, op)?,
+            Value::Concat { parts } => {
+                let mut combined = String::new();
+                for part in parts {
+                    combined.push_str(&self.try_value(part)?);
+                }
+                combined
+            }
+        })
     }
 
-    fn predicate(&self, predicate: &Predicate) -> Result<bool> {
+    fn predicate(&mut self, predicate: &Predicate) -> Result<bool> {
         Ok(match predicate {
             Predicate::Command { argv } => self.run_external(argv, CaptureMode::None)?.code == 0,
-            Predicate::Empty { value } => self.value(value).is_empty(),
-            Predicate::NotEmpty { value } => !self.value(value).is_empty(),
-            Predicate::Eq { left, right } => self.value(left) == self.value(right),
-            Predicate::Neq { left, right } => self.value(left) != self.value(right),
+            Predicate::Empty { value } => self.try_value(value)?.is_empty(),
+            Predicate::NotEmpty { value } => !self.try_value(value)?.is_empty(),
+            Predicate::Eq { left, right } => self.try_value(left)? == self.try_value(right)?,
+            Predicate::Neq { left, right } => self.try_value(left)? != self.try_value(right)?,
             Predicate::IntLt { left, right } => self.int_value(left)? < self.int_value(right)?,
             Predicate::IntLte { left, right } => self.int_value(left)? <= self.int_value(right)?,
             Predicate::IntGt { left, right } => self.int_value(left)? > self.int_value(right)?,
@@ -283,178 +268,90 @@ impl<'a> Runner<'a> {
             Predicate::JsonNotEmpty { value } => {
                 self.tool_path(&["json", "empty"], std::slice::from_ref(value))? == "false"
             }
-            Predicate::FileExists { path } => Path::new(&self.value(path)).is_file(),
-            Predicate::DirExists { path } => Path::new(&self.value(path)).is_dir(),
+            Predicate::FileExists { path } => Path::new(&self.try_value(path)?).is_file(),
+            Predicate::DirExists { path } => Path::new(&self.try_value(path)?).is_dir(),
         })
     }
 
     fn int_value(&self, value: &Value) -> Result<i64> {
-        let value = self.value(value);
+        let value = self.try_value(value)?;
         value
             .parse::<i64>()
             .with_context(|| format!("invalid integer: {value}"))
     }
 
+    fn expand_value(&self, source: &ValueSource, op: &ExpansionOp) -> Result<String> {
+        let state = self.source_state(source);
+        match op {
+            ExpansionOp::Plain => Ok(match state {
+                SourceState::Unset => String::new(),
+                SourceState::Empty => String::new(),
+                SourceState::Present(value) => value,
+            }),
+            ExpansionOp::DefaultIfUnsetOrEmpty { fallback } => Ok(match state {
+                SourceState::Present(value) => value,
+                SourceState::Unset | SourceState::Empty => fallback.clone(),
+            }),
+            ExpansionOp::RequireNonEmpty { message } => match state {
+                SourceState::Present(value) => Ok(value),
+                SourceState::Unset | SourceState::Empty => bail!("{message}"),
+            },
+        }
+    }
+
+    fn source_state(&self, source: &ValueSource) -> SourceState {
+        match source {
+            ValueSource::Env { name } => map_source_state(self.env.get(name).cloned()),
+            ValueSource::Var { name } => map_source_state(self.vars.get(name).cloned()),
+        }
+    }
+
     fn tool_path(&self, path: &[&str], argv: &[Value]) -> Result<String> {
         let mut args = path.iter().map(|part| part.to_string()).collect::<Vec<_>>();
-        args.extend(self.expanded_values(argv));
+        args.extend(self.expanded_values(argv)?);
         Ok(tool::eval(&args)?.unwrap_or_default())
     }
 
-    fn run_external(&self, argv: &[Value], capture: CaptureMode) -> Result<CommandOutput> {
+    fn run_external(&mut self, argv: &[Value], capture: CaptureMode) -> Result<CommandOutput> {
         self.run_external_with_env(argv, capture, &[])
     }
 
     fn run_external_with_env(
-        &self,
+        &mut self,
         argv: &[Value],
         capture: CaptureMode,
         env_overlay: &[(String, String)],
     ) -> Result<CommandOutput> {
-        let argv = self.expanded_values(argv);
+        let argv = self.expanded_values(argv)?;
         let Some((program, args)) = argv.split_first() else {
             bail!("external command cannot be empty");
         };
         let mut command = Command::new(program);
         command.args(args).envs(&self.env);
         command.envs(env_overlay.iter().map(|(key, value)| (key, value)));
-        if matches!(capture, CaptureMode::None) {
+        if matches!(capture, CaptureMode::None) && self.stdout_stack.is_empty() {
             let status = command
                 .status()
                 .with_context(|| format!("failed to execute command: {program}"))?;
             return Ok(CommandOutput {
                 code: status.code().unwrap_or(1),
                 stdout: String::new(),
+                stderr: String::new(),
             });
         }
-        command.stdout(Stdio::piped());
         let output = command
             .output()
             .with_context(|| format!("failed to execute command: {program}"))?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        if matches!(capture, CaptureMode::None) {
+            write_stdout(&mut self.stdout_stack, &stdout)?;
+            write_stderr(&stderr)?;
+        }
         Ok(CommandOutput {
             code: output.status.code().unwrap_or(1),
             stdout,
+            stderr,
         })
-    }
-
-    fn set_function_args(&mut self, argv: &[Value]) -> ArgSnapshot {
-        let values = self.expanded_values(argv);
-        let old_len = self.argc();
-        let old = (0..=old_len)
-            .map(|index| self.vars.remove(&index.to_string()))
-            .collect::<Vec<_>>();
-        let snapshot = ArgSnapshot {
-            argv: self.vars.remove("__seal_argv"),
-            values: old,
-        };
-        self.set_positional_args(&values);
-        snapshot
-    }
-
-    fn restore_function_args(&mut self, old: ArgSnapshot) {
-        let current_len = self.argc();
-        for index in 0..=current_len {
-            self.vars.remove(&index.to_string());
-        }
-        for (index, value) in old.values.into_iter().enumerate() {
-            match value {
-                Some(value) => {
-                    self.vars.insert(index.to_string(), value);
-                }
-                None => {
-                    self.vars.remove(&index.to_string());
-                }
-            }
-        }
-        match old.argv {
-            Some(value) => {
-                self.vars.insert("__seal_argv".to_string(), value);
-            }
-            None => {
-                self.vars.remove("__seal_argv");
-            }
-        }
-    }
-
-    fn expanded_values(&self, values: &[Value]) -> Vec<String> {
-        let mut expanded = Vec::new();
-        for value in values {
-            match value {
-                Value::Args => expanded.extend(self.current_args()),
-                Value::Argc => expanded.push(self.argc().to_string()),
-                _ => expanded.push(self.value(value)),
-            }
-        }
-        expanded
-    }
-
-    fn argc(&self) -> usize {
-        self.vars
-            .get("0")
-            .and_then(|value| value.parse::<usize>().ok())
-            .unwrap_or_default()
-    }
-
-    fn current_args(&self) -> Vec<String> {
-        (1..=self.argc())
-            .filter_map(|index| self.vars.get(&index.to_string()).cloned())
-            .collect()
-    }
-
-    fn shift_args(&mut self, count: usize) {
-        let args = self.current_args();
-        let remaining = args.into_iter().skip(count).collect::<Vec<_>>();
-        self.set_positional_args(&remaining);
-    }
-
-    fn set_positional_args(&mut self, values: &[String]) {
-        let old_len = self.argc();
-        for index in 0..=old_len {
-            self.vars.remove(&index.to_string());
-        }
-        for (index, value) in values.iter().enumerate() {
-            self.vars.insert((index + 1).to_string(), value.clone());
-        }
-        self.vars.insert("0".to_string(), values.len().to_string());
-        self.vars
-            .insert("__seal_argv".to_string(), shell_words(values));
-    }
-}
-
-enum CaptureMode {
-    None,
-    Stdout,
-}
-
-struct CommandOutput {
-    code: i32,
-    stdout: String,
-}
-
-fn find_spec<'a>(specs: &'a [ArgvSpec], arg: &str) -> Option<&'a ArgvSpec> {
-    specs.iter().find(|spec| {
-        let option = option_name(&spec.name);
-        arg == option || arg.starts_with(&(option + "="))
-    })
-}
-
-fn option_name(name: &str) -> String {
-    format!("--{}", name.replace('_', "-"))
-}
-
-fn case_matches(pattern: &str, value: &str) -> bool {
-    pattern == "*" || pattern == value
-}
-
-fn shell_words(argv: &[String]) -> String {
-    argv.join("\u{1f}")
-}
-
-fn split_words(value: &str) -> Vec<String> {
-    if value.is_empty() {
-        Vec::new()
-    } else {
-        value.split('\u{1f}').map(str::to_string).collect()
     }
 }

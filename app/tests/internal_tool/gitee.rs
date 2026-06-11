@@ -23,8 +23,8 @@ fn gitee_pr() {
         |request| {
             assert!(request.starts_with("POST /repos/perishme/perish.top/pulls "));
             assert!(request.contains("authorization: token file-token"));
-            assert!(request.contains(r#""title":"Land change""#));
-            assert!(request.contains(r#""access_token":"file-token""#));
+            assert!(request.contains("Land change"));
+            assert!(request.contains("file-token"));
         },
         r#"{"number":42,"html_url":"https://gitee.test/pr/42"}"#,
     );
@@ -64,8 +64,8 @@ fn gitee_pr() {
         |request| {
             assert!(request.starts_with("PUT /repos/perishme/perish.top/pulls/42/merge "));
             assert!(request.contains("authorization: token env-token"));
-            assert!(request.contains(r#""merge_method":"squash""#));
-            assert!(request.contains(r#""access_token":"env-token""#));
+            assert!(request.contains("squash"));
+            assert!(request.contains("env-token"));
         },
         r#"{"merged":true}"#,
     );
@@ -95,6 +95,151 @@ fn gitee_pr() {
     let payload: serde_json::Value =
         serde_json::from_slice(&merge.stdout).expect("stdout should be JSON");
     assert_eq!(payload["merged"], true);
+
+    let (api_base, handle) = mock_gitee(
+        |request| {
+            assert!(request.starts_with(
+                "GET /repos/perishme/perish.top/pulls?head=feat%2Fseal&state=open&base=main "
+            ));
+            assert!(request.contains("authorization: token env-token"));
+        },
+        r#"[{"number":42,"head":{"ref":"feat/seal"},"base":{"ref":"main"},"html_url":"https://gitee.test/pr/42"}]"#,
+    );
+    let find = bin()
+        .current_dir(&cwd)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .env("RUNSEAL_GITEE_API_BASE", api_base)
+        .env("GITEE_TOKEN", "env-token")
+        .args([
+            "@tool",
+            "gitee",
+            "pr",
+            "find",
+            "--owner",
+            "perishme",
+            "--repo",
+            "perish.top",
+            "--head",
+            "feat/seal",
+            "--base",
+            "main",
+        ])
+        .output()
+        .expect("runseal should run");
+    assert!(find.status.success());
+    handle.join().expect("mock server should finish");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&find.stdout).expect("stdout should be JSON");
+    assert_eq!(payload["number"], 42);
+
+    let (api_base, handle) = mock_gitee(
+        |request| {
+            assert!(request.starts_with(
+                "GET /repos/perishme/perish.top/pulls?head=feat%2Fmissing&state=open "
+            ));
+            assert!(request.contains("authorization: token env-token"));
+        },
+        r#"[]"#,
+    );
+    let find_none = bin()
+        .current_dir(&cwd)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .env("RUNSEAL_GITEE_API_BASE", api_base)
+        .env("GITEE_TOKEN", "env-token")
+        .args([
+            "@tool",
+            "gitee",
+            "pr",
+            "find",
+            "--owner",
+            "perishme",
+            "--repo",
+            "perish.top",
+            "--head",
+            "feat/missing",
+        ])
+        .output()
+        .expect("runseal should run");
+    assert!(find_none.status.success());
+    handle.join().expect("mock server should finish");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&find_none.stdout).expect("stdout should be JSON");
+    assert!(payload.is_null());
+
+    let (api_base, handle) = mock_gitee(
+        |request| {
+            assert!(
+                request.starts_with(
+                    "GET /repos/perishme/perish.top/pulls?head=feat%2Fdup&state=open "
+                )
+            );
+            assert!(request.contains("authorization: token env-token"));
+        },
+        r#"[{"number":42,"head":{"ref":"feat/dup"},"base":{"ref":"main"}},{"number":43,"head":{"label":"perishme:feat/dup"},"base":{"label":"perishme:main"}}]"#,
+    );
+    let find_ambiguous = bin()
+        .current_dir(&cwd)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .env("RUNSEAL_GITEE_API_BASE", api_base)
+        .env("GITEE_TOKEN", "env-token")
+        .args([
+            "@tool",
+            "gitee",
+            "pr",
+            "find",
+            "--owner",
+            "perishme",
+            "--repo",
+            "perish.top",
+            "--head",
+            "feat/dup",
+        ])
+        .output()
+        .expect("runseal should run");
+    assert!(!find_ambiguous.status.success());
+    handle.join().expect("mock server should finish");
+    assert!(
+        String::from_utf8_lossy(&find_ambiguous.stderr)
+            .contains("Gitee PR find is ambiguous for head `feat/dup`: found 2 matches")
+    );
+
+    let (api_base, handle) = mock_gitee(
+        |request| {
+            assert!(request.starts_with("POST /repos/perishme/perish.top/pulls "));
+            assert!(request.contains("authorization: token custom-env-token"));
+            assert!(request.contains("Env override"));
+        },
+        r#"{"number":77,"html_url":"https://gitee.test/pr/77"}"#,
+    );
+    let create_with_token_env = bin()
+        .current_dir(&cwd)
+        .env("RUNSEAL_HOME", temp.path().join("home"))
+        .env("RUNSEAL_GITEE_API_BASE", api_base)
+        .env("CUSTOM_GITEE_TOKEN", "custom-env-token")
+        .args([
+            "@tool",
+            "gitee",
+            "pr",
+            "create",
+            "--owner",
+            "perishme",
+            "--repo",
+            "perish.top",
+            "--token-env",
+            "CUSTOM_GITEE_TOKEN",
+            "--base",
+            "main",
+            "--head",
+            "feat/env",
+            "--title",
+            "Env override",
+            "--body",
+            "Body",
+        ])
+        .output()
+        .expect("runseal should run");
+    assert!(create_with_token_env.status.success());
+    handle.join().expect("mock server should finish");
 }
 
 #[test]

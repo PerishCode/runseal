@@ -220,6 +220,65 @@ echo_first "$2"
     syntax::assert_pwsh(&powershell);
 }
 
+#[test]
+fn capture_locals() {
+    let fx = fixture(
+        r#"
+helper() {
+  print "hello $1"
+}
+
+value=$(helper world)
+print "$value"
+"#,
+    );
+
+    let sealir = run_transpile(&fx, "sealir");
+    assert!(sealir.status.success());
+    let sealir = String::from_utf8(sealir.stdout).expect("stdout should be UTF-8");
+    assert!(sealir.contains("capture_function"));
+    assert!(sealir.contains("\"function\": \"helper\""));
+
+    let bash = run_transpile(&fx, "bash");
+    let powershell = run_transpile(&fx, "powershell");
+    assert!(bash.status.success());
+    assert!(powershell.status.success());
+    let bash = String::from_utf8(bash.stdout).expect("stdout should be UTF-8");
+    let powershell = String::from_utf8(powershell.stdout).expect("stdout should be UTF-8");
+    assert!(bash.contains("value=$(helper world)"));
+    assert!(powershell.contains("$value = & helper 'world'"));
+    syntax::assert_bash(&bash);
+    syntax::assert_pwsh(&powershell);
+}
+
+#[test]
+fn capture_locals_pwsh() {
+    let fx = fixture(
+        r#"
+function helper {
+    Write-Output ('hello ' + $1)
+}
+
+$value = & helper 'world'
+Write-Output $value
+"#,
+    );
+
+    let output = bin()
+        .current_dir(&fx.dir)
+        .arg("@transpile")
+        .arg("--input-lang=powershell")
+        .arg("--output-lang=sealir")
+        .arg(&fx.source)
+        .output()
+        .expect("runseal should run");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("capture_function"));
+    assert!(stdout.contains("\"function\": \"helper\""));
+}
+
 fn wrapper_source(wrapper: &str) -> String {
     std::fs::read_to_string(repo_root().join(wrapper)).expect("wrapper should be readable")
 }
