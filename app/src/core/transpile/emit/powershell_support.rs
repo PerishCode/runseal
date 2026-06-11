@@ -37,6 +37,7 @@ fn max_positional_statement(statement: &Statement) -> usize {
         Statement::ExecChecked { argv }
         | Statement::EnvExecChecked { argv, .. }
         | Statement::CaptureChecked { argv, .. }
+        | Statement::CaptureFunction { argv, .. }
         | Statement::CallFunction { argv, .. } => argv
             .iter()
             .map(max_positional_value)

@@ -52,6 +52,7 @@ fn collect_bash_tool(statement: &Statement, tools: &mut BTreeSet<&'static str>) 
         | Statement::EnvExecChecked { .. }
         | Statement::Shift { .. }
         | Statement::CaptureChecked { .. }
+        | Statement::CaptureFunction { .. }
         | Statement::CallFunction { .. }
         | Statement::Print { .. }
         | Statement::Error { .. }

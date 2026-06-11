@@ -92,6 +92,21 @@ fn emit_seal_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(&join_values(argv, seal_value));
             out.push_str(")\n");
         }
+        Statement::CaptureFunction {
+            name,
+            function,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(name);
+            out.push_str("=$(");
+            out.push_str(function);
+            if !argv.is_empty() {
+                out.push(' ');
+                out.push_str(&join_values(argv, seal_value));
+            }
+            out.push_str(")\n");
+        }
         Statement::If {
             predicate,
             then_body,
@@ -288,6 +303,21 @@ fn emit_bash_statement(out: &mut String, statement: &Statement, indent: usize) {
             out.push_str(name);
             out.push_str("=$(");
             out.push_str(&join_values(argv, bash_value));
+            out.push_str(")\n");
+        }
+        Statement::CaptureFunction {
+            name,
+            function,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(name);
+            out.push_str("=$(");
+            out.push_str(function);
+            if !argv.is_empty() {
+                out.push(' ');
+                out.push_str(&join_values(argv, bash_value));
+            }
             out.push_str(")\n");
         }
         Statement::If {

@@ -16,6 +16,17 @@ pub(super) struct CommandOutput {
     pub(super) stderr: String,
 }
 
+pub(super) struct ArgSnapshot {
+    pub(super) argv: Option<String>,
+    pub(super) values: Vec<Option<String>>,
+}
+
+pub(super) enum SourceState {
+    Unset,
+    Empty,
+    Present(String),
+}
+
 pub(super) fn write_stream_file(
     stream: &OutputStream,
     path: &Path,
@@ -86,4 +97,50 @@ pub(super) fn split_words(value: &str) -> Vec<String> {
     } else {
         value.split('\u{1f}').map(str::to_string).collect()
     }
+}
+
+pub(super) fn map_source_state(value: Option<String>) -> SourceState {
+    match value {
+        None => SourceState::Unset,
+        Some(value) if value.is_empty() => SourceState::Empty,
+        Some(value) => SourceState::Present(value),
+    }
+}
+
+pub(super) fn write_stdout(stdout_stack: &mut [String], text: &str) -> Result<()> {
+    use std::io::Write;
+
+    if text.is_empty() {
+        return Ok(());
+    }
+    if let Some(buffer) = stdout_stack.last_mut() {
+        buffer.push_str(text);
+        return Ok(());
+    }
+    std::io::stdout()
+        .write_all(text.as_bytes())
+        .context("failed to write stdout")
+}
+
+pub(super) fn write_stdout_line(stdout_stack: &mut [String], text: &str) -> Result<()> {
+    let mut line = text.to_string();
+    line.push('\n');
+    write_stdout(stdout_stack, &line)
+}
+
+pub(super) fn write_stderr(text: &str) -> Result<()> {
+    use std::io::Write;
+
+    if text.is_empty() {
+        return Ok(());
+    }
+    std::io::stderr()
+        .write_all(text.as_bytes())
+        .context("failed to write stderr")
+}
+
+pub(super) fn write_stderr_line(text: &str) -> Result<()> {
+    let mut line = text.to_string();
+    line.push('\n');
+    write_stderr(&line)
 }

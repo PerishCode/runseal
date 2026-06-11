@@ -5,8 +5,9 @@ use anyhow::{Context, Result, bail};
 use crate::core::tool;
 
 use self::support::{
-    CaptureMode, CommandOutput, case_matches, find_spec, option_name, shell_words, split_words,
-    write_stream_file,
+    ArgSnapshot, CaptureMode, CommandOutput, SourceState, case_matches, find_spec,
+    map_source_state, option_name, shell_words, split_words, write_stderr, write_stderr_line,
+    write_stdout, write_stdout_line, write_stream_file,
 };
 use super::ast::{
     ArgvKind, ArgvSpec, ExpansionOp, Item, Predicate, Program, Statement, Value, ValueSource,
@@ -31,23 +32,13 @@ struct Runner<'a> {
     program: &'a Program,
     vars: BTreeMap<String, String>,
     env: BTreeMap<String, String>,
+    stdout_stack: Vec<String>,
 }
 
 enum Flow {
     Continue,
     Break,
     Exit(i32),
-}
-
-struct ArgSnapshot {
-    argv: Option<String>,
-    values: Vec<Option<String>>,
-}
-
-enum SourceState {
-    Unset,
-    Empty,
-    Present(String),
 }
 
 impl<'a> Runner<'a> {
@@ -60,7 +51,12 @@ impl<'a> Runner<'a> {
         for (index, value) in argv.iter().enumerate() {
             vars.insert((index + 1).to_string(), value.clone());
         }
-        Self { program, vars, env }
+        Self {
+            program,
+            vars,
+            env,
+            stdout_stack: Vec::new(),
+        }
     }
 
     fn run_program(&mut self) -> Result<i32> {
@@ -141,6 +137,24 @@ impl<'a> Runner<'a> {
                 self.vars
                     .insert(name.clone(), output.stdout.trim().to_string());
             }
+            Statement::CaptureFunction {
+                name,
+                function,
+                argv,
+            } => {
+                let old_args = self.set_function_args(argv)?;
+                self.stdout_stack.push(String::new());
+                let flow = self.run_function(function)?;
+                let captured = self
+                    .stdout_stack
+                    .pop()
+                    .expect("stdout capture stack should be balanced");
+                self.restore_function_args(old_args);
+                if !matches!(flow, Flow::Continue) {
+                    return Ok(flow);
+                }
+                self.vars.insert(name.clone(), captured.trim().to_string());
+            }
             Statement::If {
                 predicate,
                 then_body,
@@ -188,10 +202,13 @@ impl<'a> Runner<'a> {
                     return Ok(flow);
                 }
             }
-            Statement::Print { value } => println!("{}", self.try_value(value)?),
-            Statement::Error { value } => eprintln!("{}", self.try_value(value)?),
+            Statement::Print { value } => {
+                let text = self.try_value(value)?;
+                write_stdout_line(&mut self.stdout_stack, &text)?
+            }
+            Statement::Error { value } => write_stderr_line(&self.try_value(value)?)?,
             Statement::Fail { value } => {
-                eprintln!("{}", self.try_value(value)?);
+                write_stderr_line(&self.try_value(value)?)?;
                 return Ok(Flow::Exit(1));
             }
             Statement::Exit { code } => return Ok(Flow::Exit(*code)),
@@ -287,7 +304,7 @@ impl<'a> Runner<'a> {
         })
     }
 
-    fn predicate(&self, predicate: &Predicate) -> Result<bool> {
+    fn predicate(&mut self, predicate: &Predicate) -> Result<bool> {
         Ok(match predicate {
             Predicate::Command { argv } => self.run_external(argv, CaptureMode::None)?.code == 0,
             Predicate::Empty { value } => self.try_value(value)?.is_empty(),
@@ -337,16 +354,8 @@ impl<'a> Runner<'a> {
 
     fn source_state(&self, source: &ValueSource) -> SourceState {
         match source {
-            ValueSource::Env { name } => self.map_source_state(self.env.get(name).cloned()),
-            ValueSource::Var { name } => self.map_source_state(self.vars.get(name).cloned()),
-        }
-    }
-
-    fn map_source_state(&self, value: Option<String>) -> SourceState {
-        match value {
-            None => SourceState::Unset,
-            Some(value) if value.is_empty() => SourceState::Empty,
-            Some(value) => SourceState::Present(value),
+            ValueSource::Env { name } => map_source_state(self.env.get(name).cloned()),
+            ValueSource::Var { name } => map_source_state(self.vars.get(name).cloned()),
         }
     }
 
@@ -356,12 +365,12 @@ impl<'a> Runner<'a> {
         Ok(tool::eval(&args)?.unwrap_or_default())
     }
 
-    fn run_external(&self, argv: &[Value], capture: CaptureMode) -> Result<CommandOutput> {
+    fn run_external(&mut self, argv: &[Value], capture: CaptureMode) -> Result<CommandOutput> {
         self.run_external_with_env(argv, capture, &[])
     }
 
     fn run_external_with_env(
-        &self,
+        &mut self,
         argv: &[Value],
         capture: CaptureMode,
         env_overlay: &[(String, String)],
@@ -373,7 +382,7 @@ impl<'a> Runner<'a> {
         let mut command = Command::new(program);
         command.args(args).envs(&self.env);
         command.envs(env_overlay.iter().map(|(key, value)| (key, value)));
-        if matches!(capture, CaptureMode::None) {
+        if matches!(capture, CaptureMode::None) && self.stdout_stack.is_empty() {
             let status = command
                 .status()
                 .with_context(|| format!("failed to execute command: {program}"))?;
@@ -388,6 +397,10 @@ impl<'a> Runner<'a> {
             .with_context(|| format!("failed to execute command: {program}"))?;
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        if matches!(capture, CaptureMode::None) {
+            write_stdout(&mut self.stdout_stack, &stdout)?;
+            write_stderr(&stderr)?;
+        }
         Ok(CommandOutput {
             code: output.status.code().unwrap_or(1),
             stdout,

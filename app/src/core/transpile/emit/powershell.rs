@@ -105,6 +105,19 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
             out.push_str(&join_values(argv, powershell_value));
             out.push('\n');
         }
+        Statement::CaptureFunction {
+            name,
+            function,
+            argv,
+        } => {
+            out.push_str(&pad);
+            out.push_str(&format!("${name} = & {function}"));
+            if !argv.is_empty() {
+                out.push(' ');
+                out.push_str(&join_values(argv, powershell_value));
+            }
+            out.push('\n');
+        }
         Statement::If {
             predicate,
             then_body,

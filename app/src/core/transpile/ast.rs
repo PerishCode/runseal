@@ -41,6 +41,11 @@ pub enum Statement {
         name: String,
         argv: Vec<Value>,
     },
+    CaptureFunction {
+        name: String,
+        function: String,
+        argv: Vec<Value>,
+    },
     If {
         predicate: Predicate,
         then_body: Vec<Statement>,
