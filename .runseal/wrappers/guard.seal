@@ -21,14 +21,6 @@ usage() {
   print "  version-hash     print the current guard.version.hash value"
 }
 
-require_tool() {
-  exists=$(runseal @tool process exists "$1")
-  if [ "$exists" = true ]; then
-  else
-    fail "guard: missing required tool: $1"
-  fi
-}
-
 mode=full
 if [ "$#" -gt 0 ]; then
   case "$1" in
@@ -58,12 +50,6 @@ if [ "$mode" = version-hash ]; then
   runseal @tool hash tree app/tests
   exit 0
 fi
-
-require_tool git
-require_tool cargo
-require_tool curl
-require_tool cat
-require_tool runseal
 
 public_url="${RUNSEAL_RELEASES_PUBLIC_URL:-}"
 if [ -z "$public_url" ]; then
@@ -161,11 +147,6 @@ else
     fi
   fi
 fi
-
-require_tool flavor
-require_tool sh
-require_tool bash
-require_tool python3
 
 print "==> cargo fmt"
 cargo fmt --all --check
