@@ -1,9 +1,12 @@
 use super::powershell_support::{emit_positional_bindings, max_positional_statements};
-use super::support::{generated_header, option_name};
+use super::support::generated_header;
 use crate::core::transpile::ast::{
-    ArgvKind, ArgvSpec, EnvAssign, ExpansionOp, Item, OutputStream, Predicate, Program, Statement,
-    Value, ValueSource,
+    EnvAssign, ExpansionOp, Item, OutputStream, Predicate, Program, Statement, Value, ValueSource,
 };
+
+#[path = "powershell_argv.rs"]
+mod powershell_argv;
+use self::powershell_argv::emit_argv_parse;
 
 pub(crate) fn emit_powershell(program: &Program, source_name: Option<&str>) -> String {
     let mut out = generated_header("powershell", source_name);
@@ -98,7 +101,9 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
             }
             emit_positional_bindings(out, indent, positional_max);
         }
-        Statement::ArgvParse { specs } => emit_argv_parse(out, specs, indent),
+        Statement::ArgvParse { specs, positional } => {
+            emit_argv_parse(out, specs, positional.as_ref(), indent)
+        }
         Statement::CaptureChecked { name, argv } => {
             out.push_str(&pad);
             out.push_str(&format!("${name} = & "));
@@ -170,82 +175,6 @@ fn emit_statement(out: &mut String, statement: &Statement, indent: usize, positi
             out.push_str(&format!("{pad}Start-Sleep -Seconds {seconds}\n"));
         }
     }
-}
-
-fn emit_argv_parse(out: &mut String, specs: &[ArgvSpec], indent: usize) {
-    let pad = "    ".repeat(indent);
-    out.push_str(&format!("{pad}$__seal_argc = $args.Count\n"));
-    out.push_str(&format!("{pad}$__seal_help = 'false'\n"));
-    for spec in specs {
-        let value = match spec.kind {
-            ArgvKind::String => powershell_quote(spec.default.as_deref().unwrap_or("")),
-            ArgvKind::Flag => "'false'".to_string(),
-        };
-        out.push_str(&format!("{pad}${} = {value}\n", spec.name));
-    }
-    out.push_str(&format!("{pad}$__seal_index = 0\n"));
-    out.push_str(&format!("{pad}while ($__seal_index -lt $args.Count) {{\n"));
-    out.push_str(&format!("{pad}    $__seal_arg = $args[$__seal_index]\n"));
-    out.push_str(&format!("{pad}    switch -Regex ($__seal_arg) {{\n"));
-    for spec in specs {
-        match spec.kind {
-            ArgvKind::String => emit_string_option(out, spec, indent),
-            ArgvKind::Flag => emit_flag_option(out, spec, indent),
-        }
-    }
-    out.push_str(&format!("{pad}        '^--$' {{\n"));
-    out.push_str(&format!("{pad}            $__seal_index = $args.Count\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-    out.push_str(&format!("{pad}        '^(-h|--help|help)$' {{\n"));
-    out.push_str(&format!("{pad}            $__seal_help = 'true'\n"));
-    out.push_str(&format!("{pad}            $__seal_index += 1\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-    out.push_str(&format!(
-        "{pad}        default {{ throw \"unknown option: $__seal_arg\" }}\n"
-    ));
-    out.push_str(&format!("{pad}    }}\n"));
-    out.push_str(&format!("{pad}}}\n"));
-}
-
-fn emit_string_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
-    let pad = "    ".repeat(indent);
-    let option = option_name(&spec.name);
-    out.push_str(&format!("{pad}        '^{}$' {{\n", regex_quote(&option)));
-    out.push_str(&format!(
-        "{pad}            if ($__seal_index + 1 -ge $args.Count) {{ throw 'missing value for {option}' }}\n"
-    ));
-    out.push_str(&format!(
-        "{pad}            ${} = $args[$__seal_index + 1]\n",
-        spec.name
-    ));
-    out.push_str(&format!("{pad}            $__seal_index += 2\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-    out.push_str(&format!("{pad}        '^{}=' {{\n", regex_quote(&option)));
-    out.push_str(&format!(
-        "{pad}            ${} = $__seal_arg.Substring({})\n",
-        spec.name,
-        option.len() + 1
-    ));
-    out.push_str(&format!("{pad}            $__seal_index += 1\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-}
-
-fn emit_flag_option(out: &mut String, spec: &ArgvSpec, indent: usize) {
-    let pad = "    ".repeat(indent);
-    let option = option_name(&spec.name);
-    out.push_str(&format!("{pad}        '^{}$' {{\n", regex_quote(&option)));
-    out.push_str(&format!("{pad}            ${} = 'true'\n", spec.name));
-    out.push_str(&format!("{pad}            $__seal_index += 1\n"));
-    out.push_str(&format!("{pad}            break\n"));
-    out.push_str(&format!("{pad}        }}\n"));
-}
-
-fn regex_quote(value: &str) -> String {
-    value.replace('-', "\\-")
 }
 
 fn emit_if(

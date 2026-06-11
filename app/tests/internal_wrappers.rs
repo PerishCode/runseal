@@ -246,6 +246,66 @@ print "$value"
 }
 
 #[test]
+fn seal_argv_positional() {
+    let fx = fixture();
+    make_seal_wrapper(
+        &fx.project_wrappers.join("argv-positional.seal"),
+        r#"
+print() {
+  printf '%s\n' "$1"
+}
+
+fail() {
+  print "$1"
+  exit 1
+}
+
+__seal_argc=$#
+__seal_help=false
+body=
+message=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --body)
+      if [ "$#" -lt 2 ]; then fail "missing value for --body"; fi
+      body=$2
+      shift 2
+      ;;
+    --body=*)
+      body=${1#--body=}
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -h|--help|help)
+      __seal_help=true
+      shift
+      ;;
+    *)
+      if [ -z "$message" ]; then
+        message=$1
+        shift
+      else
+        fail "unexpected argument: $1"
+      fi
+      ;;
+  esac
+done
+
+print "$body|$message"
+"#,
+    );
+
+    let output = run_in(&fx, &[":argv-positional", "--body=demo", "hello"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout, "demo|hello\n");
+}
+
+#[test]
 fn seal_wrapper_shadows() {
     let fx = fixture();
     make_wrapper(&wrapper_file(&fx.project_wrappers, "tool"), "shell");

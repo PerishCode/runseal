@@ -36,6 +36,7 @@ pub enum Statement {
     },
     ArgvParse {
         specs: Vec<ArgvSpec>,
+        positional: Option<ArgvPositional>,
     },
     CaptureChecked {
         name: String,
@@ -92,6 +93,13 @@ pub struct ArgvSpec {
     pub name: String,
     pub kind: ArgvKind,
     pub default: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ArgvPositional {
+    pub name: String,
+    pub default: String,
+    pub extra_error: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

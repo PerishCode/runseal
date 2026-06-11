@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, bail};
 
-use super::ast::{ArgvKind, ArgvSpec, Statement};
+use super::ast::{ArgvKind, ArgvPositional, ArgvSpec, Statement};
 use super::parse::{Parser, option_to_name};
 use super::parse_lex::assignment;
 
@@ -28,6 +28,7 @@ pub(super) fn parse_argv_block(parser: &mut Parser) -> Result<Statement> {
     parser.expect_exact("case \"$1\" in")?;
 
     let mut kinds = BTreeMap::new();
+    let mut positional = None;
     loop {
         let Some(line) = parser.peek().cloned() else {
             bail!("missing esac for argv parser");
@@ -41,6 +42,9 @@ pub(super) fn parse_argv_block(parser: &mut Parser) -> Result<Statement> {
             "-h|--help|help)" => parse_help(parser)?,
             "*) fail \"unknown option: $1\" ;;" | "*) seal_fail \"unknown option: $1\" ;;" => {
                 parser.next();
+            }
+            "*)" => {
+                positional = Some(parse_positional_arm(parser, &defaults)?);
             }
             text if text.starts_with("--") && text.ends_with("=*)") => {
                 parse_eq_arm(parser, &mut kinds, text, line.number)?;
@@ -57,7 +61,8 @@ pub(super) fn parse_argv_block(parser: &mut Parser) -> Result<Statement> {
     }
     parser.expect_exact("done")?;
     Ok(Statement::ArgvParse {
-        specs: argv_specs(order, defaults, kinds)?,
+        specs: argv_specs(order, defaults, kinds, positional.as_ref())?,
+        positional,
     })
 }
 
@@ -118,13 +123,61 @@ fn parse_help(parser: &mut Parser) -> Result<()> {
     parser.expect_exact(";;")
 }
 
+fn parse_positional_arm(
+    parser: &mut Parser,
+    defaults: &BTreeMap<String, String>,
+) -> Result<ArgvPositional> {
+    parser.expect_exact("*)")?;
+    let line = parser
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("missing positional argv arm body"))?;
+    let Some(name) = line
+        .text
+        .strip_prefix("if [ -z \"$")
+        .and_then(|text| text.strip_suffix("\" ]; then"))
+    else {
+        bail!("{}: unsupported argv positional arm", line.number);
+    };
+    parser.expect_exact(&format!("{name}=$1"))?;
+    parser.expect_exact("shift")?;
+    parser.expect_exact("else")?;
+    let fail_line = parser
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("missing argv positional else body"))?;
+    let extra_error = fail_line
+        .text
+        .strip_prefix("fail \"")
+        .and_then(|text| text.strip_suffix('"'))
+        .or_else(|| {
+            fail_line
+                .text
+                .strip_prefix("seal_fail \"")
+                .and_then(|text| text.strip_suffix('"'))
+        })
+        .ok_or_else(|| {
+            anyhow::anyhow!("{}: unsupported argv positional else arm", fail_line.number)
+        })?;
+    parser.expect_exact("fi")?;
+    parser.expect_exact(";;")?;
+    Ok(ArgvPositional {
+        name: name.to_string(),
+        default: defaults.get(name).cloned().unwrap_or_default(),
+        extra_error: extra_error.to_string(),
+    })
+}
+
 fn argv_specs(
     order: Vec<String>,
     mut defaults: BTreeMap<String, String>,
     mut kinds: BTreeMap<String, ArgvKind>,
+    positional: Option<&ArgvPositional>,
 ) -> Result<Vec<ArgvSpec>> {
     let mut specs = Vec::new();
     for name in order {
+        if positional.is_some_and(|positional| positional.name == name) {
+            defaults.remove(&name);
+            continue;
+        }
         let Some(kind) = kinds.remove(&name) else {
             bail!("missing argv parser arm for {name}");
         };
