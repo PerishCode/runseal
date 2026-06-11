@@ -91,11 +91,7 @@ fn parse_option_arm(
     let option = text.trim_end_matches(')');
     let name = option_to_name(option, line)?;
     parser.next();
-    if parser
-        .peek_text()
-        .is_some_and(|text| text.starts_with("if [ \"$#\" -lt 2 ]; then "))
-    {
-        parser.next();
+    if parse_missing_value_guard(parser)? {
         parser.expect_exact(&format!("{name}=$2"))?;
         parser.expect_exact("shift 2")?;
         parser.expect_exact(";;")?;
@@ -107,6 +103,28 @@ fn parse_option_arm(
         kinds.insert(name, ArgvKind::Flag);
     }
     Ok(())
+}
+
+fn parse_missing_value_guard(parser: &mut Parser) -> Result<bool> {
+    let Some(line) = parser.peek().cloned() else {
+        bail!("missing argv option arm body");
+    };
+    if line.text.starts_with("if [ \"$#\" -lt 2 ]; then ") {
+        parser.next();
+        return Ok(true);
+    }
+    if line.text != "if [ \"$#\" -lt 2 ]; then" {
+        return Ok(false);
+    }
+
+    parser.next();
+    while let Some(next) = parser.peek().cloned() {
+        parser.next();
+        if next.text == "fi" {
+            return Ok(true);
+        }
+    }
+    bail!("missing fi for argv missing-value guard");
 }
 
 fn parse_double_dash(parser: &mut Parser) -> Result<()> {

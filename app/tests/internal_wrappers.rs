@@ -306,6 +306,48 @@ print "$body|$message"
 }
 
 #[test]
+fn seal_argv_multiline_guard() {
+    let fx = fixture();
+    make_seal_wrapper(
+        &fx.project_wrappers.join("argv-multiline-guard.seal"),
+        r#"
+print() {
+  printf '%s\n' "$1"
+}
+
+fail() {
+  print "$1"
+  exit 1
+}
+
+__seal_argc=$#
+__seal_help=false
+body=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --body)
+      if [ "$#" -lt 2 ]; then
+        fail "missing value for --body"
+      fi
+      body=$2
+      shift 2
+      ;;
+    *) fail "unknown option: $1" ;;
+  esac
+done
+
+print "$body"
+"#,
+    );
+
+    let output = run_in(&fx, &[":argv-multiline-guard", "--body", "demo"]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout, "demo\n");
+}
+
+#[test]
 fn seal_wrapper_shadows() {
     let fx = fixture();
     make_wrapper(&wrapper_file(&fx.project_wrappers, "tool"), "shell");
