@@ -127,3 +127,58 @@ fn dynamic_frame_event() {
     let grounded = ground::ground(&output.file);
     assert!(grounded.diagnostics.is_empty());
 }
+
+#[test]
+fn labeled_static_calls() {
+    let output = parse(
+        r#"
+deploy(channel: "beta")
+@fs.mkdir(tmp, mode: 700)
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty());
+    let grounded = ground::ground(&output.file);
+    assert!(grounded.diagnostics.is_empty());
+}
+
+#[test]
+fn labeled_dynamic_call() {
+    let output = parse(r#"make_runner()(mode: "fast")"#);
+
+    assert!(output.diagnostics.is_empty());
+    let grounded = ground::ground(&output.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "labeled call arguments require a static method or @ helper callee"
+    );
+}
+
+#[test]
+fn forward_is_positional() {
+    let output = parse(r#"@call.forward(target: deploy, args: ["prod"])"#);
+
+    assert!(output.diagnostics.is_empty());
+    let grounded = ground::ground(&output.file);
+    assert_eq!(grounded.diagnostics.len(), 2);
+    assert!(
+        grounded
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.message == "@call.forward arguments are positional-only")
+    );
+}
+
+#[test]
+fn duplicate_labels() {
+    let output = parse(r#"@fs.mkdir(tmp, mode: 700, mode: 755)"#);
+
+    assert!(output.diagnostics.is_empty());
+    let grounded = ground::ground(&output.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "duplicate labeled argument 'mode'"
+    );
+}
