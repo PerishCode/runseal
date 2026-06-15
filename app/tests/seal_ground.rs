@@ -182,3 +182,57 @@ fn duplicate_labels() {
         "duplicate labeled argument 'mode'"
     );
 }
+
+#[test]
+fn loop_control_statements() {
+    let valid = parse(
+        r#"
+while true {
+  continue
+  break
+}
+
+for item in items {
+  match item {
+    "stop" => {
+      break
+    }
+    _ => "ok"
+  }
+}
+"#,
+    );
+    assert!(valid.diagnostics.is_empty());
+    let grounded = ground::ground(&valid.file);
+    assert!(grounded.diagnostics.is_empty());
+
+    let invalid = parse(
+        r#"
+break
+continue
+"#,
+    );
+    assert!(invalid.diagnostics.is_empty());
+    let grounded = ground::ground(&invalid.file);
+    assert_eq!(grounded.diagnostics.len(), 2);
+    assert_eq!(grounded.diagnostics[0].message, "'break' outside loop");
+    assert_eq!(grounded.diagnostics[1].message, "'continue' outside loop");
+}
+
+#[test]
+fn lambda_loop_context() {
+    let output = parse(
+        r#"
+while true {
+  @call.stdio(call, (stdin, stdout, stderr) => {
+    break
+  })
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty());
+    let grounded = ground::ground(&output.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(grounded.diagnostics[0].message, "'break' outside loop");
+}

@@ -5,6 +5,7 @@ use super::{
 };
 
 mod call;
+mod control;
 mod frame;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -56,6 +57,7 @@ pub fn ground(file: &SourceFile) -> GroundOutput {
         match &item.kind {
             RawItemKind::Comment(_) => {}
             RawItemKind::Method(method) => {
+                control::validate_block(&method.body, false, &mut diagnostics);
                 let tail = method_tail_output(&method.body, &mut diagnostics);
                 nodes.push(GroundNode::Method {
                     name: method.name.clone(),
@@ -64,6 +66,7 @@ pub fn ground(file: &SourceFile) -> GroundOutput {
                 });
             }
             RawItemKind::Statement(statement) => {
+                control::validate_statement(statement, false, &mut diagnostics);
                 nodes.push(ground_statement(statement, &mut diagnostics));
             }
             RawItemKind::Error => nodes.push(GroundNode::Error { span: item.span }),
