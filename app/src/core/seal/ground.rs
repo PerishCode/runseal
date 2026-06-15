@@ -409,7 +409,12 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
                 }
             }
         }
-        RawExprKind::ReceiverCall { receiver, args, .. } => {
+        RawExprKind::ReceiverCall {
+            receiver,
+            method,
+            args,
+        } => {
+            call::validate_receiver(expr.span, method, args, diagnostics);
             reject_comparison_chain(receiver, diagnostics);
             for arg in args {
                 reject_comparison_chain(&arg.value, diagnostics);

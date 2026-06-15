@@ -245,6 +245,51 @@ fn call_io_handler_shape() {
 }
 
 #[test]
+fn completion_chain_handler_shape() {
+    let valid = parse(
+        r#"
+@call.completion(call, (stdin, stdout, stderr, frame) => {})
+  .ok((completion) => {})
+  .failed((exit, completion) => {})
+  .faulted((faults, completion) => {})
+  .cancelled((cancelled, completion) => {})
+  .always(handler)
+"#,
+    );
+
+    assert!(valid.diagnostics.is_empty());
+    let grounded = ground::ground(&valid.file);
+    assert!(grounded.diagnostics.is_empty());
+
+    let wrong_arity = parse(r#"completion.ok()"#);
+    assert!(wrong_arity.diagnostics.is_empty());
+    let grounded = ground::ground(&wrong_arity.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "completion handler .ok expects exactly 1 argument"
+    );
+
+    let not_lambda = parse(r#"completion.always([])"#);
+    assert!(not_lambda.diagnostics.is_empty());
+    let grounded = ground::ground(&not_lambda.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "completion handler .always argument must be a handler lambda"
+    );
+
+    let wrong_params = parse(r#"completion.failed((completion) => {})"#);
+    assert!(wrong_params.diagnostics.is_empty());
+    let grounded = ground::ground(&wrong_params.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "completion handler .failed handler must accept exactly 2 parameters"
+    );
+}
+
+#[test]
 fn duplicate_labels() {
     let output = parse(r#"@fs.mkdir(tmp, mode: 700, mode: 755)"#);
 

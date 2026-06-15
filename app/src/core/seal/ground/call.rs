@@ -43,6 +43,35 @@ pub(super) fn validate_args(
     }
 }
 
+pub(super) fn validate_receiver(
+    call_span: Span,
+    method: &str,
+    args: &[RawArg],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(params) = chain_params(method) else {
+        return;
+    };
+
+    if args.len() != 1 {
+        diagnostics.push(Diagnostic::new(
+            call_span,
+            format!("completion handler .{method} expects exactly 1 argument"),
+        ));
+    }
+
+    let Some(handler) = args.first() else {
+        return;
+    };
+    validate_handler(
+        &format!("completion handler .{method}"),
+        "argument",
+        params,
+        &handler.value,
+        diagnostics,
+    );
+}
+
 fn validate_call_forward(call_span: Span, args: &[RawArg], diagnostics: &mut Vec<Diagnostic>) {
     if args.len() != 2 {
         diagnostics.push(Diagnostic::new(
@@ -79,18 +108,28 @@ fn validate_io_call(
     let Some(handler) = args.get(1) else {
         return;
     };
-    let RawExprKind::Lambda(lambda) = &handler.value.kind else {
-        if static_non_lambda(&handler.value) {
+    validate_handler(name, "second argument", params, &handler.value, diagnostics);
+}
+
+fn validate_handler(
+    name: &str,
+    arg_name: &str,
+    params: usize,
+    handler: &RawExpr,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let RawExprKind::Lambda(lambda) = &handler.kind else {
+        if static_non_lambda(handler) {
             diagnostics.push(Diagnostic::new(
-                handler.value.span,
-                format!("{name} second argument must be a handler lambda"),
+                handler.span,
+                format!("{name} {arg_name} must be a handler lambda"),
             ));
         }
         return;
     };
     if lambda.params.len() != params {
         diagnostics.push(Diagnostic::new(
-            handler.value.span,
+            handler.span,
             format!("{name} handler must accept exactly {params} parameters"),
         ));
     }
@@ -120,6 +159,14 @@ fn callee_call_name(callee: &RawExpr) -> Option<&str> {
         RawExprKind::AtName(parts) if parts.len() == 2 && parts[0] == "call" => {
             Some(parts[1].as_str())
         }
+        _ => None,
+    }
+}
+
+fn chain_params(method: &str) -> Option<usize> {
+    match method {
+        "ok" | "always" => Some(1),
+        "failed" | "faulted" | "cancelled" => Some(2),
         _ => None,
     }
 }
