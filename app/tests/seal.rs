@@ -3,7 +3,8 @@ use runseal::core::seal::{
         LetBinding, RawExprKind, RawItemKind, RawProcessArgKind, RawProcessPart, RawStatement,
         RawStatementKind,
     },
-    ground, lex, parse,
+    ground::{self, GroundNode, TailOutput},
+    lex, parse,
     token::{Keyword, TokenKind},
 };
 
@@ -264,4 +265,47 @@ let branch = @type.string {
         grounded.diagnostics[0].message,
         "effect block must contain exactly one stream graph"
     );
+}
+
+#[test]
+fn ground_method_tail() {
+    let implicit = parse(
+        r#"
+method workflow_for(channel) {
+  match channel {
+    "stable" => "release-stable.yml"
+    _ => fail("invalid channel")
+  }
+}
+"#,
+    );
+    assert!(implicit.diagnostics.is_empty());
+    let grounded = ground::ground(&implicit.file);
+    assert!(grounded.diagnostics.is_empty());
+    assert!(matches!(
+        grounded.file.nodes[0],
+        GroundNode::Method {
+            tail: TailOutput::Implicit { .. },
+            ..
+        }
+    ));
+
+    let explicit = parse(
+        r###"
+method status() {
+  "starting" >> #stdout
+  make_summary()
+}
+"###,
+    );
+    assert!(explicit.diagnostics.is_empty());
+    let grounded = ground::ground(&explicit.file);
+    assert!(grounded.diagnostics.is_empty());
+    assert!(matches!(
+        grounded.file.nodes[0],
+        GroundNode::Method {
+            tail: TailOutput::DisabledByStdout { .. },
+            ..
+        }
+    ));
 }
