@@ -85,6 +85,27 @@ fn process_whitespace() {
 }
 
 #[test]
+fn process_call_arg_boundary() {
+    let output = parse(r#"let branch = @type.string(| git branch --show-current)"#);
+
+    assert!(output.diagnostics.is_empty());
+    let RawItemKind::Statement(statement) = &output.file.items[0].kind else {
+        panic!("expected statement");
+    };
+    let RawStatementKind::Let { value, .. } = &statement.kind else {
+        panic!("expected let");
+    };
+    let RawExprKind::Call { args, .. } = &value.kind else {
+        panic!("expected call");
+    };
+    assert_eq!(args.len(), 1);
+    let RawExprKind::Process(process) = &args[0].value.kind else {
+        panic!("expected process arg");
+    };
+    assert_eq!(process.args.len(), 2);
+}
+
+#[test]
 fn with_env_scope() {
     let output = parse(
         r#"

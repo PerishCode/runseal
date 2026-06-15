@@ -238,6 +238,8 @@ impl Parser {
                 | TokenKind::Newline
                 | TokenKind::Semicolon
                 | TokenKind::RBrace
+                | TokenKind::RParen
+                | TokenKind::RBracket
                 | TokenKind::ShiftRight
                 | TokenKind::ShiftLeft
         )
