@@ -7,6 +7,7 @@ use super::{
 };
 
 mod expr;
+mod pattern;
 mod process;
 mod statement;
 

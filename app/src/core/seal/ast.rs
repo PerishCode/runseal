@@ -234,7 +234,16 @@ pub struct RawPattern {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawPatternKind {
     Wildcard,
+    Map(Vec<RawPatternEntry>),
+    Array(Vec<RawPattern>),
     Expr(RawExpr),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawPatternEntry {
+    pub key: String,
+    pub pattern: RawPattern,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]

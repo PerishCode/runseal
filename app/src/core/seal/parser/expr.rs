@@ -462,19 +462,4 @@ impl Parser {
         }
         self.tokens.get(cursor).map(|_| cursor)
     }
-
-    fn parse_pattern(&mut self) -> RawPattern {
-        if self.at(TokenKind::Underscore) {
-            let token = self.bump();
-            return RawPattern {
-                span: token.span,
-                kind: RawPatternKind::Wildcard,
-            };
-        }
-        let expr = self.parse_expr_no_block();
-        RawPattern {
-            span: expr.span,
-            kind: RawPatternKind::Expr(expr),
-        }
-    }
 }

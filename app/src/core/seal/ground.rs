@@ -223,12 +223,7 @@ fn find_current_stdout_expr(expr: &RawExpr) -> Option<Span> {
                 match_expr.arms.iter().find_map(|arm| {
                     arm.patterns
                         .iter()
-                        .find_map(|pattern| match &pattern.kind {
-                            super::ast::RawPatternKind::Expr(expr) => {
-                                find_current_stdout_expr(expr)
-                            }
-                            super::ast::RawPatternKind::Wildcard => None,
-                        })
+                        .find_map(find_stdout_pattern)
                         .or_else(|| find_stdout_arm_body(&arm.body))
                 })
             })
@@ -246,6 +241,17 @@ fn find_stdout_arm_body(body: &super::ast::RawMatchArmBody) -> Option<Span> {
     match body {
         super::ast::RawMatchArmBody::Expr(expr) => find_current_stdout_expr(expr),
         super::ast::RawMatchArmBody::Block(block) => find_current_stdout_block(block),
+    }
+}
+
+fn find_stdout_pattern(pattern: &super::ast::RawPattern) -> Option<Span> {
+    match &pattern.kind {
+        super::ast::RawPatternKind::Expr(expr) => find_current_stdout_expr(expr),
+        super::ast::RawPatternKind::Map(entries) => entries
+            .iter()
+            .find_map(|entry| find_stdout_pattern(&entry.pattern)),
+        super::ast::RawPatternKind::Array(items) => items.iter().find_map(find_stdout_pattern),
+        super::ast::RawPatternKind::Wildcard => None,
     }
 }
 
@@ -360,9 +366,7 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
             reject_comparison_chain(&match_expr.scrutinee, diagnostics);
             for arm in &match_expr.arms {
                 for pattern in &arm.patterns {
-                    if let super::ast::RawPatternKind::Expr(expr) = &pattern.kind {
-                        reject_comparison_chain(expr, diagnostics);
-                    }
+                    reject_pattern_comparisons(pattern, diagnostics);
                 }
                 reject_arm_body_comparisons(&arm.body, diagnostics);
             }
@@ -435,6 +439,23 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
             }
         }
         _ => {}
+    }
+}
+
+fn reject_pattern_comparisons(pattern: &super::ast::RawPattern, diagnostics: &mut Vec<Diagnostic>) {
+    match &pattern.kind {
+        super::ast::RawPatternKind::Expr(expr) => reject_comparison_chain(expr, diagnostics),
+        super::ast::RawPatternKind::Map(entries) => {
+            for entry in entries {
+                reject_pattern_comparisons(&entry.pattern, diagnostics);
+            }
+        }
+        super::ast::RawPatternKind::Array(items) => {
+            for item in items {
+                reject_pattern_comparisons(item, diagnostics);
+            }
+        }
+        super::ast::RawPatternKind::Wildcard => {}
     }
 }
 
