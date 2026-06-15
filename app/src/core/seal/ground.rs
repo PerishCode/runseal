@@ -203,6 +203,7 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
         }
         RawExprKind::BlockCall { callee, block } => {
             reject_comparison_chain(callee, diagnostics);
+            validate_effect_block(block, diagnostics);
             for item in &block.items {
                 if let RawItemKind::Statement(statement) = &item.kind {
                     reject_statement_comparison_chains(statement, diagnostics);
@@ -247,5 +248,28 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
             }
         }
         _ => {}
+    }
+}
+
+fn validate_effect_block(block: &super::ast::RawBlock, diagnostics: &mut Vec<Diagnostic>) {
+    let statements = block
+        .items
+        .iter()
+        .filter_map(|item| match &item.kind {
+            RawItemKind::Statement(statement) => Some(statement),
+            RawItemKind::Comment(_) => None,
+            RawItemKind::Method(_) | RawItemKind::Error => None,
+        })
+        .collect::<Vec<_>>();
+
+    let valid = matches!(
+        statements.as_slice(),
+        [statement] if matches!(statement.kind, RawStatementKind::Effect(_))
+    );
+    if !valid {
+        diagnostics.push(Diagnostic::new(
+            block.span,
+            "effect block must contain exactly one stream graph",
+        ));
     }
 }

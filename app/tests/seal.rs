@@ -237,3 +237,31 @@ fn ground_comparison_chain() {
         "comparison operators cannot be chained"
     );
 }
+
+#[test]
+fn ground_effect_block() {
+    let valid = parse(
+        r#"
+let branch = @type.string {
+  | git branch --show-current
+}
+"#,
+    );
+    assert!(valid.diagnostics.is_empty());
+    assert!(ground::ground(&valid.file).diagnostics.is_empty());
+
+    let invalid = parse(
+        r#"
+let branch = @type.string {
+  let x = 1
+}
+"#,
+    );
+    assert!(invalid.diagnostics.is_empty());
+    let grounded = ground::ground(&invalid.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "effect block must contain exactly one stream graph"
+    );
+}
