@@ -1,4 +1,7 @@
-use super::{ground::TailOutput, span::Span};
+use super::{
+    ground::{GroundFile, GroundNode, TailOutput},
+    span::Span,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IrProgram {
@@ -43,15 +46,15 @@ pub enum IrStatement {
     Let {
         name: String,
         binding: IrBinding,
-        value: IrExpr,
+        value: Option<IrExpr>,
         span: Span,
     },
     Expr {
-        expr: IrExpr,
+        expr: Option<IrExpr>,
         span: Span,
     },
     Effect {
-        effect: IrEffect,
+        effect: Option<IrEffect>,
         span: Span,
     },
     Break {
@@ -182,6 +185,43 @@ pub enum IrTailOutput {
     Implicit { span: Span },
     DisabledByStdout { span: Span },
     None,
+}
+
+pub fn lower(file: &GroundFile) -> IrProgram {
+    IrProgram {
+        items: file.nodes.iter().map(lower_node).collect(),
+        span: file.span,
+    }
+}
+
+fn lower_node(node: &GroundNode) -> IrItem {
+    match node {
+        GroundNode::Method { name, tail, span } => IrItem::Method(IrMethod {
+            name: name.clone(),
+            frame: IrFrame {
+                kind: IrFrameKind::Method,
+                body: Vec::new(),
+                span: *span,
+            },
+            tail: IrTailOutput::from_ground(tail),
+            span: *span,
+        }),
+        GroundNode::Let { name, span } => IrItem::Statement(IrStatement::Let {
+            name: name.clone(),
+            binding: IrBinding::Value,
+            value: None,
+            span: *span,
+        }),
+        GroundNode::Expr { span } => IrItem::Statement(IrStatement::Expr {
+            expr: None,
+            span: *span,
+        }),
+        GroundNode::Effect { span } => IrItem::Statement(IrStatement::Effect {
+            effect: None,
+            span: *span,
+        }),
+        GroundNode::Error { span } => IrItem::Error { span: *span },
+    }
 }
 
 impl IrTailOutput {

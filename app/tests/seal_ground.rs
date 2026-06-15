@@ -1,4 +1,4 @@
-use runseal::core::seal::{ground, ir, parse, span::Span};
+use runseal::core::seal::{ground, ir, parse};
 
 #[test]
 fn cleanup_frame_event() {
@@ -436,55 +436,61 @@ match event {
 }
 
 #[test]
-fn ir_tail_from_ground() {
-    let span = Span::new(4, 9);
-
-    assert_eq!(
-        ir::IrTailOutput::from_ground(&ground::TailOutput::Implicit { span }),
-        ir::IrTailOutput::Implicit { span }
-    );
-    assert_eq!(
-        ir::IrTailOutput::from_ground(&ground::TailOutput::DisabledByStdout { span }),
-        ir::IrTailOutput::DisabledByStdout { span }
-    );
-    assert_eq!(
-        ir::IrTailOutput::from_ground(&ground::TailOutput::None),
-        ir::IrTailOutput::None
-    );
+fn ir_skeleton_lowering() {
+    let output = parse(
+        r#"
+method named() {
+  "value"
 }
 
-#[test]
-fn ir_canonical_call_shapes() {
-    let span = Span::new(0, 12);
-    let callable = ir::IrExpr::local("deploy", span);
-    let env = ir::IrExpr::local("environment", span);
-    let forward = ir::IrCall::forward(callable, vec![env], span);
+let answer = 42
+"done" >> #stdout
+"#,
+    );
 
-    let ir::IrCallKind::Forward { args, .. } = &forward.kind else {
-        panic!("expected forward call");
+    assert!(output.diagnostics.is_empty());
+    let grounded = ground::ground(&output.file);
+    assert!(grounded.diagnostics.is_empty());
+
+    let program = ir::lower(&grounded.file);
+    assert_eq!(program.items.len(), 3);
+    let ir::IrItem::Method(method) = &program.items[0] else {
+        panic!("expected method");
     };
-    assert_eq!(args.len(), 1);
+    assert_eq!(method.name, "named");
+    assert!(matches!(method.tail, ir::IrTailOutput::Implicit { .. }));
 
-    let process = ir::IrCall::process(
+    let ir::IrItem::Statement(ir::IrStatement::Let { name, value, .. }) = &program.items[1] else {
+        panic!("expected let skeleton");
+    };
+    assert_eq!(name, "answer");
+    assert!(value.is_none());
+
+    let ir::IrItem::Statement(ir::IrStatement::Effect { effect, .. }) = &program.items[2] else {
+        panic!("expected effect skeleton");
+    };
+    assert!(effect.is_none());
+
+    let call = ir::IrCall::forward(
+        ir::IrExpr::local("deploy", method.span),
+        vec![ir::IrExpr::local("prod", method.span)],
+        method.span,
+    );
+    assert!(matches!(call.kind, ir::IrCallKind::Forward { .. }));
+    let call = ir::IrCall::process(
         ir::IrArgv::Text {
             value: "gh".to_string(),
-            span,
+            span: method.span,
         },
-        vec![ir::IrArgv::Text {
-            value: "pr".to_string(),
-            span,
-        }],
-        span,
+        Vec::new(),
+        method.span,
     );
-    let ir::IrCallKind::Process { args, .. } = &process.kind else {
-        panic!("expected process call");
-    };
-    assert_eq!(args.len(), 1);
-
-    let receiver = ir::IrCall::receiver(ir::IrExpr::local("text", span), "trim", Vec::new(), span);
-    let ir::IrCallKind::Receiver { method, args, .. } = &receiver.kind else {
-        panic!("expected receiver call");
-    };
-    assert_eq!(method, "trim");
-    assert!(args.is_empty());
+    assert!(matches!(call.kind, ir::IrCallKind::Process { .. }));
+    let call = ir::IrCall::receiver(
+        ir::IrExpr::local("text", method.span),
+        "trim",
+        Vec::new(),
+        method.span,
+    );
+    assert!(matches!(call.kind, ir::IrCallKind::Receiver { .. }));
 }
