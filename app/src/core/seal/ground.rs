@@ -382,7 +382,7 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
             reject_comparison_chain(expr, diagnostics);
         }
         RawExprKind::Call { callee, args } => {
-            call::validate_args(callee, args, diagnostics);
+            call::validate_args(expr.span, callee, args, diagnostics);
             reject_comparison_chain(callee, diagnostics);
             for arg in args {
                 reject_comparison_chain(&arg.value, diagnostics);

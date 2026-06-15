@@ -171,6 +171,38 @@ fn forward_is_positional() {
 }
 
 #[test]
+fn forward_shape() {
+    let valid = parse(
+        r#"
+@call.forward(deploy, ["prod"])
+@call.forward(deploy, args)
+"#,
+    );
+
+    assert!(valid.diagnostics.is_empty());
+    let grounded = ground::ground(&valid.file);
+    assert!(grounded.diagnostics.is_empty());
+
+    let wrong_arity = parse(r#"@call.forward(deploy)"#);
+    assert!(wrong_arity.diagnostics.is_empty());
+    let grounded = ground::ground(&wrong_arity.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "@call.forward expects exactly 2 arguments"
+    );
+
+    let non_array_bundle = parse(r#"@call.forward(deploy, "prod")"#);
+    assert!(non_array_bundle.diagnostics.is_empty());
+    let grounded = ground::ground(&non_array_bundle.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "@call.forward second argument must be an array bundle"
+    );
+}
+
+#[test]
 fn duplicate_labels() {
     let output = parse(r#"@fs.mkdir(tmp, mode: 700, mode: 755)"#);
 
