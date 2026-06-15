@@ -7,7 +7,7 @@ use super::config::RuntimeConfig;
 use super::env_key::is_valid_env_key;
 use super::internal_help;
 use super::profile::InjectionProfile;
-use super::{injections, profile, transpile};
+use super::{injections, profile};
 
 mod wrapper_paths;
 
@@ -283,8 +283,11 @@ fn run_command(
     if let Some(wrapper) = &resolved.wrapper
         && wrapper_paths::is_seal(&wrapper.file)
     {
-        let env = run_env(config, resolved, exports)?;
-        return transpile::run_seal_file(&wrapper.file, &resolved.argv[1..], &env);
+        bail!(
+            ".seal wrapper execution is unavailable while the new Seal interpreter/runtime is being implemented: :{} ({})",
+            wrapper.name,
+            wrapper.file.display()
+        );
     }
 
     let mut child = child_command(resolved);

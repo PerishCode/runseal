@@ -1,10 +1,10 @@
 # Examples
 
-These examples capture canonical shapes that are valid but easy to get wrong
-from shell intuition alone.
+These examples capture repository-owned syntax and tool usage shapes.
 
-- [Seal `case` / argv parser shapes](./seal/case.md)
+- [Specs](../spec/README.md)
+- [Seal target syntax examples](./seal/README.md)
 - [GitHub tool examples](./tools/github.md)
 
-Use these as the repository-owned reference when a live wrapper or operator
-flow feels "almost shell" but still needs the exact runseal shape.
+The Seal examples are target source shapes for the isolated language direction.
+They intentionally prioritize clear operational syntax over bash compatibility.

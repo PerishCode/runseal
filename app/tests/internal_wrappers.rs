@@ -169,213 +169,33 @@ fn extensionless_is_ignored() {
 }
 
 #[test]
-fn seal_wrapper_runs_directly() {
+fn seal_unavailable() {
     let fx = fixture();
     make_seal_wrapper(
         &fx.project_wrappers.join("seal-tool.seal"),
-        r#"
-__seal_argc=$#
-__seal_help=false
-name=world
-loud=false
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --name)
-      if [ "$#" -lt 2 ]; then fail "missing value for --name"; fi
-      name=$2
-      shift 2
-      ;;
-    --name=*)
-      name=${1#--name=}
-      shift
-      ;;
-    --loud)
-      loud=true
-      shift
-      ;;
-    --)
-      shift
-      break
-      ;;
-    -h|--help|help)
-      __seal_help=true
-      shift
-      ;;
-    *) fail "unknown option: $1" ;;
-  esac
-done
-if [ "$__seal_argc" = 0 ]; then
-  print "hello $name"
-else
-  if [ "$loud" = true ]; then
-    print "HELLO $name from ${RUNSEAL_WRAPPER_NAME}"
-  else
-    print "hello $name"
-  fi
-fi
-"#,
+        "| echo sealed\n",
     );
 
-    let output = run_in(&fx, &[":seal-tool", "--name", "seal", "--loud"]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "HELLO seal from seal-tool\n");
-}
-
-#[test]
-fn seal_captures_local_output() {
-    let fx = fixture();
-    make_seal_wrapper(
-        &fx.project_wrappers.join("capture-local.seal"),
-        r#"
-helper() {
-  print "hello $1"
-}
-
-value=$(helper seal)
-print "$value"
-"#,
-    );
-
-    let output = run_in(&fx, &[":capture-local"]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "hello seal\n");
-}
-
-#[test]
-fn seal_argv_positional() {
-    let fx = fixture();
-    make_seal_wrapper(
-        &fx.project_wrappers.join("argv-positional.seal"),
-        r#"
-print() {
-  printf '%s\n' "$1"
-}
-
-fail() {
-  print "$1"
-  exit 1
-}
-
-__seal_argc=$#
-__seal_help=false
-body=
-message=
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --body)
-      if [ "$#" -lt 2 ]; then fail "missing value for --body"; fi
-      body=$2
-      shift 2
-      ;;
-    --body=*)
-      body=${1#--body=}
-      shift
-      ;;
-    --)
-      shift
-      break
-      ;;
-    -h|--help|help)
-      __seal_help=true
-      shift
-      ;;
-    *)
-      if [ -z "$message" ]; then
-        message=$1
-        shift
-      else
-        fail "unexpected argument: $1"
-      fi
-      ;;
-  esac
-done
-
-print "$body|$message"
-"#,
-    );
-
-    let output = run_in(&fx, &[":argv-positional", "--body=demo", "hello"]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "demo|hello\n");
-}
-
-#[test]
-fn seal_argv_multiline_guard() {
-    let fx = fixture();
-    make_seal_wrapper(
-        &fx.project_wrappers.join("argv-multiline-guard.seal"),
-        r#"
-print() {
-  printf '%s\n' "$1"
-}
-
-fail() {
-  print "$1"
-  exit 1
-}
-
-__seal_argc=$#
-__seal_help=false
-body=
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --body)
-      if [ "$#" -lt 2 ]; then
-        fail "missing value for --body"
-      fi
-      body=$2
-      shift 2
-      ;;
-    *) fail "unknown option: $1" ;;
-  esac
-done
-
-print "$body"
-"#,
-    );
-
-    let output = run_in(&fx, &[":argv-multiline-guard", "--body", "demo"]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "demo\n");
-}
-
-#[test]
-fn seal_wrapper_shadows() {
-    let fx = fixture();
-    make_wrapper(&wrapper_file(&fx.project_wrappers, "tool"), "shell");
-    make_seal_wrapper(&fx.project_wrappers.join("tool.seal"), "print seal\n");
-
-    let output = run_in(&fx, &[":tool"]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "seal\n");
-}
-
-#[test]
-fn seal_env_overlay_fails() {
-    let fx = fixture();
-    make_seal_wrapper(
-        &fx.project_wrappers.join("env-tool.seal"),
-        r#"
-RUNSEAL_MARKER=sealed sh -c 'printf %s "$RUNSEAL_MARKER"'
-"#,
-    );
-
-    let output = run_in(&fx, &[":env-tool"]);
+    let output = run_in(&fx, &[":seal-tool"]);
 
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
-    assert!(stderr.contains("shell-specific construct is not supported in .seal"));
-    assert!(stderr.contains("sh -c"));
+    assert!(stderr.contains(".seal wrapper execution is unavailable"));
+    assert!(stderr.contains(":seal-tool"));
+}
+
+#[test]
+fn seal_shadows_shell() {
+    let fx = fixture();
+    make_wrapper(&wrapper_file(&fx.project_wrappers, "tool"), "shell");
+    make_seal_wrapper(&fx.project_wrappers.join("tool.seal"), "| echo sealed\n");
+
+    let output = run_in(&fx, &[":tool"]);
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains(".seal wrapper execution is unavailable"));
+    assert!(stderr.contains(":tool"));
 }
 
 #[test]
