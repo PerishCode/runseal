@@ -138,6 +138,10 @@ pub enum RawExprKind {
         callee: Box<RawExpr>,
         args: Vec<RawArg>,
     },
+    BlockCall {
+        callee: Box<RawExpr>,
+        block: RawBlock,
+    },
     ReceiverCall {
         receiver: Box<RawExpr>,
         method: String,
@@ -152,6 +156,7 @@ pub enum RawExprKind {
         left: Box<RawExpr>,
         right: Box<RawExpr>,
     },
+    Match(RawMatch),
     Process(RawProcess),
     StreamFlow {
         op: StreamOp,
@@ -183,6 +188,31 @@ pub struct RawArg {
     pub label: Option<String>,
     pub value: RawExpr,
     pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawMatch {
+    pub scrutinee: Box<RawExpr>,
+    pub arms: Vec<RawMatchArm>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawMatchArm {
+    pub patterns: Vec<RawPattern>,
+    pub value: RawExpr,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawPattern {
+    pub kind: RawPatternKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RawPatternKind {
+    Wildcard,
+    Expr(RawExpr),
 }
 
 #[derive(Debug, Clone, PartialEq)]

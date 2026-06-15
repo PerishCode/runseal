@@ -181,6 +181,17 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
             reject_comparison_chain(left, diagnostics);
             reject_comparison_chain(right, diagnostics);
         }
+        RawExprKind::Match(match_expr) => {
+            reject_comparison_chain(&match_expr.scrutinee, diagnostics);
+            for arm in &match_expr.arms {
+                for pattern in &arm.patterns {
+                    if let super::ast::RawPatternKind::Expr(expr) = &pattern.kind {
+                        reject_comparison_chain(expr, diagnostics);
+                    }
+                }
+                reject_comparison_chain(&arm.value, diagnostics);
+            }
+        }
         RawExprKind::Unary { expr, .. } | RawExprKind::Group(expr) => {
             reject_comparison_chain(expr, diagnostics);
         }
@@ -188,6 +199,14 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
             reject_comparison_chain(callee, diagnostics);
             for arg in args {
                 reject_comparison_chain(&arg.value, diagnostics);
+            }
+        }
+        RawExprKind::BlockCall { callee, block } => {
+            reject_comparison_chain(callee, diagnostics);
+            for item in &block.items {
+                if let RawItemKind::Statement(statement) = &item.kind {
+                    reject_statement_comparison_chains(statement, diagnostics);
+                }
             }
         }
         RawExprKind::ReceiverCall { receiver, args, .. } => {

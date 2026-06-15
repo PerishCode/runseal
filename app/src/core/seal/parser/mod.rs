@@ -27,6 +27,7 @@ struct Parser {
     cursor: usize,
     diagnostics: Vec<Diagnostic>,
     comments: Vec<Comment>,
+    allow_block_call: bool,
 }
 
 impl Parser {
@@ -36,6 +37,7 @@ impl Parser {
             cursor: 0,
             diagnostics,
             comments: Vec::new(),
+            allow_block_call: true,
         }
     }
 

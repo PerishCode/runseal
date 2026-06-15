@@ -5,6 +5,14 @@ impl Parser {
         self.parse_expr_bp(0)
     }
 
+    pub(super) fn parse_expr_no_block(&mut self) -> RawExpr {
+        let previous = self.allow_block_call;
+        self.allow_block_call = false;
+        let expr = self.parse_expr();
+        self.allow_block_call = previous;
+        expr
+    }
+
     fn parse_expr_bp(&mut self, min_bp: u8) -> RawExpr {
         let mut left = self.parse_prefix_expr();
         while let Some((op, left_bp, right_bp)) = self.current_binary_op() {
@@ -59,6 +67,18 @@ impl Parser {
                     kind: RawExprKind::Call {
                         callee: Box::new(expr),
                         args,
+                    },
+                };
+                continue;
+            }
+            if self.allow_block_call && self.at(TokenKind::LBrace) {
+                let block = self.parse_block();
+                let span = expr.span.join(block.span);
+                expr = RawExpr {
+                    span,
+                    kind: RawExprKind::BlockCall {
+                        callee: Box::new(expr),
+                        block,
                     },
                 };
                 continue;
@@ -144,6 +164,7 @@ impl Parser {
                     kind: RawExprKind::Literal(RawLiteral::Null),
                 }
             }
+            TokenKind::Keyword(Keyword::Match) => self.parse_match_expr(),
             TokenKind::At => self.parse_at_name(),
             TokenKind::Dollar => self.parse_prefixed_name(TokenKind::Dollar),
             TokenKind::Hash => self.parse_prefixed_name(TokenKind::Hash),
@@ -284,5 +305,60 @@ impl Parser {
         }
         self.expect(TokenKind::RParen, "expected ')' after arguments");
         args
+    }
+
+    fn parse_match_expr(&mut self) -> RawExpr {
+        let start = self
+            .expect(TokenKind::Keyword(Keyword::Match), "expected match")
+            .span;
+        let scrutinee = self.parse_expr_no_block();
+        self.expect(TokenKind::LBrace, "expected '{' before match arms");
+        let mut arms = Vec::new();
+        self.consume_soft_separators();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            arms.push(self.parse_match_arm());
+            self.consume_soft_separators();
+            self.eat(TokenKind::Comma);
+            self.consume_soft_separators();
+        }
+        let close = self.expect(TokenKind::RBrace, "expected '}' after match");
+        RawExpr {
+            span: start.join(close.span),
+            kind: RawExprKind::Match(RawMatch {
+                scrutinee: Box::new(scrutinee),
+                arms,
+            }),
+        }
+    }
+
+    fn parse_match_arm(&mut self) -> RawMatchArm {
+        let start = self.current().span;
+        let mut patterns = vec![self.parse_pattern()];
+        while self.at(TokenKind::Pipe) {
+            self.bump();
+            patterns.push(self.parse_pattern());
+        }
+        self.expect(TokenKind::FatArrow, "expected '=>' after match pattern");
+        let value = self.parse_stream_expr();
+        RawMatchArm {
+            span: start.join(value.span),
+            patterns,
+            value,
+        }
+    }
+
+    fn parse_pattern(&mut self) -> RawPattern {
+        if self.at(TokenKind::Underscore) {
+            let token = self.bump();
+            return RawPattern {
+                span: token.span,
+                kind: RawPatternKind::Wildcard,
+            };
+        }
+        let expr = self.parse_expr_no_block();
+        RawPattern {
+            span: expr.span,
+            kind: RawPatternKind::Expr(expr),
+        }
     }
 }

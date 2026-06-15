@@ -156,6 +156,55 @@ for tool in tools {
 }
 
 #[test]
+fn match_expr() {
+    let output = parse(
+        r#"
+let workflow = match channel {
+  "stable" | "prod" => "release-stable.yml"
+  "beta" => "release-beta.yml"
+  _ => fail("invalid channel")
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty());
+    let RawItemKind::Statement(statement) = &output.file.items[0].kind else {
+        panic!("expected statement");
+    };
+    let RawStatementKind::Let { value, .. } = &statement.kind else {
+        panic!("expected let");
+    };
+    let RawExprKind::Match(match_expr) = &value.kind else {
+        panic!("expected match expression");
+    };
+    assert_eq!(match_expr.arms.len(), 3);
+    assert_eq!(match_expr.arms[0].patterns.len(), 2);
+}
+
+#[test]
+fn block_call() {
+    let output = parse(
+        r#"
+let branch = @type.string {
+  | git branch --show-current
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty());
+    let RawItemKind::Statement(statement) = &output.file.items[0].kind else {
+        panic!("expected statement");
+    };
+    let RawStatementKind::Let { value, .. } = &statement.kind else {
+        panic!("expected let");
+    };
+    let RawExprKind::BlockCall { block, .. } = &value.kind else {
+        panic!("expected block call");
+    };
+    assert_eq!(block.items.len(), 1);
+}
+
+#[test]
 fn parse_recovery() {
     let output = parse("let x =\nlet y = 1\n");
 

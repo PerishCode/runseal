@@ -87,7 +87,7 @@ impl Parser {
         let start = self
             .expect(TokenKind::Keyword(Keyword::If), "expected if")
             .span;
-        let condition = self.parse_expr();
+        let condition = self.parse_expr_no_block();
         let body = self.parse_block();
         let mut span = start.join(body.span);
         let mut branches = vec![RawIfBranch {
@@ -101,7 +101,7 @@ impl Parser {
             self.bump();
             if self.at_keyword(Keyword::If) {
                 self.bump();
-                let condition = self.parse_expr();
+                let condition = self.parse_expr_no_block();
                 let body = self.parse_block();
                 span = span.join(body.span);
                 branches.push(RawIfBranch {
@@ -135,7 +135,7 @@ impl Parser {
             TokenKind::Keyword(Keyword::In),
             "expected 'in' after for binding",
         );
-        let iterable = self.parse_expr();
+        let iterable = self.parse_expr_no_block();
         let body = self.parse_block();
         RawStatement {
             span: start.join(body.span),
@@ -151,7 +151,7 @@ impl Parser {
         let start = self
             .expect(TokenKind::Keyword(Keyword::While), "expected while")
             .span;
-        let condition = self.parse_expr();
+        let condition = self.parse_expr_no_block();
         let body = self.parse_block();
         RawStatement {
             span: start.join(body.span),
@@ -197,7 +197,7 @@ impl Parser {
         bindings
     }
 
-    fn parse_stream_expr(&mut self) -> RawExpr {
+    pub(super) fn parse_stream_expr(&mut self) -> RawExpr {
         let mut left = self.parse_effect_atom();
         while self.at(TokenKind::ShiftRight) || self.at(TokenKind::ShiftLeft) {
             let token = self.bump();
