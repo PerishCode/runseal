@@ -4,6 +4,8 @@ use super::{
     span::Span,
 };
 
+mod frame;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroundOutput {
     pub file: GroundFile,
@@ -418,6 +420,7 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
             }
         }
         RawExprKind::StreamFlow { left, right, .. } => {
+            frame::validate_frame_event(expr, diagnostics);
             reject_comparison_chain(left, diagnostics);
             reject_comparison_chain(right, diagnostics);
         }
