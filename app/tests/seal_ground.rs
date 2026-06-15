@@ -1,4 +1,4 @@
-use runseal::core::seal::{ground, parse};
+use runseal::core::seal::{ground, ir, parse, span::Span};
 
 #[test]
 fn cleanup_frame_event() {
@@ -433,4 +433,58 @@ match event {
         grounded.diagnostics[0].message,
         "duplicate map pattern key 'status'"
     );
+}
+
+#[test]
+fn ir_tail_from_ground() {
+    let span = Span::new(4, 9);
+
+    assert_eq!(
+        ir::IrTailOutput::from_ground(&ground::TailOutput::Implicit { span }),
+        ir::IrTailOutput::Implicit { span }
+    );
+    assert_eq!(
+        ir::IrTailOutput::from_ground(&ground::TailOutput::DisabledByStdout { span }),
+        ir::IrTailOutput::DisabledByStdout { span }
+    );
+    assert_eq!(
+        ir::IrTailOutput::from_ground(&ground::TailOutput::None),
+        ir::IrTailOutput::None
+    );
+}
+
+#[test]
+fn ir_canonical_call_shapes() {
+    let span = Span::new(0, 12);
+    let callable = ir::IrExpr::local("deploy", span);
+    let env = ir::IrExpr::local("environment", span);
+    let forward = ir::IrCall::forward(callable, vec![env], span);
+
+    let ir::IrCallKind::Forward { args, .. } = &forward.kind else {
+        panic!("expected forward call");
+    };
+    assert_eq!(args.len(), 1);
+
+    let process = ir::IrCall::process(
+        ir::IrArgv::Text {
+            value: "gh".to_string(),
+            span,
+        },
+        vec![ir::IrArgv::Text {
+            value: "pr".to_string(),
+            span,
+        }],
+        span,
+    );
+    let ir::IrCallKind::Process { args, .. } = &process.kind else {
+        panic!("expected process call");
+    };
+    assert_eq!(args.len(), 1);
+
+    let receiver = ir::IrCall::receiver(ir::IrExpr::local("text", span), "trim", Vec::new(), span);
+    let ir::IrCallKind::Receiver { method, args, .. } = &receiver.kind else {
+        panic!("expected receiver call");
+    };
+    assert_eq!(method, "trim");
+    assert!(args.is_empty());
 }
