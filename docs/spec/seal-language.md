@@ -548,3 +548,6 @@ unresolved source-syntax decisions. Remaining work is runtime design: stream
 scheduling, completion-timing details for `@type.*` and `:=`,
 buffering/spooling policy, and the concrete implementation of built-in helper
 namespaces.
+
+`seal-lowering-handoff.md` records the Raw AST and Grounded AST guarantees that
+IR design may rely on before implementing those runtime details.
