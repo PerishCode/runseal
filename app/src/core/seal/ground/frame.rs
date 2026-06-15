@@ -83,14 +83,7 @@ fn string_literal(expr: &RawExpr) -> Option<&str> {
     let RawExprKind::Literal(RawLiteral::String(value)) = &expr.kind else {
         return None;
     };
-    Some(string_content(value))
-}
-
-fn string_content(value: &str) -> &str {
-    value
-        .strip_prefix('"')
-        .and_then(|value| value.strip_suffix('"'))
-        .unwrap_or(value)
+    Some(value)
 }
 
 fn field<'a>(entries: &'a [RawMapEntry], key: &str) -> Option<&'a RawExpr> {

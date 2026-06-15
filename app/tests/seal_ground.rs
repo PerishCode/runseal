@@ -1,4 +1,4 @@
-use runseal::core::seal::{ground, ir, parse};
+use runseal::core::seal::{ground, parse};
 
 #[test]
 fn cleanup_frame_event() {
@@ -433,64 +433,4 @@ match event {
         grounded.diagnostics[0].message,
         "duplicate map pattern key 'status'"
     );
-}
-
-#[test]
-fn ir_skeleton_lowering() {
-    let output = parse(
-        r#"
-method named() {
-  "value"
-}
-
-let answer = 42
-"done" >> #stdout
-"#,
-    );
-
-    assert!(output.diagnostics.is_empty());
-    let grounded = ground::ground(&output.file);
-    assert!(grounded.diagnostics.is_empty());
-
-    let program = ir::lower(&grounded.file);
-    assert_eq!(program.items.len(), 3);
-    let ir::IrItem::Method(method) = &program.items[0] else {
-        panic!("expected method");
-    };
-    assert_eq!(method.name, "named");
-    assert!(matches!(method.tail, ir::IrTailOutput::Implicit { .. }));
-
-    let ir::IrItem::Statement(ir::IrStatement::Let { name, value, .. }) = &program.items[1] else {
-        panic!("expected let skeleton");
-    };
-    assert_eq!(name, "answer");
-    assert!(value.is_none());
-
-    let ir::IrItem::Statement(ir::IrStatement::Effect { effect, .. }) = &program.items[2] else {
-        panic!("expected effect skeleton");
-    };
-    assert!(effect.is_none());
-
-    let call = ir::IrCall::forward(
-        ir::IrExpr::local("deploy", method.span),
-        vec![ir::IrExpr::local("prod", method.span)],
-        method.span,
-    );
-    assert!(matches!(call.kind, ir::IrCallKind::Forward { .. }));
-    let call = ir::IrCall::process(
-        ir::IrArgv::Text {
-            value: "gh".to_string(),
-            span: method.span,
-        },
-        Vec::new(),
-        method.span,
-    );
-    assert!(matches!(call.kind, ir::IrCallKind::Process { .. }));
-    let call = ir::IrCall::receiver(
-        ir::IrExpr::local("text", method.span),
-        "trim",
-        Vec::new(),
-        method.span,
-    );
-    assert!(matches!(call.kind, ir::IrCallKind::Receiver { .. }));
 }

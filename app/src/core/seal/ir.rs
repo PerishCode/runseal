@@ -1,5 +1,9 @@
 use super::{
-    ground::{GroundFile, GroundNode, TailOutput},
+    ast::LetBinding,
+    ground::{
+        GroundArgv, GroundEffect, GroundExpr, GroundFile, GroundLiteral, GroundNode,
+        GroundTypeKind, TailOutput,
+    },
     span::Span,
 };
 
@@ -46,7 +50,7 @@ pub enum IrStatement {
     Let {
         name: String,
         binding: IrBinding,
-        value: Option<IrExpr>,
+        source: Option<IrValueSource>,
         span: Span,
     },
     Expr {
@@ -75,8 +79,27 @@ pub enum IrBinding {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum IrValueSource {
+    Pure(IrExpr),
+    StreamView(IrExpr),
+    TypeAbsorb {
+        kind: IrTypeKind,
+        call: Box<IrCall>,
+        span: Span,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum IrExpr {
     Local {
+        name: String,
+        span: Span,
+    },
+    Env {
+        name: String,
+        span: Span,
+    },
+    Channel {
         name: String,
         span: Span,
     },
@@ -148,8 +171,9 @@ pub enum IrArgv {
 pub enum IrEffect {
     Call(Box<IrCall>),
     Flow {
-        left: Box<IrEffect>,
-        right: Box<IrEffect>,
+        op: IrStreamOp,
+        left: Box<IrExpr>,
+        right: Box<IrExpr>,
         span: Span,
     },
     Pipeline {
@@ -170,6 +194,12 @@ pub enum IrEffect {
         event: Option<IrExpr>,
         span: Span,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrStreamOp {
+    To,
+    From,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -206,18 +236,23 @@ fn lower_node(node: &GroundNode) -> IrItem {
             tail: IrTailOutput::from_ground(tail),
             span: *span,
         }),
-        GroundNode::Let { name, span } => IrItem::Statement(IrStatement::Let {
+        GroundNode::Let {
+            name,
+            binding,
+            source,
+            span,
+        } => IrItem::Statement(IrStatement::Let {
             name: name.clone(),
-            binding: IrBinding::Value,
-            value: None,
+            binding: IrBinding::from_raw(*binding),
+            source: source.as_ref().map(IrValueSource::from_ground),
             span: *span,
         }),
-        GroundNode::Expr { span } => IrItem::Statement(IrStatement::Expr {
-            expr: None,
+        GroundNode::Expr { expr, span } => IrItem::Statement(IrStatement::Expr {
+            expr: expr.as_ref().map(IrExpr::from_ground),
             span: *span,
         }),
-        GroundNode::Effect { span } => IrItem::Statement(IrStatement::Effect {
-            effect: None,
+        GroundNode::Effect { effect, span } => IrItem::Statement(IrStatement::Effect {
+            effect: effect.as_ref().map(IrEffect::from_ground),
             span: *span,
         }),
         GroundNode::Error { span } => IrItem::Error { span: *span },
@@ -234,11 +269,156 @@ impl IrTailOutput {
     }
 }
 
+impl IrBinding {
+    fn from_raw(binding: LetBinding) -> Self {
+        match binding {
+            LetBinding::Value => Self::Value,
+            LetBinding::Stream => Self::StreamView,
+        }
+    }
+}
+
 impl IrExpr {
     pub fn local(name: impl Into<String>, span: Span) -> Self {
         Self::Local {
             name: name.into(),
             span,
+        }
+    }
+
+    fn from_ground(expr: &GroundExpr) -> Self {
+        match expr {
+            GroundExpr::Local { name, span } => Self::Local {
+                name: name.clone(),
+                span: *span,
+            },
+            GroundExpr::Env { name, span } => Self::Env {
+                name: name.clone(),
+                span: *span,
+            },
+            GroundExpr::Channel { name, span } => Self::Channel {
+                name: name.clone(),
+                span: *span,
+            },
+            GroundExpr::Literal { value, span } => Self::Literal {
+                value: IrLiteral::from_ground(value),
+                span: *span,
+            },
+            GroundExpr::Array { items, span } => Self::Array {
+                items: items.iter().map(Self::from_ground).collect(),
+                span: *span,
+            },
+            GroundExpr::Map { entries, span } => Self::Map {
+                entries: entries
+                    .iter()
+                    .map(|(key, value)| (key.clone(), Self::from_ground(value)))
+                    .collect(),
+                span: *span,
+            },
+            GroundExpr::Process {
+                program,
+                args,
+                span,
+            } => Self::Call(Box::new(IrCall::process(
+                IrArgv::from_ground(program),
+                args.iter().map(IrArgv::from_ground).collect(),
+                *span,
+            ))),
+        }
+    }
+}
+
+impl IrValueSource {
+    fn from_ground(source: &super::ground::GroundValueSource) -> Self {
+        match source {
+            super::ground::GroundValueSource::Pure(expr) => Self::Pure(IrExpr::from_ground(expr)),
+            super::ground::GroundValueSource::StreamView(expr) => {
+                Self::StreamView(IrExpr::from_ground(expr))
+            }
+            super::ground::GroundValueSource::TypeAbsorb { kind, call, span } => {
+                let IrExpr::Call(call) = IrExpr::from_ground(call) else {
+                    unreachable!("@type.* value sources currently lower call expressions only");
+                };
+                Self::TypeAbsorb {
+                    kind: IrTypeKind::from_ground(*kind),
+                    call,
+                    span: *span,
+                }
+            }
+        }
+    }
+}
+
+impl IrLiteral {
+    fn from_ground(literal: &GroundLiteral) -> Self {
+        match literal {
+            GroundLiteral::String(value) => Self::String(value.clone()),
+            GroundLiteral::Int(value) => Self::Int(value.clone()),
+            GroundLiteral::Bool(value) => Self::Bool(*value),
+            GroundLiteral::Null => Self::Null,
+        }
+    }
+}
+
+impl IrArgv {
+    fn from_ground(arg: &GroundArgv) -> Self {
+        match arg {
+            GroundArgv::Text { value, span } => Self::Text {
+                value: value.clone(),
+                span: *span,
+            },
+            GroundArgv::Expr { expr, span } => Self::Expr {
+                expr: IrExpr::from_ground(expr),
+                span: *span,
+            },
+            GroundArgv::Spread { expr, span } => Self::Spread {
+                expr: IrExpr::from_ground(expr),
+                span: *span,
+            },
+        }
+    }
+}
+
+impl IrEffect {
+    fn from_ground(effect: &GroundEffect) -> Self {
+        match effect {
+            GroundEffect::Call { expr, .. } => {
+                let IrExpr::Call(call) = IrExpr::from_ground(expr) else {
+                    unreachable!("ground call effects only contain call expressions");
+                };
+                Self::Call(call)
+            }
+            GroundEffect::Flow {
+                op,
+                left,
+                right,
+                span,
+            } => Self::Flow {
+                op: IrStreamOp::from_ground(*op),
+                left: Box::new(IrExpr::from_ground(left)),
+                right: Box::new(IrExpr::from_ground(right)),
+                span: *span,
+            },
+        }
+    }
+}
+
+impl IrStreamOp {
+    fn from_ground(op: super::ast::StreamOp) -> Self {
+        match op {
+            super::ast::StreamOp::To => Self::To,
+            super::ast::StreamOp::From => Self::From,
+        }
+    }
+}
+
+impl IrTypeKind {
+    fn from_ground(kind: GroundTypeKind) -> Self {
+        match kind {
+            GroundTypeKind::String => Self::String,
+            GroundTypeKind::Bytes => Self::Bytes,
+            GroundTypeKind::Array => Self::Array,
+            GroundTypeKind::Map => Self::Map,
         }
     }
 }

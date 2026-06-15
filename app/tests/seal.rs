@@ -1,3 +1,8 @@
+#[path = "seal/ir.rs"]
+mod ir;
+#[path = "seal/parser.rs"]
+mod parser;
+
 use runseal::core::seal::{
     ast::{
         LetBinding, RawExprKind, RawItemKind, RawMatchArmBody, RawProcessArgKind, RawProcessPart,

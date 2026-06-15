@@ -145,16 +145,18 @@ impl Parser {
             }
             TokenKind::String => {
                 self.bump();
+                let value = self.string_literal_value(&token);
                 RawExpr {
                     span: token.span,
-                    kind: RawExprKind::Literal(RawLiteral::String(token.text)),
+                    kind: RawExprKind::Literal(RawLiteral::String(value)),
                 }
             }
             TokenKind::TextBlock => {
                 self.bump();
+                let value = self.text_block_value(&token);
                 RawExpr {
                     span: token.span,
-                    kind: RawExprKind::Literal(RawLiteral::TextBlock(token.text)),
+                    kind: RawExprKind::Literal(RawLiteral::TextBlock(value)),
                 }
             }
             TokenKind::Keyword(Keyword::True) | TokenKind::Keyword(Keyword::False) => {
@@ -329,14 +331,19 @@ impl Parser {
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let key_token = self.current().clone();
             let key = match key_token.kind {
-                TokenKind::Ident | TokenKind::String => {
+                TokenKind::Ident => {
                     self.bump();
                     key_token.text
+                }
+                TokenKind::String => {
+                    self.bump();
+                    self.string_literal_value(&key_token)
                 }
                 _ => {
                     self.diagnostics
                         .push(Diagnostic::new(key_token.span, "expected map key"));
                     self.recover_until_expr_boundary();
+                    self.consume_soft_separators();
                     break;
                 }
             };

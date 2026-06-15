@@ -43,16 +43,18 @@ impl Parser {
             TokenKind::Star => self.parse_process_spread(),
             TokenKind::String => {
                 self.bump();
+                let value = self.string_literal_value(&token);
                 RawProcessArg {
                     span: token.span,
-                    kind: RawProcessArgKind::String(token.text),
+                    kind: RawProcessArgKind::String(value),
                 }
             }
             TokenKind::TextBlock => {
                 self.bump();
+                let value = self.text_block_value(&token);
                 RawProcessArg {
                     span: token.span,
-                    kind: RawProcessArgKind::TextBlock(token.text),
+                    kind: RawProcessArgKind::TextBlock(value),
                 }
             }
             _ => self.parse_process_word(),

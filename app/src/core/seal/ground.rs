@@ -1,5 +1,5 @@
 use super::{
-    ast::{RawExpr, RawExprKind, RawItemKind, RawStatementKind, SourceFile},
+    ast::{LetBinding, RawExpr, RawExprKind, RawItemKind, RawStatementKind, SourceFile},
     diag::Diagnostic,
     span::Span,
 };
@@ -8,6 +8,13 @@ mod call;
 mod control;
 mod frame;
 mod map;
+mod payload;
+mod tail;
+
+pub use payload::{
+    GroundArgv, GroundEffect, GroundExpr, GroundLiteral, GroundTypeKind, GroundValueSource,
+};
+pub use tail::TailOutput;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroundOutput {
@@ -30,24 +37,21 @@ pub enum GroundNode {
     },
     Let {
         name: String,
+        binding: LetBinding,
+        source: Option<GroundValueSource>,
         span: Span,
     },
     Expr {
+        expr: Option<GroundExpr>,
         span: Span,
     },
     Effect {
+        effect: Option<GroundEffect>,
         span: Span,
     },
     Error {
         span: Span,
     },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TailOutput {
-    Implicit { span: Span },
-    DisabledByStdout { span: Span },
-    None,
 }
 
 pub fn ground(file: &SourceFile) -> GroundOutput {
@@ -59,7 +63,7 @@ pub fn ground(file: &SourceFile) -> GroundOutput {
             RawItemKind::Comment(_) => {}
             RawItemKind::Method(method) => {
                 control::validate_block(&method.body, false, &mut diagnostics);
-                let tail = method_tail_output(&method.body, &mut diagnostics);
+                let tail = tail::method_tail_output(&method.body, &mut diagnostics);
                 nodes.push(GroundNode::Method {
                     name: method.name.clone(),
                     tail,
@@ -83,39 +87,21 @@ pub fn ground(file: &SourceFile) -> GroundOutput {
     }
 }
 
-fn method_tail_output(
-    body: &super::ast::RawBlock,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> TailOutput {
-    if let Some(span) = find_current_stdout_block(body) {
-        return TailOutput::DisabledByStdout { span };
-    }
-
-    for item in body.items.iter().rev() {
-        match &item.kind {
-            RawItemKind::Comment(_) => continue,
-            RawItemKind::Statement(statement) => {
-                reject_statement_comparison_chains(statement, diagnostics);
-                return match &statement.kind {
-                    RawStatementKind::Expr(expr) => TailOutput::Implicit { span: expr.span },
-                    _ => TailOutput::None,
-                };
-            }
-            RawItemKind::Method(_) | RawItemKind::Error => return TailOutput::None,
-        }
-    }
-    TailOutput::None
-}
-
 fn ground_statement(
     statement: &super::ast::RawStatement,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> GroundNode {
     match &statement.kind {
-        RawStatementKind::Let { name, value, .. } => {
+        RawStatementKind::Let {
+            name,
+            binding,
+            value,
+        } => {
             reject_comparison_chain(value, diagnostics);
             GroundNode::Let {
                 name: name.clone(),
+                binding: *binding,
+                source: payload::ground_value_source(*binding, value),
                 span: statement.span,
             }
         }
@@ -123,6 +109,7 @@ fn ground_statement(
             reject_comparison_chain(target, diagnostics);
             reject_comparison_chain(value, diagnostics);
             GroundNode::Expr {
+                expr: None,
                 span: statement.span,
             }
         }
@@ -132,22 +119,26 @@ fn ground_statement(
         | RawStatementKind::WithEnv { .. } => {
             reject_statement_comparison_chains(statement, diagnostics);
             GroundNode::Expr {
+                expr: None,
                 span: statement.span,
             }
         }
         RawStatementKind::Effect(expr) => {
             reject_comparison_chain(expr, diagnostics);
             GroundNode::Effect {
+                effect: payload::ground_effect(expr),
                 span: statement.span,
             }
         }
         RawStatementKind::Expr(expr) => {
             reject_comparison_chain(expr, diagnostics);
             GroundNode::Expr {
+                expr: payload::ground_expr(expr),
                 span: statement.span,
             }
         }
         RawStatementKind::Break | RawStatementKind::Continue => GroundNode::Expr {
+            expr: None,
             span: statement.span,
         },
         RawStatementKind::Error => GroundNode::Error {
@@ -156,126 +147,7 @@ fn ground_statement(
     }
 }
 
-fn find_current_stdout_block(block: &super::ast::RawBlock) -> Option<Span> {
-    block.items.iter().find_map(|item| match &item.kind {
-        RawItemKind::Statement(statement) => find_current_stdout_statement(statement),
-        RawItemKind::Comment(_) | RawItemKind::Method(_) | RawItemKind::Error => None,
-    })
-}
-
-fn find_current_stdout_statement(statement: &super::ast::RawStatement) -> Option<Span> {
-    match &statement.kind {
-        RawStatementKind::Let { value, .. } => find_current_stdout_expr(value),
-        RawStatementKind::Assign { target, value } => {
-            find_current_stdout_expr(target).or_else(|| find_current_stdout_expr(value))
-        }
-        RawStatementKind::If {
-            branches,
-            else_branch,
-        } => {
-            for branch in branches {
-                if let Some(span) = find_current_stdout_expr(&branch.condition)
-                    .or_else(|| find_current_stdout_block(&branch.body))
-                {
-                    return Some(span);
-                }
-            }
-            else_branch.as_ref().and_then(find_current_stdout_block)
-        }
-        RawStatementKind::For { iterable, body, .. } => {
-            find_current_stdout_expr(iterable).or_else(|| find_current_stdout_block(body))
-        }
-        RawStatementKind::While { condition, body } => {
-            find_current_stdout_expr(condition).or_else(|| find_current_stdout_block(body))
-        }
-        RawStatementKind::WithEnv { bindings, body } => bindings
-            .iter()
-            .find_map(|binding| find_current_stdout_expr(&binding.value))
-            .or_else(|| find_current_stdout_block(body)),
-        RawStatementKind::Expr(expr) | RawStatementKind::Effect(expr) => {
-            find_current_stdout_expr(expr)
-        }
-        RawStatementKind::Break | RawStatementKind::Continue | RawStatementKind::Error => None,
-    }
-}
-
-fn find_current_stdout_expr(expr: &RawExpr) -> Option<Span> {
-    match &expr.kind {
-        RawExprKind::Channel(name) if name == "stdout" => Some(expr.span),
-        RawExprKind::Binary { left, right, .. } | RawExprKind::StreamFlow { left, right, .. } => {
-            find_current_stdout_expr(left).or_else(|| find_current_stdout_expr(right))
-        }
-        RawExprKind::Unary { expr, .. } | RawExprKind::Group(expr) => {
-            find_current_stdout_expr(expr)
-        }
-        RawExprKind::Call { callee, args } => find_current_stdout_expr(callee).or_else(|| {
-            args.iter()
-                .find_map(|arg| find_current_stdout_expr(&arg.value))
-        }),
-        RawExprKind::BlockCall { callee, block } => {
-            find_current_stdout_expr(callee).or_else(|| find_current_stdout_block(block))
-        }
-        RawExprKind::Lambda(_) => None,
-        RawExprKind::ReceiverCall { receiver, args, .. } => find_current_stdout_expr(receiver)
-            .or_else(|| {
-                args.iter()
-                    .find_map(|arg| find_current_stdout_expr(&arg.value))
-            }),
-        RawExprKind::Array(items) => items.iter().find_map(find_current_stdout_expr),
-        RawExprKind::Map(entries) => entries
-            .iter()
-            .find_map(|entry| find_current_stdout_expr(&entry.value)),
-        RawExprKind::Match(match_expr) => {
-            find_current_stdout_expr(&match_expr.scrutinee).or_else(|| {
-                match_expr.arms.iter().find_map(|arm| {
-                    arm.patterns
-                        .iter()
-                        .find_map(find_stdout_pattern)
-                        .or_else(|| find_stdout_arm_body(&arm.body))
-                })
-            })
-        }
-        RawExprKind::Process(process) => process
-            .program
-            .iter()
-            .chain(process.args.iter())
-            .find_map(find_stdout_arg),
-        _ => None,
-    }
-}
-
-fn find_stdout_arm_body(body: &super::ast::RawMatchArmBody) -> Option<Span> {
-    match body {
-        super::ast::RawMatchArmBody::Expr(expr) => find_current_stdout_expr(expr),
-        super::ast::RawMatchArmBody::Block(block) => find_current_stdout_block(block),
-    }
-}
-
-fn find_stdout_pattern(pattern: &super::ast::RawPattern) -> Option<Span> {
-    match &pattern.kind {
-        super::ast::RawPatternKind::Expr(expr) => find_current_stdout_expr(expr),
-        super::ast::RawPatternKind::Map(entries) => entries
-            .iter()
-            .find_map(|entry| find_stdout_pattern(&entry.pattern)),
-        super::ast::RawPatternKind::Array(items) => items.iter().find_map(find_stdout_pattern),
-        super::ast::RawPatternKind::Wildcard => None,
-    }
-}
-
-fn find_stdout_arg(arg: &super::ast::RawProcessArg) -> Option<Span> {
-    match &arg.kind {
-        super::ast::RawProcessArgKind::Spread(expr) => find_current_stdout_expr(expr),
-        super::ast::RawProcessArgKind::Word(parts) => parts.iter().find_map(|part| match part {
-            super::ast::RawProcessPart::Interpolation(expr) => find_current_stdout_expr(expr),
-            super::ast::RawProcessPart::Text(_) => None,
-        }),
-        super::ast::RawProcessArgKind::String(_)
-        | super::ast::RawProcessArgKind::TextBlock(_)
-        | super::ast::RawProcessArgKind::Error => None,
-    }
-}
-
-fn reject_statement_comparison_chains(
+pub(super) fn reject_statement_comparison_chains(
     statement: &super::ast::RawStatement,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

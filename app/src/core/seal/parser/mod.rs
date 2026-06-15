@@ -47,10 +47,18 @@ impl Parser {
         let mut items = Vec::new();
         self.consume_separators_as_items(&mut items);
         while !self.at(TokenKind::Eof) {
+            let cursor_before = self.cursor;
             let mut item = self.parse_item_or_recover();
             item.trailing_comments
                 .extend(self.consume_trailing_comments());
             items.push(item);
+            if self.cursor == cursor_before && !self.at(TokenKind::Eof) {
+                let token = self.bump();
+                self.diagnostics.push(Diagnostic::new(
+                    token.span,
+                    format!("skipping unexpected token {:?}", token.kind),
+                ));
+            }
             self.consume_separators_as_items(&mut items);
         }
         let end = self.current().span.end;
@@ -253,6 +261,56 @@ impl Parser {
             self.diagnostics.push(Diagnostic::new(token.span, message));
             String::new()
         }
+    }
+
+    fn string_literal_value(&mut self, token: &Token) -> String {
+        let content = token
+            .text
+            .strip_prefix('"')
+            .unwrap_or(&token.text)
+            .strip_suffix('"')
+            .unwrap_or_else(|| token.text.strip_prefix('"').unwrap_or(&token.text));
+        let mut value = String::new();
+        let mut chars = content.chars();
+        while let Some(ch) = chars.next() {
+            if ch != '\\' {
+                value.push(ch);
+                continue;
+            }
+
+            let Some(escaped) = chars.next() else {
+                self.diagnostics.push(Diagnostic::new(
+                    token.span,
+                    "unterminated string escape sequence",
+                ));
+                break;
+            };
+            match escaped {
+                '"' => value.push('"'),
+                '\\' => value.push('\\'),
+                'n' => value.push('\n'),
+                'r' => value.push('\r'),
+                't' => value.push('\t'),
+                other => {
+                    self.diagnostics.push(Diagnostic::new(
+                        token.span,
+                        format!("unknown string escape '\\{other}'"),
+                    ));
+                    value.push(other);
+                }
+            }
+        }
+        value
+    }
+
+    fn text_block_value(&self, token: &Token) -> String {
+        token
+            .text
+            .strip_prefix('`')
+            .unwrap_or(&token.text)
+            .strip_suffix('`')
+            .unwrap_or_else(|| token.text.strip_prefix('`').unwrap_or(&token.text))
+            .to_string()
     }
 
     fn expect(&mut self, kind: TokenKind, message: &str) -> Token {
