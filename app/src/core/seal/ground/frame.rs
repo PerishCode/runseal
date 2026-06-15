@@ -15,10 +15,17 @@ pub(super) fn validate_frame_event(expr: &RawExpr, diagnostics: &mut Vec<Diagnos
         return;
     };
 
-    let Some(event_type) = string_field(entries, "type") else {
+    let Some(type_value) = field(entries, "type") else {
         diagnostics.push(Diagnostic::new(
             left.span,
-            "frame event map must include string literal field 'type'",
+            "frame event map must include field 'type'",
+        ));
+        return;
+    };
+    let Some(event_type) = string_literal(type_value) else {
+        diagnostics.push(Diagnostic::new(
+            type_value.span,
+            "frame event field 'type' must be a string literal",
         ));
         return;
     };
@@ -69,9 +76,8 @@ fn require_field(
     }
 }
 
-fn string_field<'a>(entries: &'a [RawMapEntry], key: &str) -> Option<&'a str> {
-    let field = field(entries, key)?;
-    let RawExprKind::Literal(RawLiteral::String(value)) = &field.kind else {
+fn string_literal(expr: &RawExpr) -> Option<&str> {
+    let RawExprKind::Literal(RawLiteral::String(value)) = &expr.kind else {
         return None;
     };
     Some(string_content(value))
