@@ -83,12 +83,12 @@ the repository-owned canonical files directly.
 - `app/src/core/config.rs`: app configuration and profile discovery.
 - `app/src/core/profile.rs`: profile format loading and normalization.
 - `app/src/core/runtime.rs`: command execution lifecycle.
-- `app/src/core/transpile/runner.rs`: direct Seal wrapper runtime.
 - `app/src/core/injections/`: `env` and `symlink` implementations.
 - `app/src/core/tool/`: built-in atomic `@tool` surface.
 - `app/tests/`: integration tests and focused behavioral coverage.
-- `.runseal/wrappers/`: repo-local `:wrapper` entrypoints. Prefer `.seal`
-  wrappers; platform scripts exist only while a wrapper has not migrated.
+- `.runseal/wrappers/`: repo-local `:wrapper` entrypoints. `.seal` names are
+  reserved for the new Seal interpreter/runtime; use platform scripts for
+  current operational flows until that runtime lands.
 - `runseal.toml`: repo-local operator profile.
 - `manage.sh` and `manage.ps1`: public install and uninstall managers.
 
@@ -250,9 +250,10 @@ artifact first.
 
 ### Should `.seal` wrappers be treated as first-class runtime entrypoints?
 
-Yes. Treat `.runseal/wrappers/*.seal` as first-class wrappers executed directly
-by runseal. `@transpile` is a debug/export tool, not the normal wrapper
-execution path.
+Yes, but the old bash-shaped direct runner has been removed. Treat
+`.runseal/wrappers/*.seal` as reserved first-class wrapper names for the new
+Seal interpreter/runtime. Until that runtime lands, runseal should resolve
+`.seal` wrappers and fail clearly instead of executing legacy semantics.
 
 ### What should never be committed?
 

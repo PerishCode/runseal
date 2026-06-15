@@ -1,170 +1,116 @@
-# Seal `case` / Argv Shapes
+# Seal Argv Parsing
 
-This file documents the canonical `.seal` shapes for `case "$1" in` argv
-parsing. These are intentionally narrower than general shell scripting.
+This file replaces the old shell-shaped `case "$1" in` examples with the target
+Seal source shape for wrapper argument parsing.
 
-## Supported option arm: `--name=value`
+The first design target is still a normal operational loop: explicit defaults,
+explicit flags, and clear failures. A future declarative argv parser can be
+added later if the repeated shape becomes valuable enough.
 
-```sh
---body=*)
-  body=${1#--body=}
-  shift
-  ;;
-```
+## Cursor-based parsing
 
-This is the canonical inline-value string option arm.
+```seal
+method main(argv) {
+  let channel = ""
+  let ref = "main"
+  let version = ""
+  let watch = false
+  let dry_run = false
 
-## Supported option arm: `--name <value>`
+  let args = argv.cursor()
 
-Single-line guarded form:
+  while args.has_next() {
+    let arg = args.next()
 
-```sh
---body)
-  if [ "$#" -lt 2 ]; then fail "missing value for --body"; fi
-  body=$2
-  shift 2
-  ;;
-```
+    match arg {
+      "--channel" => channel = args.value_or_fail("--channel")
+      when arg.starts_with("--channel=") => channel = arg.strip_prefix("--channel=")
 
-Multi-line guarded form:
+      "--ref" => ref = args.value_or_fail("--ref")
+      when arg.starts_with("--ref=") => ref = arg.strip_prefix("--ref=")
 
-```sh
---body)
-  if [ "$#" -lt 2 ]; then
-    fail "missing value for --body"
-  fi
-  body=$2
-  shift 2
-  ;;
-```
+      "--version" => version = args.value_or_fail("--version")
+      when arg.starts_with("--version=") => version = arg.strip_prefix("--version=")
 
-Both are canonical string-option arms.
+      "--watch" => watch = true
+      "--dry-run" => dry_run = true
 
-The guard predicate is intentionally exact:
+      "-h" | "--help" | "help" => {
+        usage()
+        exit(0)
+      }
 
-```sh
-if [ "$#" -lt 2 ]; then
-```
+      _ => fail("unknown option: {arg}")
+    }
+  }
 
-This is not a general parser for arbitrary pre-check logic.
+  if channel == "" {
+    fail("release: --channel is required")
+  }
 
-## Supported flag arm
-
-```sh
---dry-run)
-  dry_run=true
-  shift
-  ;;
-```
-
-## Supported help arm
-
-```sh
--h|--help|help)
-  __seal_help=true
-  shift
-  ;;
-```
-
-## Supported positional fallback arm
-
-This is the one supported positional sink shape:
-
-```sh
-*)
-  if [ -z "$message" ]; then
-    message=$1
-    shift
-  else
-    fail "unexpected argument: $1"
-  fi
-  ;;
-```
-
-Semantics:
-
-- The first unmatched argument fills one positional target.
-- The next unmatched argument fails with a stable operator-facing message.
-- This is not the same as "take one arg and break out of parsing."
-
-## Not supported
-
-These shapes are intentionally outside the current canonical surface:
-
-```sh
-*)
-  message=$1
-  shift
-  break
-  ;;
-```
-
-```sh
-*)
-  shift
-  ;;
-```
-
-```sh
---body)
-  body=$2
-  shift 2
-  ;;
-```
-
-The last form looks natural in shell, but runseal currently requires the
-canonical missing-value guard for separated-value option arms.
-
-## Complete minimal example
-
-```sh
-print() {
-  printf '%s\n' "$1"
+  release(channel, ref: ref, version: version, watch: watch, dry_run: dry_run)
 }
+```
 
-fail() {
-  print "$1"
-  exit 1
+## Positional fallback
+
+The old canonical shell shape allowed one positional sink and rejected the
+second unmatched argument. In Seal, that should be visible as ordinary state.
+
+```seal
+method main(argv) {
+  let body = ""
+  let message = ""
+  let dry_run = false
+  let args = argv.cursor()
+
+  while args.has_next() {
+    let arg = args.next()
+
+    match arg {
+      "--body" => body = args.value_or_fail("--body")
+      when arg.starts_with("--body=") => body = arg.strip_prefix("--body=")
+      "--dry-run" => dry_run = true
+      "-h" | "--help" | "help" => {
+        usage()
+        exit(0)
+      }
+      _ => {
+        if message == "" {
+          message = arg
+        } else {
+          fail("unexpected argument: {arg}")
+        }
+      }
+    }
+  }
+
+  create_comment(body: body, message: message, dry_run: dry_run)
 }
+```
 
-__seal_argc=$#
-__seal_help=false
-body=
-message=
+## Possible future parser shape
 
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --body)
-      if [ "$#" -lt 2 ]; then
-        fail "missing value for --body"
-      fi
-      body=$2
-      shift 2
-      ;;
-    --body=*)
-      body=${1#--body=}
-      shift
-      ;;
-    -h|--help|help)
-      __seal_help=true
-      shift
-      ;;
-    *)
-      if [ -z "$message" ]; then
-        message=$1
-        shift
-      else
-        fail "unexpected argument: $1"
-      fi
-      ;;
-  esac
-done
+If this pattern repeats enough, Seal can grow a first-class argv declaration.
+That should be a deliberate syntax feature, not a hidden shell parser.
 
-if [ "$__seal_help" = true ]; then
-  print help
-  exit 0
-fi
+```seal
+method main(argv) {
+  let opts = argv.parse {
+    option channel required "--channel"
+    option ref = "main" "--ref"
+    option version = null "--version"
+    flag watch "--watch"
+    flag dry_run "--dry-run"
+    help "-h" "--help" "help"
+  }
 
-print "$body"
-print "$message"
+  release(
+    opts.channel,
+    ref: opts.ref,
+    version: opts.version,
+    watch: opts.watch,
+    dry_run: opts.dry_run,
+  )
+}
 ```

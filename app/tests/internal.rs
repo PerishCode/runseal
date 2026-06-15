@@ -136,11 +136,10 @@ fn help_explains_model() {
     assert!(stdout.contains("runseal <cmd>"));
     assert!(stdout.contains("runseal :<name>"));
     assert!(stdout.contains("runseal @<name>"));
-    assert!(stdout.contains(".seal files are bash-runnable"));
-    assert!(stdout.contains("runseal @tool for atomic glue"));
+    assert!(stdout.contains(".seal files are reserved"));
     assert!(stdout.contains("@profile"));
     assert!(stdout.contains("@resolve"));
-    assert!(stdout.contains("@transpile"));
+    assert!(stdout.contains("@tool"));
     assert!(stdout.contains("current directory upward"));
     assert!(stdout.contains("https://github.com/PerishCode/runseal"));
 }
@@ -154,11 +153,12 @@ fn internal_help_topics() {
         (vec!["@profile", "help"], "Profile discovery"),
         (vec!["@resources", "--help"], "Usage: runseal @resources"),
         (vec!["@resolve", "--help"], "Usage: runseal @resolve"),
-        (vec!["@transpile", "--help"], "Usage: runseal @transpile"),
-        (vec!["@transpile", "-h"], "constrained bash subset"),
         (vec!["@tool", "--help"], "Usage: runseal @tool"),
         (vec!["@wrappers", "--help"], "Lookup order"),
-        (vec!["@wrappers", "-h"], ".seal wrappers are bash-runnable"),
+        (
+            vec!["@wrappers", "-h"],
+            ".seal wrapper execution is unavailable",
+        ),
         (vec!["@which", "--help"], "Usage: runseal @which :<wrapper>"),
     ] {
         let output = run_in(&fx, &args);

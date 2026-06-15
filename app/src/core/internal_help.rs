@@ -13,7 +13,6 @@ fn text(name: &str) -> Result<&'static str> {
         "resolve" => Ok(RESOLVE),
         "resources" => Ok(RESOURCES),
         "tool" => Ok(crate::core::tool::help()),
-        "transpile" => Ok(TRANSPILE),
         "wrappers" => Ok(WRAPPERS),
         "which" => Ok(WHICH),
         _ => bail!("unknown internal command: @{name}"),
@@ -70,46 +69,6 @@ Invalid resource paths include empty segments, '.', '..', backslashes, and ':' i
 path segments. Resolved paths are printed even when the target file does not exist.
 ";
 
-const TRANSPILE: &str = "\
-Usage: runseal @transpile --input-lang=<lang> --output-lang=<lang> <source>
-
-Transpile one explicit glue language into another and print the result to stdout.
-
-Languages:
-  seal        bash-runnable Seal wrapper glue
-  sealir      JSON SealIR semantic form
-  bash        bash output target
-  powershell  PowerShell output target
-
-Seal source is intentionally a constrained bash subset. Prefer ordinary bash
-syntax for control flow, argv parsing, tests, shift, and command execution. Use
-runseal @tool as explicit glue for atomic behavior that does not have a clean
-bash/PowerShell intersection. If a workflow wants a richer language, move that
-part to Python, Ruby, JavaScript, etc. instead of expanding Seal.
-
-Cold-start supported paths:
-  bash -> sealir
-  bash -> seal
-  bash -> powershell
-  seal -> sealir
-  seal -> bash
-  seal -> powershell
-  powershell -> sealir
-  powershell -> seal
-  powershell -> bash
-  sealir -> seal
-  sealir -> bash
-  sealir -> powershell
-
-Examples:
-  runseal @transpile --input-lang=seal --output-lang=bash manage.seal
-  runseal @transpile --input-lang=seal --output-lang=powershell manage.seal
-  runseal @transpile --input-lang=seal --output-lang=sealir manage.seal
-
-@transpile is explicit code generation only. It does not infer languages, write
-files, execute generated code, or run profile injections.
-";
-
 const WRAPPERS: &str = "\
 Usage: runseal @wrappers
 
@@ -122,19 +81,15 @@ Lookup order:
   4. $RUNSEAL_HOME/wrappers/<name>.sh
 
 Profile-local wrappers shadow home wrappers with the same name. On Unix, wrapper
-shell files use the .sh suffix and must be executable. Seal wrappers use the
-.seal suffix and are interpreted directly by runseal. Extensionless files in a
+shell files use the .sh suffix and must be executable. Seal wrapper names reserve
+the .seal suffix for the new interpreter/runtime. Extensionless files in a
 wrappers directory are not wrapper entrypoints; migrate legacy wrappers to
 <name>.seal or <name>.sh. On Windows, runseal also checks .exe, .cmd, and .bat
 when the wrapper name has no extension.
 
-.seal wrappers are bash-runnable wrapper glue. They are intended for
-cross-platform repository operations where bash and PowerShell share a clear
-shape: shell-shaped control flow, command success predicates, command-scoped env
-overlays, and explicit runseal @tool calls for atomic glue.
-
-The boundary is syntax shape, not script size. Keep reusable domain atoms in
-@tool and pass profile-specific paths or env names from the wrapper.
+.seal wrapper execution is unavailable until the new Seal interpreter/runtime
+lands. Use .sh/.cmd/.bat wrappers or external commands for current operational
+flows.
 
 @wrappers is read-only and does not run profile injections.
 ";
