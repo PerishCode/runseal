@@ -208,6 +208,7 @@ fn find_current_stdout_expr(expr: &RawExpr) -> Option<Span> {
         RawExprKind::BlockCall { callee, block } => {
             find_current_stdout_expr(callee).or_else(|| find_current_stdout_block(block))
         }
+        RawExprKind::Lambda(_) => None,
         RawExprKind::ReceiverCall { receiver, args, .. } => find_current_stdout_expr(receiver)
             .or_else(|| {
                 args.iter()
@@ -228,7 +229,7 @@ fn find_current_stdout_expr(expr: &RawExpr) -> Option<Span> {
                             }
                             super::ast::RawPatternKind::Wildcard => None,
                         })
-                        .or_else(|| find_current_stdout_expr(&arm.value))
+                        .or_else(|| find_stdout_arm_body(&arm.body))
                 })
             })
         }
@@ -238,6 +239,13 @@ fn find_current_stdout_expr(expr: &RawExpr) -> Option<Span> {
             .chain(process.args.iter())
             .find_map(find_stdout_arg),
         _ => None,
+    }
+}
+
+fn find_stdout_arm_body(body: &super::ast::RawMatchArmBody) -> Option<Span> {
+    match body {
+        super::ast::RawMatchArmBody::Expr(expr) => find_current_stdout_expr(expr),
+        super::ast::RawMatchArmBody::Block(block) => find_current_stdout_block(block),
     }
 }
 
@@ -317,6 +325,22 @@ fn reject_statement_comparison_chains(
     }
 }
 
+fn reject_arm_body_comparisons(
+    body: &super::ast::RawMatchArmBody,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match body {
+        super::ast::RawMatchArmBody::Expr(expr) => reject_comparison_chain(expr, diagnostics),
+        super::ast::RawMatchArmBody::Block(block) => {
+            for item in &block.items {
+                if let RawItemKind::Statement(statement) = &item.kind {
+                    reject_statement_comparison_chains(statement, diagnostics);
+                }
+            }
+        }
+    }
+}
+
 fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
     match &expr.kind {
         RawExprKind::Binary { op, left, right } => {
@@ -340,7 +364,7 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
                         reject_comparison_chain(expr, diagnostics);
                     }
                 }
-                reject_comparison_chain(&arm.value, diagnostics);
+                reject_arm_body_comparisons(&arm.body, diagnostics);
             }
         }
         RawExprKind::Unary { expr, .. } | RawExprKind::Group(expr) => {
@@ -356,6 +380,18 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
             reject_comparison_chain(callee, diagnostics);
             validate_effect_block(block, diagnostics);
             for item in &block.items {
+                if let RawItemKind::Statement(statement) = &item.kind {
+                    reject_statement_comparison_chains(statement, diagnostics);
+                }
+            }
+        }
+        RawExprKind::Lambda(lambda) => {
+            for param in &lambda.params {
+                if let Some(default) = &param.default {
+                    reject_comparison_chain(default, diagnostics);
+                }
+            }
+            for item in &lambda.body.items {
                 if let RawItemKind::Statement(statement) = &item.kind {
                     reject_statement_comparison_chains(statement, diagnostics);
                 }

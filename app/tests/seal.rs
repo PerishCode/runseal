@@ -1,7 +1,7 @@
 use runseal::core::seal::{
     ast::{
-        LetBinding, RawExprKind, RawItemKind, RawProcessArgKind, RawProcessPart, RawStatement,
-        RawStatementKind,
+        LetBinding, RawExprKind, RawItemKind, RawMatchArmBody, RawProcessArgKind, RawProcessPart,
+        RawStatement, RawStatementKind,
     },
     ground::{self, GroundNode, TailOutput},
     lex, parse,
@@ -183,6 +183,51 @@ let workflow = match channel {
 }
 
 #[test]
+fn match_arm_body_shapes() {
+    let block = parse(
+        r#"
+match target {
+  "macos" => {
+    | sw_vers
+  }
+}
+"#,
+    );
+
+    assert!(block.diagnostics.is_empty());
+    let RawItemKind::Statement(statement) = &block.file.items[0].kind else {
+        panic!("expected statement");
+    };
+    let RawStatementKind::Expr(expr) = &statement.kind else {
+        panic!("expected expression statement");
+    };
+    let RawExprKind::Match(match_expr) = &expr.kind else {
+        panic!("expected match expression");
+    };
+    assert!(matches!(match_expr.arms[0].body, RawMatchArmBody::Block(_)));
+
+    let map = parse(
+        r#"
+let result = match status {
+  "ok" => { status: "ok" }
+}
+"#,
+    );
+
+    assert!(map.diagnostics.is_empty());
+    let RawItemKind::Statement(statement) = &map.file.items[0].kind else {
+        panic!("expected statement");
+    };
+    let RawStatementKind::Let { value, .. } = &statement.kind else {
+        panic!("expected let");
+    };
+    let RawExprKind::Match(match_expr) = &value.kind else {
+        panic!("expected match expression");
+    };
+    assert!(matches!(match_expr.arms[0].body, RawMatchArmBody::Expr(_)));
+}
+
+#[test]
 fn block_call() {
     let output = parse(
         r#"
@@ -203,6 +248,63 @@ let branch = @type.string {
         panic!("expected block call");
     };
     assert_eq!(block.items.len(), 1);
+}
+
+#[test]
+fn lambda_handler_call_arg() {
+    let output = parse(
+        r#"
+@call.stdio(call, (stdin, stdout, stderr) => {
+  stdout >> #stdout
+})
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty());
+    let RawItemKind::Statement(statement) = &output.file.items[0].kind else {
+        panic!("expected statement");
+    };
+    let RawStatementKind::Expr(expr) = &statement.kind else {
+        panic!("expected expression statement");
+    };
+    let RawExprKind::Call { args, .. } = &expr.kind else {
+        panic!("expected call expression");
+    };
+    assert_eq!(args.len(), 2);
+    let RawExprKind::Lambda(lambda) = &args[1].value.kind else {
+        panic!("expected handler lambda");
+    };
+    assert_eq!(lambda.params.len(), 3);
+    assert_eq!(lambda.params[0].name, "stdin");
+    assert_eq!(lambda.params[1].name, "stdout");
+    assert_eq!(lambda.params[2].name, "stderr");
+    assert_eq!(lambda.body.items.len(), 1);
+}
+
+#[test]
+fn lambda_completion_chain_arg() {
+    let output = parse(
+        r#"
+@call.completion(call, (stdin, stdout, stderr, frame) => {})
+  .ok((completion) => {
+    "ok" >> #stdout
+  })
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty());
+    let RawItemKind::Statement(statement) = &output.file.items[0].kind else {
+        panic!("expected statement");
+    };
+    let RawStatementKind::Expr(expr) = &statement.kind else {
+        panic!("expected expression statement");
+    };
+    let RawExprKind::ReceiverCall { method, args, .. } = &expr.kind else {
+        panic!("expected receiver call");
+    };
+    assert_eq!(method, "ok");
+    assert_eq!(args.len(), 1);
+    assert!(matches!(args[0].value.kind, RawExprKind::Lambda(_)));
 }
 
 #[test]
@@ -300,6 +402,52 @@ method status() {
     );
     assert!(explicit.diagnostics.is_empty());
     let grounded = ground::ground(&explicit.file);
+    assert!(grounded.diagnostics.is_empty());
+    assert!(matches!(
+        grounded.file.nodes[0],
+        GroundNode::Method {
+            tail: TailOutput::DisabledByStdout { .. },
+            ..
+        }
+    ));
+
+    let handler_stdout = parse(
+        r###"
+method routed(call) {
+  @call.stdio(call, (stdin, stdout, stderr) => {
+    stdout >> #stdout
+  })
+
+  "done"
+}
+"###,
+    );
+    assert!(handler_stdout.diagnostics.is_empty());
+    let grounded = ground::ground(&handler_stdout.file);
+    assert!(grounded.diagnostics.is_empty());
+    assert!(matches!(
+        grounded.file.nodes[0],
+        GroundNode::Method {
+            tail: TailOutput::Implicit { .. },
+            ..
+        }
+    ));
+
+    let match_arm_stdout = parse(
+        r###"
+method routed(target) {
+  match target {
+    "local" => {
+      "local" >> #stdout
+    }
+  }
+
+  "done"
+}
+"###,
+    );
+    assert!(match_arm_stdout.diagnostics.is_empty());
+    let grounded = ground::ground(&match_arm_stdout.file);
     assert!(grounded.diagnostics.is_empty());
     assert!(matches!(
         grounded.file.nodes[0],

@@ -147,6 +147,7 @@ pub enum RawExprKind {
         method: String,
         args: Vec<RawArg>,
     },
+    Lambda(RawLambda),
     Unary {
         op: UnaryOp,
         expr: Box<RawExpr>,
@@ -191,6 +192,12 @@ pub struct RawArg {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct RawLambda {
+    pub params: Vec<RawParam>,
+    pub body: RawBlock,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct RawMatch {
     pub scrutinee: Box<RawExpr>,
     pub arms: Vec<RawMatchArm>,
@@ -199,8 +206,23 @@ pub struct RawMatch {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RawMatchArm {
     pub patterns: Vec<RawPattern>,
-    pub value: RawExpr,
+    pub body: RawMatchArmBody,
     pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RawMatchArmBody {
+    Expr(RawExpr),
+    Block(RawBlock),
+}
+
+impl RawMatchArmBody {
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Expr(expr) => expr.span,
+            Self::Block(block) => block.span,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

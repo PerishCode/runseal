@@ -57,6 +57,15 @@ impl Parser {
     pub(super) fn parse_postfix_expr(&mut self) -> RawExpr {
         let mut expr = self.parse_primary_expr();
         loop {
+            if !self.at(TokenKind::Dot) {
+                let checkpoint = self.cursor;
+                while self.at(TokenKind::Newline) {
+                    self.bump();
+                }
+                if !self.at(TokenKind::Dot) {
+                    self.cursor = checkpoint;
+                }
+            }
             if self.at(TokenKind::LParen) {
                 let args = self.parse_call_args();
                 let span = expr
@@ -169,6 +178,7 @@ impl Parser {
             TokenKind::Dollar => self.parse_prefixed_name(TokenKind::Dollar),
             TokenKind::Hash => self.parse_prefixed_name(TokenKind::Hash),
             TokenKind::Pipe => self.parse_process(),
+            TokenKind::LParen if self.at_lambda_start() => self.parse_lambda(),
             TokenKind::LParen => self.parse_group(),
             TokenKind::LBracket => self.parse_array(),
             TokenKind::LBrace => self.parse_map(),
@@ -220,6 +230,76 @@ impl Parser {
         RawExpr {
             span: open.join(close.span),
             kind: RawExprKind::Group(Box::new(expr)),
+        }
+    }
+
+    fn at_lambda_start(&self) -> bool {
+        if !self.at(TokenKind::LParen) {
+            return false;
+        }
+
+        let mut cursor = self.cursor + 1;
+        let mut depth = 1usize;
+        while let Some(token) = self.tokens.get(cursor) {
+            match token.kind {
+                TokenKind::LParen => depth += 1,
+                TokenKind::RParen => {
+                    depth -= 1;
+                    if depth == 0 {
+                        cursor += 1;
+                        while matches!(
+                            self.tokens.get(cursor).map(|token| &token.kind),
+                            Some(TokenKind::Newline | TokenKind::Semicolon)
+                        ) {
+                            cursor += 1;
+                        }
+                        return matches!(
+                            self.tokens.get(cursor).map(|token| &token.kind),
+                            Some(TokenKind::FatArrow)
+                        );
+                    }
+                }
+                TokenKind::Eof => return false,
+                _ => {}
+            }
+            cursor += 1;
+        }
+        false
+    }
+
+    fn parse_lambda(&mut self) -> RawExpr {
+        let open = self.expect(TokenKind::LParen, "expected '(' before lambda parameters");
+        let mut params = Vec::new();
+        self.consume_soft_separators();
+        while !self.at(TokenKind::RParen) && !self.at(TokenKind::Eof) {
+            let param_start = self.current().span;
+            let name = self.expect_ident("expected lambda parameter name");
+            let default = if self.eat(TokenKind::Eq).is_some() {
+                Some(self.parse_expr())
+            } else {
+                None
+            };
+            let end = default
+                .as_ref()
+                .map_or(param_start.end, |expr| expr.span.end);
+            params.push(RawParam {
+                name,
+                default,
+                span: Span::new(param_start.start, end),
+            });
+            self.consume_soft_separators();
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+            self.consume_soft_separators();
+        }
+        self.expect(TokenKind::RParen, "expected ')' after lambda parameters");
+        self.consume_soft_separators();
+        self.expect(TokenKind::FatArrow, "expected '=>' after lambda parameters");
+        let body = self.parse_block();
+        RawExpr {
+            span: open.span.join(body.span),
+            kind: RawExprKind::Lambda(RawLambda { params, body }),
         }
     }
 
@@ -339,12 +419,48 @@ impl Parser {
             patterns.push(self.parse_pattern());
         }
         self.expect(TokenKind::FatArrow, "expected '=>' after match pattern");
-        let value = self.parse_stream_expr();
+        let body = if self.at(TokenKind::LBrace) && !self.brace_starts_map() {
+            RawMatchArmBody::Block(self.parse_block())
+        } else {
+            RawMatchArmBody::Expr(self.parse_stream_expr())
+        };
         RawMatchArm {
-            span: start.join(value.span),
+            span: start.join(body.span()),
             patterns,
-            value,
+            body,
         }
+    }
+
+    fn brace_starts_map(&self) -> bool {
+        if !self.at(TokenKind::LBrace) {
+            return false;
+        }
+
+        let Some(first) = self.next_significant_index(self.cursor + 1) else {
+            return false;
+        };
+        if !matches!(
+            self.tokens[first].kind,
+            TokenKind::Ident | TokenKind::String
+        ) {
+            return false;
+        }
+
+        matches!(
+            self.next_significant_index(first + 1)
+                .map(|index| &self.tokens[index].kind),
+            Some(TokenKind::Colon)
+        )
+    }
+
+    fn next_significant_index(&self, mut cursor: usize) -> Option<usize> {
+        while matches!(
+            self.tokens.get(cursor).map(|token| &token.kind),
+            Some(TokenKind::Newline | TokenKind::Semicolon)
+        ) {
+            cursor += 1;
+        }
+        self.tokens.get(cursor).map(|_| cursor)
     }
 
     fn parse_pattern(&mut self) -> RawPattern {
