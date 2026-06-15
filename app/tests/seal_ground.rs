@@ -290,6 +290,49 @@ fn completion_chain_handler_shape() {
 }
 
 #[test]
+fn call_exit_shape() {
+    let valid = parse(
+        r#"
+@call.exit()
+@call.exit("done")
+@call.exit("done", { type: "ok" })
+@call.exit("done", event)
+"#,
+    );
+
+    assert!(valid.diagnostics.is_empty());
+    let grounded = ground::ground(&valid.file);
+    assert!(grounded.diagnostics.is_empty());
+
+    let too_many = parse(r#"@call.exit("done", { type: "ok" }, "extra")"#);
+    assert!(too_many.diagnostics.is_empty());
+    let grounded = ground::ground(&too_many.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "@call.exit expects at most 2 arguments"
+    );
+
+    let not_map = parse(r#"@call.exit("done", "ok")"#);
+    assert!(not_map.diagnostics.is_empty());
+    let grounded = ground::ground(&not_map.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "@call.exit event argument must be a frame event map"
+    );
+
+    let bad_event = parse(r#"@call.exit("done", { type: status })"#);
+    assert!(bad_event.diagnostics.is_empty());
+    let grounded = ground::ground(&bad_event.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "frame event field 'type' must be a string literal"
+    );
+}
+
+#[test]
 fn duplicate_labels() {
     let output = parse(r#"@fs.mkdir(tmp, mode: 700, mode: 755)"#);
 

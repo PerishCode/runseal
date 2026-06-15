@@ -6,6 +6,8 @@ use crate::core::seal::{
     span::Span,
 };
 
+use super::frame;
+
 pub(super) fn validate_args(
     call_span: Span,
     callee: &RawExpr,
@@ -27,6 +29,7 @@ pub(super) fn validate_args(
             }
             "stdio" => validate_io_call("@call.stdio", 3, call_span, args, diagnostics),
             "completion" => validate_io_call("@call.completion", 4, call_span, args, diagnostics),
+            "exit" => validate_call_exit(call_span, args, diagnostics),
             _ => {}
         }
     }
@@ -89,6 +92,27 @@ fn validate_call_forward(call_span: Span, args: &[RawArg], diagnostics: &mut Vec
             "@call.forward second argument must be an array bundle",
         ));
     }
+}
+
+fn validate_call_exit(call_span: Span, args: &[RawArg], diagnostics: &mut Vec<Diagnostic>) {
+    if args.len() > 2 {
+        diagnostics.push(Diagnostic::new(
+            call_span,
+            "@call.exit expects at most 2 arguments",
+        ));
+    }
+
+    let Some(event) = args.get(1) else {
+        return;
+    };
+    if static_non_map(&event.value) {
+        diagnostics.push(Diagnostic::new(
+            event.value.span,
+            "@call.exit event argument must be a frame event map",
+        ));
+        return;
+    }
+    frame::validate_event_expr(&event.value, diagnostics);
 }
 
 fn validate_io_call(
@@ -189,6 +213,20 @@ fn static_non_array(expr: &RawExpr) -> bool {
         RawExprKind::Group(expr) => static_non_array(expr),
         RawExprKind::Literal(_)
         | RawExprKind::Map(_)
+        | RawExprKind::Lambda(_)
+        | RawExprKind::Env(_)
+        | RawExprKind::Channel(_)
+        | RawExprKind::Process(_) => true,
+        _ => false,
+    }
+}
+
+fn static_non_map(expr: &RawExpr) -> bool {
+    match &expr.kind {
+        RawExprKind::Map(_) => false,
+        RawExprKind::Group(expr) => static_non_map(expr),
+        RawExprKind::Literal(_)
+        | RawExprKind::Array(_)
         | RawExprKind::Lambda(_)
         | RawExprKind::Env(_)
         | RawExprKind::Channel(_)

@@ -11,13 +11,16 @@ pub(super) fn validate_frame_event(expr: &RawExpr, diagnostics: &mut Vec<Diagnos
     if !matches!(&right.kind, RawExprKind::Channel(name) if name == "frame") {
         return;
     }
-    let RawExprKind::Map(entries) = &left.kind else {
+    validate_event_expr(left, diagnostics);
+}
+
+pub(super) fn validate_event_expr(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
+    let RawExprKind::Map(entries) = &expr.kind else {
         return;
     };
-
     let Some(type_value) = field(entries, "type") else {
         diagnostics.push(Diagnostic::new(
-            left.span,
+            expr.span,
             "frame event map must include field 'type'",
         ));
         return;
@@ -32,15 +35,15 @@ pub(super) fn validate_frame_event(expr: &RawExpr, diagnostics: &mut Vec<Diagnos
 
     match event_type {
         "ok" => {}
-        "failed" => require_field(entries, "exit", left.span, diagnostics),
-        "fault" => require_field(entries, "fault", left.span, diagnostics),
+        "failed" => require_field(entries, "exit", expr.span, diagnostics),
+        "fault" => require_field(entries, "fault", expr.span, diagnostics),
         "cancelled" => {
-            require_field(entries, "source", left.span, diagnostics);
-            require_field(entries, "signal", left.span, diagnostics);
+            require_field(entries, "source", expr.span, diagnostics);
+            require_field(entries, "signal", expr.span, diagnostics);
         }
-        "cleanup" => validate_cleanup(entries, left.span, diagnostics),
+        "cleanup" => validate_cleanup(entries, expr.span, diagnostics),
         _ => diagnostics.push(Diagnostic::new(
-            left.span,
+            expr.span,
             format!("unknown frame event type '{event_type}'"),
         )),
     }
