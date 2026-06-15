@@ -236,3 +236,39 @@ while true {
     assert_eq!(grounded.diagnostics.len(), 1);
     assert_eq!(grounded.diagnostics[0].message, "'break' outside loop");
 }
+
+#[test]
+fn duplicate_map_keys() {
+    let output = parse(
+        r#"
+let config = {
+  mode: "fast",
+  "mode": "slow",
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty());
+    let grounded = ground::ground(&output.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(grounded.diagnostics[0].message, "duplicate map key 'mode'");
+}
+
+#[test]
+fn duplicate_pattern_keys() {
+    let output = parse(
+        r#"
+match event {
+  { status: "failed", status: "faulted" } => "bad"
+}
+"#,
+    );
+
+    assert!(output.diagnostics.is_empty());
+    let grounded = ground::ground(&output.file);
+    assert_eq!(grounded.diagnostics.len(), 1);
+    assert_eq!(
+        grounded.diagnostics[0].message,
+        "duplicate map pattern key 'status'"
+    );
+}

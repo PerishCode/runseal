@@ -7,6 +7,7 @@ use super::{
 mod call;
 mod control;
 mod frame;
+mod map;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroundOutput {
@@ -420,6 +421,7 @@ fn reject_comparison_chain(expr: &RawExpr, diagnostics: &mut Vec<Diagnostic>) {
             }
         }
         RawExprKind::Map(entries) => {
+            map::validate_expr_entries(entries, diagnostics);
             for entry in entries {
                 reject_comparison_chain(&entry.value, diagnostics);
             }
@@ -454,6 +456,7 @@ fn reject_pattern_comparisons(pattern: &super::ast::RawPattern, diagnostics: &mu
     match &pattern.kind {
         super::ast::RawPatternKind::Expr(expr) => reject_comparison_chain(expr, diagnostics),
         super::ast::RawPatternKind::Map(entries) => {
+            map::validate_pattern_entries(entries, diagnostics);
             for entry in entries {
                 reject_pattern_comparisons(&entry.pattern, diagnostics);
             }
