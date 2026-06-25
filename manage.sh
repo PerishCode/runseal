@@ -74,6 +74,11 @@ Usage:
   manage.sh install [--channel stable|beta] [--version vX.Y.Z] [--retain[=true|false]]
   manage.sh uninstall [--version vX.Y.Z]
 
+Options:
+  --public-url <url>     release metadata and artifact base URL
+  --install-root <path>  versioned install root
+  --bin-dir <path>       directory for the runseal shim/link
+
 Environment:
   RUNSEAL_RELEASES_PUBLIC_URL  # default: https://releases.runseal.perish.uk
   RUNSEAL_CHANNEL
@@ -235,6 +240,11 @@ runseal manager
 Usage:
   manage.sh install [--channel stable|beta] [--version vX.Y.Z] [--retain[=true|false]]
   manage.sh uninstall [--version vX.Y.Z]
+
+Options:
+  --public-url <url>     release metadata and artifact base URL
+  --install-root <path>  versioned install root
+  --bin-dir <path>       directory for the runseal shim/link
 
 Environment:
   RUNSEAL_RELEASES_PUBLIC_URL  # default: https://releases.runseal.perish.uk

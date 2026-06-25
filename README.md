@@ -128,7 +128,7 @@ Install a beta or one explicit version:
 
 ```bash
 curl -fsSL https://runseal.perish.uk/manage.sh | sh -s -- install --channel beta
-curl -fsSL https://runseal.perish.uk/manage.sh | sh -s -- install --version v0.1.0-beta.10
+curl -fsSL https://runseal.perish.uk/manage.sh | sh -s -- install --version vX.Y.Z-beta.N
 ```
 
 Uninstall:
@@ -288,6 +288,25 @@ The wrapper still receives `RUNSEAL_WRAPPER_NAME`, `RUNSEAL_WRAPPER_FILE`,
 `RUNSEAL_PROFILE_PATH`, `RUNSEAL_HOME`, `RUNSEAL_PROFILE_HOME`, and
 `RUNSEAL_WRAPPER_PATH`.
 
+Wrapper helper modules live in the repo under `.runseal/lib/`. Import them
+directly through the repo import map; do not treat generic helpers as public
+Rust `@tool` namespaces:
+
+```ts
+import { json } from "@/lib/std/json.ts";
+import { runseal } from "@/lib/std/runseal.ts";
+
+const zone = await runseal.text([
+  "@tool",
+  "cloudflare",
+  "zone",
+  "get",
+  "--name",
+  "perish.uk",
+]);
+console.log(json.get(zone, ".id"));
+```
+
 Keep reusable domain atoms in `@tool` only when they remain product-domain
 operations that are not better expressed in Deno wrapper code. The current
 built-in tool surface is intentionally small: GitHub helpers and Cloudflare
@@ -320,9 +339,10 @@ read-only; `@tool` is the explicit atomic tool runtime.
 - `@resources` prints the resolved resource root.
 - `@resolve resource://...` prints resolved absolute resource paths, one per
   argument.
-- `@tool <namespace> <command> ...` runs an atomic runseal tool command. Cold
-  start supports GitHub and Cloudflare helpers. Run `runseal @tool --help` for
-  the complete tool index. Tools are reusable atoms: they may read generic
+- `@tool <namespace> <command> ...` runs an atomic runseal tool command. The
+  current public namespaces are `github` and `cloudflare`. Run
+  `runseal @tool --help` for the complete tool index. Tools are reusable atoms:
+  they may read generic
   defaults such as service tokens, but profile-specific paths and env names
   should be supplied by the calling wrapper.
 - `@wrappers` lists the effective wrappers visible to the current profile.

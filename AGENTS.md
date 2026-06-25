@@ -129,7 +129,7 @@ Common repo workflow commands:
 runseal :init
 runseal :cloudflare
 runseal :pr
-runseal :release beta
+runseal :release --channel beta --ref <branch> --watch
 ```
 
 Manager install/update path:

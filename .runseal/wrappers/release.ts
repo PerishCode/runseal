@@ -31,12 +31,13 @@ function workflowForChannel(channel: string): string {
 function usage(): void {
   io.print("Usage: runseal :release --channel=stable|beta [options]");
   io.print("");
-  io.print("Trigger a release workflow.");
+  io.print("Trigger one GitHub release workflow for the selected channel.");
+  io.print("Use --ref for branch beta runs; the default ref is main.");
   io.print("");
   io.print("Options:");
   io.print("  --channel <name>      release channel: stable or beta");
   io.print("  --ref <ref>           git ref passed to the workflow (default: main)");
-  io.print("  --version <version>   optional workflow version_override");
+  io.print("  --version <version>   optional release version override, e.g. v0.9.0-beta.2");
   io.print("  --watch              watch the triggered workflow run");
   io.print("  --dry-run            print planned action without triggering a workflow");
 }

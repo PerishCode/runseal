@@ -29,6 +29,32 @@ fn tool_help_is_progressive() {
             vec!["@tool", "cloudflare", "zone", "dns-record", "--help"],
             "Usage: runseal @tool cloudflare zone dns-record <command> [args]",
         ),
+        (
+            vec![
+                "@tool",
+                "cloudflare",
+                "zone",
+                "dns-record",
+                "list",
+                "--help",
+            ],
+            "--name <name>",
+        ),
+        (
+            vec![
+                "@tool",
+                "cloudflare",
+                "zone",
+                "dns-record",
+                "create",
+                "--help",
+            ],
+            "Create one DNS record",
+        ),
+        (
+            vec!["@tool", "github", "pr", "checks", "probe", "--help"],
+            "on API probe failure",
+        ),
     ] {
         let output = bin()
             .current_dir(&cwd)

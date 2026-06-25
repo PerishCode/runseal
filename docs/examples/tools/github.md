@@ -14,8 +14,9 @@ Priority:
 3. `--token-env`
 4. default `GITHUB_TOKEN`
 
-So the normal path is to inject `GITHUB_TOKEN` through runseal env/profile
-mechanics and keep the call site clean.
+For repo-owned automation, prefer injecting a dedicated token through the
+profile and passing it explicitly with `--token-env <name>`. Plain
+`GITHUB_TOKEN` remains the default fallback for small local calls.
 
 ## Issue comment create
 

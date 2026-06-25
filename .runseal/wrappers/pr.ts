@@ -25,6 +25,9 @@ function usage(): void {
   io.print("Usage: runseal :pr [options]");
   io.print("");
   io.print("Create or update, watch, and squash-merge the GitHub PR for the current branch.");
+  io.print(
+    "By default this pushes the branch, creates or reuses a PR, marks it ready, watches checks, and squash-merges after checks pass.",
+  );
   io.print("");
   io.print("Options:");
   io.print("  --base <branch>       PR base branch (default: main)");
