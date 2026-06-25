@@ -19,6 +19,10 @@ pub const GITHUB: Entry = Entry {
                 "issue body update",
                 "update one issue-style body; also applies to top-level PR bodies",
             ),
+            (
+                "pr checks probe",
+                "probe whether a PR head has checks before watching",
+            ),
         ],
     }],
     examples: &[],
@@ -172,4 +176,57 @@ pub const GITHUB_ISSUE_BODY_UPDATE: Entry = Entry {
     examples: &[
         "runseal @tool github issue body update --repo PerishCode/runseal --number 46 --body-file body.md --prefix-enable=true",
     ],
+};
+
+pub const GITHUB_PR: Entry = Entry {
+    key: "github.pr",
+    usage: "runseal @tool github pr <scope> <command> [args]",
+    about: Some(
+        "GitHub pull request helper atoms. These are intentionally narrow and are usually called from wrappers.",
+    ),
+    sections: &[Section {
+        title: "GitHub PR helpers",
+        items: &[(
+            "checks probe <number>",
+            "print whether a PR head already has check runs or commit statuses",
+        )],
+    }],
+    examples: &[],
+};
+
+pub const GITHUB_PR_CHECKS: Entry = Entry {
+    key: "github.pr.checks",
+    usage: "runseal @tool github pr checks <command> [args]",
+    about: None,
+    sections: &[Section {
+        title: "GitHub PR check helpers",
+        items: &[(
+            "probe <number>",
+            "print whether a PR head already has check runs or commit statuses",
+        )],
+    }],
+    examples: &[],
+};
+
+pub const GITHUB_PR_CHECKS_PROBE: Entry = Entry {
+    key: "github.pr.checks.probe",
+    usage: "runseal @tool github pr checks probe <number> [--token <text>|--token-file <path>|--token-env <name>]",
+    about: Some(
+        "Probe the current repository PR head commit for check runs or commit statuses. Prints `true` or `false`; on API probe failure, prints `true` so wrapper flows do not incorrectly skip check watching.",
+    ),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--token <text>", "explicit GitHub token"),
+            (
+                "--token-file <path>",
+                "env-style file containing `GITHUB_TOKEN`",
+            ),
+            (
+                "--token-env <name>",
+                "read the token from one named environment variable; default fallback is `GITHUB_TOKEN`",
+            ),
+        ],
+    }],
+    examples: &["runseal @tool github pr checks probe 46 --token-env RUNSEAL_GITHUB_TOKEN"],
 };

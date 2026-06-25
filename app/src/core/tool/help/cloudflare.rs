@@ -266,6 +266,39 @@ pub const CLOUDFLARE_ZONE_DNS_RECORD: Entry = Entry {
     examples: &[],
 };
 
+pub const CLOUDFLARE_ZONE_DNS_RECORD_LIST: Entry = Entry {
+    key: "cloudflare.zone.dns-record.list",
+    usage: "runseal @tool cloudflare zone dns-record list --zone-id <id> [--name <name>]",
+    about: Some("Print DNS records in one zone as a JSON array."),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--zone-id <id>", "target zone identifier"),
+            ("--name <name>", "optional exact DNS record name filter"),
+        ],
+    }],
+    examples: &[
+        "runseal @tool cloudflare zone dns-record list --zone-id ZONE_ID",
+        "runseal @tool cloudflare zone dns-record list --zone-id ZONE_ID --name runseal.perish.uk",
+    ],
+};
+
+pub const CLOUDFLARE_ZONE_DNS_RECORD_CREATE: Entry = Entry {
+    key: "cloudflare.zone.dns-record.create",
+    usage: "runseal @tool cloudflare zone dns-record create --zone-id <id> --json <json>",
+    about: Some("Create one DNS record from the JSON payload and print the created record."),
+    sections: &[Section {
+        title: "Flags",
+        items: &[
+            ("--zone-id <id>", "target zone identifier"),
+            ("--json <json>", "Cloudflare DNS record payload"),
+        ],
+    }],
+    examples: &[
+        "runseal @tool cloudflare zone dns-record create --zone-id ZONE_ID --json '{\"type\":\"CNAME\",\"name\":\"runseal\",\"content\":\"example.com\",\"proxied\":true}'",
+    ],
+};
+
 pub const CLOUDFLARE_ZONE_DNS_RECORD_UPDATE: Entry = Entry {
     key: "cloudflare.zone.dns-record.update",
     usage: "runseal @tool cloudflare zone dns-record update --zone-id <id> --record-id <id> --json <json>",

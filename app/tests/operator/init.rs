@@ -44,6 +44,7 @@ fn write_required_files(project: &Path) {
     for path in [
         "Cargo.toml",
         "Cargo.lock",
+        "deno.lock",
         "flavor.toml",
         "manage.sh",
         "manage.ps1",
@@ -51,7 +52,17 @@ fn write_required_files(project: &Path) {
         ".runseal/deno.json",
         ".runseal/hooks/pre-commit",
         ".runseal/hooks/commit-msg",
-        ".runseal/lib/runseal.ts",
+        ".runseal/lib/cli.ts",
+        ".runseal/lib/hash.ts",
+        ".runseal/lib/std/cmd.ts",
+        ".runseal/lib/std/env.ts",
+        ".runseal/lib/std/fs.ts",
+        ".runseal/lib/std/io.ts",
+        ".runseal/lib/std/json.ts",
+        ".runseal/lib/std/path.ts",
+        ".runseal/lib/std/runseal.ts",
+        ".runseal/lib/version.ts",
+        ".runseal/templates/cloudflare.env",
         ".runseal/wrappers/cloudflare.ts",
         ".runseal/wrappers/guard.ts",
         ".runseal/wrappers/init.ts",
@@ -80,6 +91,12 @@ fn write_required_files(project: &Path) {
         std::fs::write(&file, "").expect("required file should be written");
     }
     std::fs::write(
+        project.join("deno.lock"),
+        std::fs::read_to_string(repo_root().join("deno.lock"))
+            .expect("repo deno lock should be readable"),
+    )
+    .expect("deno lock should be copied");
+    std::fs::write(
         project.join(".runseal/wrappers/init.ts"),
         std::fs::read_to_string(repo_root().join(".runseal/wrappers/init.ts"))
             .expect("repo init wrapper should be readable"),
@@ -92,11 +109,39 @@ fn write_required_files(project: &Path) {
     )
     .expect("guard wrapper should be copied");
     std::fs::write(
-        project.join(".runseal/lib/runseal.ts"),
-        std::fs::read_to_string(repo_root().join(".runseal/lib/runseal.ts"))
-            .expect("repo deno helper should be readable"),
+        project.join(".runseal/lib/cli.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/cli.ts"))
+            .expect("repo cli helper should be readable"),
     )
-    .expect("deno helper should be copied");
+    .expect("cli helper should be copied");
+    for path in [
+        ".runseal/lib/std/cmd.ts",
+        ".runseal/lib/std/env.ts",
+        ".runseal/lib/std/fs.ts",
+        ".runseal/lib/std/io.ts",
+        ".runseal/lib/std/json.ts",
+        ".runseal/lib/std/path.ts",
+        ".runseal/lib/std/runseal.ts",
+    ] {
+        std::fs::write(
+            project.join(path),
+            std::fs::read_to_string(repo_root().join(path))
+                .expect("repo std helper should be readable"),
+        )
+        .expect("std helper should be copied");
+    }
+    std::fs::write(
+        project.join(".runseal/lib/hash.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/hash.ts"))
+            .expect("repo hash helper should be readable"),
+    )
+    .expect("hash helper should be copied");
+    std::fs::write(
+        project.join(".runseal/lib/version.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/version.ts"))
+            .expect("repo version helper should be readable"),
+    )
+    .expect("version helper should be copied");
     std::fs::write(
         project.join(".runseal/deno.json"),
         std::fs::read_to_string(repo_root().join(".runseal/deno.json"))
@@ -115,6 +160,12 @@ fn write_required_files(project: &Path) {
             .expect("repo commit-msg hook should be readable"),
     )
     .expect("commit-msg hook should be copied");
+    std::fs::write(
+        project.join(".runseal/templates/cloudflare.env"),
+        std::fs::read_to_string(repo_root().join(".runseal/templates/cloudflare.env"))
+            .expect("repo cloudflare template should be readable"),
+    )
+    .expect("cloudflare template should be copied");
     std::fs::write(
         project.join("runseal.toml"),
         r#"
@@ -136,7 +187,7 @@ permissions = [
 fn write_stub(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
 
-    std::fs::write(path, "#!/usr/bin/env sh\nexit 0\n").expect("stub should be written");
+    std::fs::write(path, "#!/bin/sh\nexit 0\n").expect("stub should be written");
     let mut permissions = std::fs::metadata(path)
         .expect("stub metadata should be readable")
         .permissions();
@@ -190,6 +241,7 @@ fn init_installs_generated_hooks() {
     let pre_commit_text = std::fs::read_to_string(&pre_commit).expect("pre-commit should exist");
     let commit_msg_text = std::fs::read_to_string(&commit_msg).expect("commit-msg should exist");
     assert!(pre_commit_text.contains("runseal init hook"));
+    assert!(pre_commit_text.contains("refusing to commit directly on main"));
     assert!(pre_commit_text.contains("runseal :guard"));
     assert!(commit_msg_text.contains("runseal init hook"));
 }
@@ -229,4 +281,5 @@ fn force_backs_up_hook() {
     assert!(fx.project.join(".git/hooks/pre-commit.bak").is_file());
     let pre_commit_text = std::fs::read_to_string(&pre_commit).expect("pre-commit should exist");
     assert!(pre_commit_text.contains("runseal init hook"));
+    assert!(pre_commit_text.contains("refusing to commit directly on main"));
 }

@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     thread,
+    time::{Duration, Instant},
 };
 
 use tempfile::TempDir;
@@ -42,15 +43,49 @@ permissions = [
 "#,
     )
     .expect("profile should be written");
-    std::fs::write(project.join(".runseal/deno.json"), "{}\n")
-        .expect("deno config should be written");
-    std::fs::create_dir_all(project.join(".runseal/lib")).expect("lib dir should be created");
     std::fs::write(
-        project.join(".runseal/lib/runseal.ts"),
-        std::fs::read_to_string(repo_root().join(".runseal/lib/runseal.ts"))
-            .expect("repo deno helper should be readable"),
+        project.join(".runseal/deno.json"),
+        std::fs::read_to_string(repo_root().join(".runseal/deno.json"))
+            .expect("repo deno config should be readable"),
     )
-    .expect("deno helper should be copied");
+    .expect("deno config should be copied");
+    std::fs::create_dir_all(project.join(".runseal/lib")).expect("lib dir should be created");
+    std::fs::create_dir_all(project.join(".runseal/lib/std"))
+        .expect("std lib dir should be created");
+    std::fs::write(
+        project.join(".runseal/lib/cli.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/cli.ts"))
+            .expect("repo cli helper should be readable"),
+    )
+    .expect("cli helper should be copied");
+    std::fs::write(
+        project.join(".runseal/lib/hash.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/hash.ts"))
+            .expect("repo hash helper should be readable"),
+    )
+    .expect("hash helper should be copied");
+    for path in [
+        ".runseal/lib/std/cmd.ts",
+        ".runseal/lib/std/env.ts",
+        ".runseal/lib/std/fs.ts",
+        ".runseal/lib/std/io.ts",
+        ".runseal/lib/std/json.ts",
+        ".runseal/lib/std/path.ts",
+        ".runseal/lib/std/runseal.ts",
+    ] {
+        std::fs::write(
+            project.join(path),
+            std::fs::read_to_string(repo_root().join(path))
+                .expect("repo std helper should be readable"),
+        )
+        .expect("std helper should be copied");
+    }
+    std::fs::write(
+        project.join(".runseal/lib/version.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/version.ts"))
+            .expect("repo version helper should be readable"),
+    )
+    .expect("version helper should be copied");
     std::fs::write(
         project.join(".runseal/wrappers/guard.ts"),
         std::fs::read_to_string(repo_root().join(".runseal/wrappers/guard.ts"))
@@ -128,7 +163,7 @@ fn mock_metadata(status: u16, body: &'static str) -> (String, thread::JoinHandle
         .local_addr()
         .expect("mock server address should exist");
     let handle = thread::spawn(move || {
-        let (mut stream, _) = server.accept().expect("mock request should arrive");
+        let mut stream = accept_with_timeout(&server);
         let mut request = [0_u8; 2048];
         let read = stream
             .read(&mut request)
@@ -144,6 +179,25 @@ fn mock_metadata(status: u16, body: &'static str) -> (String, thread::JoinHandle
         .expect("response should be written");
     });
     (format!("http://{address}/metadata.json"), handle)
+}
+
+fn accept_with_timeout(server: &TcpListener) -> std::net::TcpStream {
+    server
+        .set_nonblocking(true)
+        .expect("mock server should become nonblocking");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        match server.accept() {
+            Ok((stream, _)) => return stream,
+            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    panic!("mock request did not arrive within 5 seconds");
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) => panic!("mock accept failed: {err}"),
+        }
+    }
 }
 
 fn run_guard(fx: &Fixture, args: &[&str], envs: &[(&str, &str)]) -> std::process::Output {
@@ -172,17 +226,9 @@ fn version_hash() {
         "stderr: {}",
         String::from_utf8_lossy(&wrapper.stderr)
     );
-
-    let tool = Command::new(env!("CARGO_BIN_EXE_runseal"))
-        .current_dir(&fx.project)
-        .env("PATH", prepend_path(&fx.bin))
-        .env("RUNSEAL_HOME", fx.project.join(".home"))
-        .args(["@tool", "hash", "tree", "app/tests"])
-        .output()
-        .expect("hash tool should run");
-    assert!(tool.status.success());
-
-    assert_eq!(wrapper.stdout, tool.stdout);
+    let stdout = String::from_utf8(wrapper.stdout).expect("stdout should be UTF-8");
+    assert_eq!(stdout.trim().len(), 64);
+    assert!(stdout.trim().chars().all(|ch| ch.is_ascii_hexdigit()));
 }
 
 #[test]

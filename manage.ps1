@@ -6,8 +6,11 @@ $remaining = if ($args.Length -gt 1) { $args[1..($args.Length - 1)] } else { @()
 $channel = if ($env:RUNSEAL_CHANNEL) { $env:RUNSEAL_CHANNEL } else { 'stable' }
 $version = if ($env:RUNSEAL_VERSION) { $env:RUNSEAL_VERSION } else { '' }
 $publicUrl = if ($env:RUNSEAL_RELEASES_PUBLIC_URL) { $env:RUNSEAL_RELEASES_PUBLIC_URL } else { 'https://releases.runseal.perish.uk' }
-$installRoot = if ($env:RUNSEAL_INSTALL_ROOT) { $env:RUNSEAL_INSTALL_ROOT } else { Join-Path $env:LOCALAPPDATA 'runseal' }
-$localBinDir = if ($env:RUNSEAL_LOCAL_BIN_DIR) { $env:RUNSEAL_LOCAL_BIN_DIR } else { Join-Path $env:USERPROFILE '.local\bin' }
+$defaultInstallBase = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } elseif ($env:HOME) { Join-Path $env:HOME '.local/share' } else { '.' }
+$defaultBinBase = if ($env:USERPROFILE) { $env:USERPROFILE } elseif ($env:HOME) { $env:HOME } else { '.' }
+$defaultBinLeaf = if ($env:USERPROFILE) { '.local\bin' } else { '.local/bin' }
+$installRoot = if ($env:RUNSEAL_INSTALL_ROOT) { $env:RUNSEAL_INSTALL_ROOT } else { Join-Path $defaultInstallBase 'runseal' }
+$localBinDir = if ($env:RUNSEAL_LOCAL_BIN_DIR) { $env:RUNSEAL_LOCAL_BIN_DIR } else { Join-Path $defaultBinBase $defaultBinLeaf }
 $retain = if ($env:RUNSEAL_RETAIN) { $env:RUNSEAL_RETAIN } else { '' }
 
 for ($i = 0; $i -lt $remaining.Length; $i++) {
@@ -32,6 +35,11 @@ runseal manager
 Usage:
   manage.ps1 install [--channel stable|beta] [--version vX.Y.Z] [--retain[=true|false]]
   manage.ps1 uninstall [--version vX.Y.Z]
+
+Options:
+  --public-url <url>     release metadata and artifact base URL
+  --install-root <path>  versioned install root
+  --bin-dir <path>       directory for the runseal executable
 
 Environment:
   RUNSEAL_RELEASES_PUBLIC_URL  # default: https://releases.runseal.perish.uk
@@ -184,6 +192,11 @@ runseal manager
 Usage:
   manage.ps1 install [--channel stable|beta] [--version vX.Y.Z] [--retain[=true|false]]
   manage.ps1 uninstall [--version vX.Y.Z]
+
+Options:
+  --public-url <url>     release metadata and artifact base URL
+  --install-root <path>  versioned install root
+  --bin-dir <path>       directory for the runseal executable
 
 Environment:
   RUNSEAL_RELEASES_PUBLIC_URL  # default: https://releases.runseal.perish.uk
