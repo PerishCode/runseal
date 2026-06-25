@@ -17,12 +17,30 @@ const blockedInheritedEnv = new Set([
   "LD_LIBRARY_PATH",
 ]);
 
-function commandEnv(extra: Record<string, string> | undefined): Record<string, string> {
+function hasBlockedInheritedEnv(): boolean {
+  for (const key of blockedInheritedEnv) {
+    if (Deno.env.get(key) !== undefined) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function sanitizedEnv(extra: Record<string, string> | undefined): Record<string, string> {
   const env = Deno.env.toObject();
   for (const key of blockedInheritedEnv) {
     delete env[key];
   }
   return { ...env, ...(extra ?? {}) };
+}
+
+function commandEnvOptions(
+  extra: Record<string, string> | undefined,
+): Pick<Deno.CommandOptions, "clearEnv" | "env"> {
+  if (hasBlockedInheritedEnv()) {
+    return { clearEnv: true, env: sanitizedEnv(extra) };
+  }
+  return extra === undefined ? {} : { env: extra };
 }
 
 export function print(value = ""): void {
@@ -58,8 +76,7 @@ export async function run(command: string, args: string[] = [], options: Command
   const status = await new Deno.Command(command, {
     args,
     cwd: options.cwd,
-    clearEnv: true,
-    env: commandEnv(options.env),
+    ...commandEnvOptions(options.env),
     stdin: options.stdin ?? "inherit",
     stdout: options.stdout ?? "inherit",
     stderr: options.stderr ?? "inherit",
@@ -77,8 +94,7 @@ export async function runText(
   const output = await new Deno.Command(command, {
     args,
     cwd: options.cwd,
-    clearEnv: true,
-    env: commandEnv(options.env),
+    ...commandEnvOptions(options.env),
     stdin: options.stdin ?? "null",
     stdout: "piped",
     stderr: options.stderr ?? "inherit",
@@ -98,8 +114,7 @@ export async function runInput(
   const child = new Deno.Command(command, {
     args,
     cwd: options.cwd,
-    clearEnv: true,
-    env: commandEnv(options.env),
+    ...commandEnvOptions(options.env),
     stdin: "piped",
     stdout: options.stdout ?? "piped",
     stderr: options.stderr ?? "inherit",
