@@ -98,19 +98,30 @@ local guides over repeating their detail here.
 
 Normal workflow:
 
-1. Work on a feature branch.
+1. Work on a dedicated feature branch for every substantive change.
 2. Keep changes scoped to the current product boundary.
-3. Validate locally before PR.
-4. Use repo wrappers for recurring operator flows when they already encode the
+3. Prefer `git commit` as the default validation trigger; the repo-installed
+   pre-commit hook runs `runseal :guard`.
+4. Use standalone lint, format, or test commands only for focused diagnosis or
+   repair after the repo guard reports a failure.
+5. Use repo wrappers for recurring operator flows when they already encode the
    intended path.
 
-Common validation commands:
+Branch safety:
+
+- The generated pre-commit hook rejects direct commits on `main`; create a
+  feature branch before committing.
+- Treat `--no-verify` as an explicit exception only. If used, record why in the
+  surrounding handoff or final note.
+
+Default validation path:
 
 ```bash
-cargo fmt --check
-cargo test --locked --workspace
-flavor check
+git commit
 ```
+
+Use `runseal :guard` only when an explicit manual guard run is needed before a
+commit or while diagnosing hook failures.
 
 Common repo workflow commands:
 

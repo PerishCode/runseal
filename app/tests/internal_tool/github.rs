@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     thread,
+    time::{Duration, Instant},
 };
 
 use tempfile::TempDir;
@@ -419,7 +420,7 @@ where
         .local_addr()
         .expect("mock server address should exist");
     let handle = thread::spawn(move || {
-        let (mut stream, _) = server.accept().expect("mock request should arrive");
+        let mut stream = accept_with_timeout(&server);
         let mut request = [0_u8; 8192];
         let read = stream
             .read(&mut request)
@@ -435,4 +436,23 @@ where
         .expect("response should be written");
     });
     (format!("http://{address}"), handle)
+}
+
+fn accept_with_timeout(server: &TcpListener) -> std::net::TcpStream {
+    server
+        .set_nonblocking(true)
+        .expect("mock server should become nonblocking");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        match server.accept() {
+            Ok((stream, _)) => return stream,
+            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    panic!("mock request did not arrive within 5 seconds");
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) => panic!("mock accept failed: {err}"),
+        }
+    }
 }

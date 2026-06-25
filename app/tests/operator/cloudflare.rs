@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     thread,
+    time::{Duration, Instant},
 };
 
 use tempfile::TempDir;
@@ -22,6 +23,10 @@ fn fixture() -> Fixture {
     std::fs::create_dir_all(project.join(".runseal/wrappers"))
         .expect("wrapper dir should be created");
     std::fs::create_dir_all(project.join(".runseal/lib")).expect("lib dir should be created");
+    std::fs::create_dir_all(project.join(".runseal/lib/std"))
+        .expect("std lib dir should be created");
+    std::fs::create_dir_all(project.join(".runseal/templates"))
+        .expect("template dir should be created");
     std::fs::write(
         project.join("runseal.toml"),
         r#"
@@ -47,20 +52,46 @@ RUNSEAL_REPO_TMP_DIR = "resource://tmp"
 "#,
     )
     .expect("profile should be written");
-    std::fs::write(project.join(".runseal/deno.json"), "{}\n")
-        .expect("deno config should be written");
     std::fs::write(
-        project.join(".runseal/lib/runseal.ts"),
-        std::fs::read_to_string(repo_root().join(".runseal/lib/runseal.ts"))
-            .expect("repo deno helper should be readable"),
+        project.join(".runseal/deno.json"),
+        std::fs::read_to_string(repo_root().join(".runseal/deno.json"))
+            .expect("repo deno config should be readable"),
     )
-    .expect("deno helper should be copied");
+    .expect("deno config should be copied");
+    std::fs::write(
+        project.join(".runseal/lib/cli.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/cli.ts"))
+            .expect("repo cli helper should be readable"),
+    )
+    .expect("cli helper should be copied");
+    for path in [
+        ".runseal/lib/std/cmd.ts",
+        ".runseal/lib/std/env.ts",
+        ".runseal/lib/std/fs.ts",
+        ".runseal/lib/std/io.ts",
+        ".runseal/lib/std/json.ts",
+        ".runseal/lib/std/path.ts",
+        ".runseal/lib/std/runseal.ts",
+    ] {
+        std::fs::write(
+            project.join(path),
+            std::fs::read_to_string(repo_root().join(path))
+                .expect("repo std helper should be readable"),
+        )
+        .expect("std helper should be copied");
+    }
     std::fs::write(
         project.join(".runseal/wrappers/cloudflare.ts"),
         std::fs::read_to_string(repo_root().join(".runseal/wrappers/cloudflare.ts"))
             .expect("repo cloudflare wrapper should be readable"),
     )
     .expect("cloudflare wrapper should be copied");
+    std::fs::write(
+        project.join(".runseal/templates/cloudflare.env"),
+        std::fs::read_to_string(repo_root().join(".runseal/templates/cloudflare.env"))
+            .expect("repo cloudflare template should be readable"),
+    )
+    .expect("cloudflare template should be copied");
     Fixture {
         _temp: temp,
         project,
@@ -158,7 +189,7 @@ where
         .local_addr()
         .expect("mock server address should exist");
     let handle = thread::spawn(move || {
-        let (mut stream, _) = server.accept().expect("mock request should arrive");
+        let mut stream = accept_with_timeout(&server);
         let mut request = [0_u8; 4096];
         let read = stream
             .read(&mut request)
@@ -174,6 +205,25 @@ where
         .expect("response should be written");
     });
     (format!("http://{address}"), handle)
+}
+
+fn accept_with_timeout(server: &TcpListener) -> std::net::TcpStream {
+    server
+        .set_nonblocking(true)
+        .expect("mock server should become nonblocking");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        match server.accept() {
+            Ok((stream, _)) => return stream,
+            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    panic!("mock request did not arrive within 5 seconds");
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) => panic!("mock accept failed: {err}"),
+        }
+    }
 }
 
 fn stdout(output: &std::process::Output) -> String {
@@ -415,7 +465,7 @@ fn api_passthrough_uses_tool() {
         .local_addr()
         .expect("mock server address should exist");
     let handle = thread::spawn(move || {
-        let (mut stream, _) = server.accept().expect("mock request should arrive");
+        let mut stream = accept_with_timeout(&server);
         let mut request = [0_u8; 2048];
         let read = stream
             .read(&mut request)

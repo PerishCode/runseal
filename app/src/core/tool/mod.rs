@@ -1,19 +1,8 @@
 use anyhow::{Result, bail};
 
-mod archive;
 mod cloudflare;
-mod fs;
-mod gitee;
 mod github;
-mod hash;
 mod help;
-mod int;
-mod json;
-mod process;
-mod regex;
-mod ssh;
-mod string;
-mod version;
 
 pub fn help() -> &'static str {
     help::top()
@@ -35,17 +24,6 @@ pub fn eval(args: &[String]) -> Result<Option<String>> {
         return Ok(Some(help));
     }
     match args {
-        [namespace, command, rest @ ..] if namespace == "json" => json::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "string" => string::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "regex" => regex::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "int" => int::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "process" => process::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "archive" => archive::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "fs" => fs::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "gitee" => gitee::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "hash" => hash::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "ssh" => ssh::eval(command, rest),
-        [namespace, command, rest @ ..] if namespace == "version" => version::eval(command, rest),
         [namespace, command, rest @ ..] if namespace == "github" => github::eval(command, rest),
         [namespace, command, rest @ ..] if namespace == "cloudflare" => {
             cloudflare::eval(command, rest)

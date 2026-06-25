@@ -1,19 +1,30 @@
-import { env, fail, jsonGet, print, run, runsealText, runText } from "../lib/runseal.ts";
+import { helpRequested, parseArgs, requireNoPositionals } from "@/lib/cli.ts";
+import { cmd } from "@/lib/std/cmd.ts";
+import { env } from "@/lib/std/env.ts";
+import { io } from "@/lib/std/io.ts";
+import { json } from "@/lib/std/json.ts";
+import { treeHash } from "@/lib/hash.ts";
+import { compareStableVersion, parseStableVersion } from "@/lib/version.ts";
 
 function usage(): void {
-  print("Usage: runseal :guard [version-check|version-hash]");
-  print("");
-  print("Run repository guard checks or one explicit version-policy helper.");
-  print("");
-  print("Commands:");
-  print("  version-check    validate version policy against stable metadata");
-  print("  version-hash     print the current guard.version.hash value");
+  io.print("Usage: runseal :guard [version-check|version-hash]");
+  io.print("");
+  io.print("Run repository guard checks or one explicit version-policy helper.");
+  io.print("");
+  io.print("Commands:");
+  io.print("  version-check    validate version policy against stable metadata");
+  io.print("  version-hash     print the current guard.version.hash value");
 }
 
 let mode = "full";
-const args = [...Deno.args];
-if (args.length > 0) {
-  const arg = args.shift()!;
+const args = parseArgs(Deno.args, { boolean: ["help", "h"] });
+if (helpRequested(args)) {
+  requireNoPositionals(args, "guard", { allowHelp: true });
+  usage();
+  Deno.exit(0);
+}
+if (args._.length > 0) {
+  const arg = args._.shift()!;
   switch (arg) {
     case "version-check":
       mode = "version-check";
@@ -21,111 +32,93 @@ if (args.length > 0) {
     case "version-hash":
       mode = "version-hash";
       break;
-    case "-h":
-    case "--help":
-    case "help":
-      usage();
-      Deno.exit(0);
     default:
-      fail(`guard: unknown command: ${arg}`);
+      io.fail(`guard: unknown command: ${arg}`);
   }
 }
-if (args.length > 0) {
-  fail("guard: unexpected arguments");
+if (args._.length > 0) {
+  io.fail("guard: unexpected arguments");
 }
 
 async function currentHash(): Promise<string> {
-  return await runsealText(["@tool", "hash", "tree", "app/tests"]);
+  return await treeHash(["app/tests"]);
 }
 
 async function versionPolicy(): Promise<void> {
-  const publicUrl = env("RUNSEAL_RELEASES_PUBLIC_URL", "https://releases.runseal.perish.uk");
-  const metadataUrl = env(
+  const publicUrl = env.get("RUNSEAL_RELEASES_PUBLIC_URL", "https://releases.runseal.perish.uk");
+  const metadataUrl = env.get(
     "RUNSEAL_STABLE_METADATA_URL",
     `${publicUrl}/stable/latest/metadata.json`,
   );
 
-  const cargoMetadata = await runText("cargo", ["metadata", "--no-deps", "--format-version", "1"]);
-  const currentVersion = await jsonGet(cargoMetadata, ".packages[0].version");
+  const cargoMetadata = await cmd.text("cargo", ["metadata", "--no-deps", "--format-version", "1"]);
+  const currentVersion = json.get(cargoMetadata, ".packages[0].version");
   const hash = await currentHash();
   const response = await fetch(`${metadataUrl}?version=${encodeURIComponent(currentVersion)}`);
   if (response.status === 404) {
-    print("guard version policy: no stable metadata; skipping");
+    io.print("guard version policy: no stable metadata; skipping");
     return;
   }
   if (response.status !== 200) {
-    fail(`guard version policy: failed to fetch stable metadata: HTTP ${response.status}`);
+    io.fail(`guard version policy: failed to fetch stable metadata: HTTP ${response.status}`);
   }
 
   const metadata = await response.text();
-  const hasPriorHash = await runsealText(["@tool", "json", "has", metadata, ".guard.version.hash"]);
-  const priorHash = hasPriorHash === "true" ? await jsonGet(metadata, ".guard.version.hash") : "";
+  const hasPriorHash = json.has(metadata, ".guard.version.hash");
+  const priorHash = hasPriorHash ? json.get(metadata, ".guard.version.hash") : "";
   if (priorHash === "") {
-    print("guard version policy: stable metadata has no guard.version.hash; skipping");
+    io.print("guard version policy: stable metadata has no guard.version.hash; skipping");
     return;
   }
 
-  const hasStableVersion = await runsealText(["@tool", "json", "has", metadata, ".stableVersion"]);
-  let priorVersion = hasStableVersion === "true" ? await jsonGet(metadata, ".stableVersion") : "";
+  const hasStableVersion = json.has(metadata, ".stableVersion");
+  let priorVersion = hasStableVersion ? json.get(metadata, ".stableVersion") : "";
   if (priorVersion === "") {
-    const hasReleaseVersion = await runsealText([
-      "@tool",
-      "json",
-      "has",
-      metadata,
-      ".releaseVersion",
-    ]);
-    if (hasReleaseVersion === "true") {
-      priorVersion = await jsonGet(metadata, ".releaseVersion");
+    const hasReleaseVersion = json.has(metadata, ".releaseVersion");
+    if (hasReleaseVersion) {
+      priorVersion = json.get(metadata, ".releaseVersion");
     }
   }
   if (priorVersion === "") {
-    fail("guard version policy: stable metadata is missing stableVersion/releaseVersion");
+    io.fail("guard version policy: stable metadata is missing stableVersion/releaseVersion");
   }
 
-  const currentOrder = await runsealText([
-    "@tool",
-    "version",
-    "compare",
-    currentVersion,
-    priorVersion,
-  ]);
-  const priorMajor = await runsealText(["@tool", "version", "part", priorVersion, "major"]);
-  const priorMinor = await runsealText(["@tool", "version", "part", priorVersion, "minor"]);
-  const currentMajor = await runsealText(["@tool", "version", "part", currentVersion, "major"]);
-  const currentMinor = await runsealText(["@tool", "version", "part", currentVersion, "minor"]);
-  const sameMinorLineage = currentMajor === priorMajor && currentMinor === priorMinor;
+  const currentOrder = compareStableVersion(currentVersion, priorVersion);
+  const priorParsed = parseStableVersion(priorVersion);
+  const currentParsed = parseStableVersion(currentVersion);
+  const sameMinorLineage = currentParsed.major === priorParsed.major &&
+    currentParsed.minor === priorParsed.minor;
 
   if (currentOrder === "lt") {
-    fail(`guard version policy: version regressed below prior stable ${priorVersion}`);
+    io.fail(`guard version policy: version regressed below prior stable ${priorVersion}`);
   }
   if (currentOrder === "eq") {
-    fail(`guard version policy: version matches prior stable ${priorVersion}`);
+    io.fail(`guard version policy: version matches prior stable ${priorVersion}`);
   }
 
   if (hash === priorHash) {
     if (!sameMinorLineage) {
-      fail(
+      io.fail(
         `guard version policy: unchanged guard.version.hash requires a patch-only bump above ${priorVersion}`,
       );
     }
-    print(
+    io.print(
       `guard version policy: hash unchanged -> patch bump ok (${priorVersion} -> ${currentVersion})`,
     );
   } else {
     if (sameMinorLineage) {
-      fail(
+      io.fail(
         `guard version policy: changed guard.version.hash requires a minor-or-higher bump above ${priorVersion}`,
       );
     }
-    print(
+    io.print(
       `guard version policy: hash changed -> minor-or-higher bump ok (${priorVersion} -> ${currentVersion})`,
     );
   }
 }
 
 if (mode === "version-hash") {
-  print(await currentHash());
+  io.print(await currentHash());
   Deno.exit(0);
 }
 
@@ -134,20 +127,28 @@ if (mode === "version-check") {
   Deno.exit(0);
 }
 
-print("==> cargo fmt");
-await run("cargo", ["fmt", "--all", "--check"]);
+io.print("==> cargo fmt");
+await cmd.run("cargo", ["fmt", "--all", "--check"]);
 
-print("==> cargo clippy");
-await run("cargo", ["clippy", "--locked", "--workspace", "--all-targets", "--", "-D", "warnings"]);
+io.print("==> cargo clippy");
+await cmd.run("cargo", [
+  "clippy",
+  "--locked",
+  "--workspace",
+  "--all-targets",
+  "--",
+  "-D",
+  "warnings",
+]);
 
-print("==> cargo test");
-await run("cargo", ["test", "--locked", "--workspace"]);
+io.print("==> cargo test");
+await cmd.run("cargo", ["test", "--locked", "--workspace"]);
 
-print("==> deno fmt");
-await run("deno", ["fmt", "--check", ".runseal"]);
+io.print("==> deno fmt");
+await cmd.run("deno", ["fmt", "--check", ".runseal"]);
 
-print("==> deno check");
-await run("deno", [
+io.print("==> deno check");
+await cmd.run("deno", [
   "check",
   "--config",
   ".runseal/deno.json",
@@ -161,10 +162,10 @@ await run("deno", [
   ".runseal/wrappers/release.ts",
 ]);
 
-print("==> flavor self-check");
-await run("flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
+io.print("==> flavor self-check");
+await cmd.run("flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
 
-print("==> shell syntax");
+io.print("==> shell syntax");
 for (
   const [command, script] of [
     ["sh", "manage.sh"],
@@ -179,34 +180,34 @@ for (
     ["sh", ".github/scripts/release/smoke/smoke.sh"],
   ]
 ) {
-  await run(command, ["-n", script]);
+  await cmd.run(command, ["-n", script]);
 }
 
-print("==> python syntax");
-await run("python3", ["-m", "py_compile", ".github/scripts/release/metadata/beta.py"]);
-await run("python3", ["-m", "py_compile", ".github/scripts/release/metadata/stable.py"]);
+io.print("==> python syntax");
+await cmd.run("python3", ["-m", "py_compile", ".github/scripts/release/metadata/beta.py"]);
+await cmd.run("python3", ["-m", "py_compile", ".github/scripts/release/metadata/stable.py"]);
 
-const hasPwsh = await runsealText(["@tool", "process", "exists", "pwsh"]);
-print("==> PowerShell syntax");
-if (hasPwsh === "true") {
-  await run("pwsh", [
+const hasPwsh = await cmd.exists("pwsh");
+io.print("==> PowerShell syntax");
+if (hasPwsh) {
+  await cmd.run("pwsh", [
     "-NoProfile",
     "-NonInteractive",
     "-Command",
     "[scriptblock]::Create((Get-Content -Raw 'manage.ps1')) | Out-Null",
   ]);
-  await run("pwsh", [
+  await cmd.run("pwsh", [
     "-NoProfile",
     "-NonInteractive",
     "-Command",
     "[scriptblock]::Create((Get-Content -Raw '.github/scripts/release/assets/package.ps1')) | Out-Null",
   ]);
-  await run("pwsh", [
+  await cmd.run("pwsh", [
     "-NoProfile",
     "-NonInteractive",
     "-Command",
     "[scriptblock]::Create((Get-Content -Raw '.github/scripts/release/smoke/smoke.ps1')) | Out-Null",
   ]);
 } else {
-  print("skip: pwsh not found");
+  io.print("skip: pwsh not found");
 }

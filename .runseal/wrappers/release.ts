@@ -1,4 +1,13 @@
-import { fail, jsonEmpty, jsonGet, print, run, runsealText, runText } from "../lib/runseal.ts";
+import {
+  booleanOption,
+  helpRequested,
+  parseArgs as parseCliArgs,
+  requireNoPositionals,
+  stringOption,
+} from "@/lib/cli.ts";
+import { cmd } from "@/lib/std/cmd.ts";
+import { io } from "@/lib/std/io.ts";
+import { json } from "@/lib/std/json.ts";
 
 type Options = {
   channel: string;
@@ -8,77 +17,45 @@ type Options = {
   dryRun: boolean;
 };
 
+function workflowForChannel(channel: string): string {
+  switch (channel) {
+    case "stable":
+      return "release-stable.yml";
+    case "beta":
+      return "release-beta.yml";
+    default:
+      return io.fail(`invalid choice: ${channel}`, 2);
+  }
+}
+
 function usage(): void {
-  print("Usage: runseal :release --channel=stable|beta [options]");
-  print("");
-  print("Trigger a release workflow.");
-  print("");
-  print("Options:");
-  print("  --channel <name>      release channel: stable or beta");
-  print("  --ref <ref>           git ref passed to the workflow (default: main)");
-  print("  --version <version>   optional workflow version_override");
-  print("  --watch              watch the triggered workflow run");
-  print("  --dry-run            print planned action without triggering a workflow");
+  io.print("Usage: runseal :release --channel=stable|beta [options]");
+  io.print("");
+  io.print("Trigger a release workflow.");
+  io.print("");
+  io.print("Options:");
+  io.print("  --channel <name>      release channel: stable or beta");
+  io.print("  --ref <ref>           git ref passed to the workflow (default: main)");
+  io.print("  --version <version>   optional workflow version_override");
+  io.print("  --watch              watch the triggered workflow run");
+  io.print("  --dry-run            print planned action without triggering a workflow");
 }
 
 function parseArgs(args: string[]): Options & { help: boolean; argc: number } {
-  const options = {
-    channel: "",
-    ref: "main",
-    version: "",
-    watch: false,
-    dryRun: false,
-    help: false,
+  const parsed = parseCliArgs(args, {
+    string: ["channel", "ref", "version"],
+    boolean: ["watch", "dry-run", "help", "h"],
+  });
+  requireNoPositionals(parsed, "release", { allowHelp: true });
+  return {
+    channel: stringOption(parsed, "channel"),
+    ref: stringOption(parsed, "ref", "main"),
+    version: stringOption(parsed, "version"),
+    watch: booleanOption(parsed, "watch"),
+    dryRun: booleanOption(parsed, "dry-run"),
+    help: helpRequested(parsed),
     argc: args.length,
   };
-  while (args.length > 0) {
-    const arg = args.shift()!;
-    if (arg === "--") {
-      break;
-    }
-    if (arg === "-h" || arg === "--help" || arg === "help") {
-      options.help = true;
-      continue;
-    }
-    if (arg === "--watch") {
-      options.watch = true;
-      continue;
-    }
-    if (arg === "--dry-run") {
-      options.dryRun = true;
-      continue;
-    }
-    for (
-      const [name, key] of [
-        ["--channel", "channel"],
-        ["--ref", "ref"],
-        ["--version", "version"],
-      ] as const
-    ) {
-      if (arg === name) {
-        const value = args.shift();
-        if (value === undefined) {
-          fail(`missing value for ${name}`);
-        }
-        options[key] = value;
-        continue;
-      }
-      const prefix = `${name}=`;
-      if (arg.startsWith(prefix)) {
-        options[key] = arg.slice(prefix.length);
-        continue;
-      }
-    }
-    if (
-      arg === "--channel" || arg.startsWith("--channel=") ||
-      arg === "--ref" || arg.startsWith("--ref=") ||
-      arg === "--version" || arg.startsWith("--version=")
-    ) {
-      continue;
-    }
-    fail(`unknown option: ${arg}`);
-  }
-  return options;
 }
 
 const options = parseArgs([...Deno.args]);
@@ -87,32 +64,22 @@ if (options.argc === 0 || options.help) {
   Deno.exit(0);
 }
 if (options.channel === "") {
-  fail("release: --channel is required");
+  io.fail("release: --channel is required");
 }
 
-let workflow: string;
-switch (options.channel) {
-  case "stable":
-    workflow = "release-stable.yml";
-    break;
-  case "beta":
-    workflow = "release-beta.yml";
-    break;
-  default:
-    fail(`invalid choice: ${options.channel}`, 2);
-}
+const workflow = workflowForChannel(options.channel);
 
 const dryRunCommand =
   `gh workflow run ${workflow} --ref ${options.ref} -f ref=${options.ref} -f version_override=${options.version}`;
 if (options.dryRun) {
-  print(dryRunCommand);
+  io.print(dryRunCommand);
   Deno.exit(0);
 }
 
-await run("gh", ["--version"]);
-await run("gh", ["auth", "status"]);
-const refSha = await runText("git", ["rev-parse", options.ref]);
-const triggerOutput = await runText("gh", [
+await cmd.run("gh", ["--version"]);
+await cmd.run("gh", ["auth", "status"]);
+const refSha = await cmd.text("git", ["rev-parse", options.ref]);
+const triggerOutput = await cmd.text("gh", [
   "workflow",
   "run",
   workflow,
@@ -124,23 +91,16 @@ const triggerOutput = await runText("gh", [
   `version_override=${options.version}`,
 ]);
 if (triggerOutput !== "") {
-  print(triggerOutput);
+  io.print(triggerOutput);
 }
-print(`triggered ${workflow} for ref ${options.ref}`);
+io.print(`triggered ${workflow} for ref ${options.ref}`);
 
 if (options.watch) {
-  let runId = await runsealText([
-    "@tool",
-    "regex",
-    "capture",
-    triggerOutput,
-    "/actions/runs/([0-9]+)",
-    "1",
-  ]);
+  let runId = triggerOutput.match(/\/actions\/runs\/([0-9]+)/)?.[1] ?? "";
   if (runId === "") {
     let raw = "[]";
     for (let attempt = 0; attempt < 6; attempt += 1) {
-      raw = await runText("gh", [
+      raw = await cmd.text("gh", [
         "run",
         "list",
         "--workflow",
@@ -156,15 +116,15 @@ if (options.watch) {
         "--json",
         "databaseId",
       ]);
-      if (!(await jsonEmpty(raw))) {
-        runId = await jsonGet(raw, ".[0].databaseId");
+      if (!json.empty(raw)) {
+        runId = json.get(raw, ".[0].databaseId");
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
   }
   if (runId === "") {
-    fail(`release: could not find a recent run for ${workflow} on ${options.ref}`);
+    io.fail(`release: could not find a recent run for ${workflow} on ${options.ref}`);
   }
-  await run("gh", ["run", "watch", runId, "--interval", "10"]);
+  await cmd.run("gh", ["run", "watch", runId, "--interval", "10"]);
 }

@@ -1,4 +1,14 @@
-import { fail, jsonEmpty, jsonGet, print, run, runsealText, runText } from "../lib/runseal.ts";
+import {
+  booleanOption,
+  helpRequested,
+  parseArgs as parseCliArgs,
+  requireNoPositionals,
+  stringOption,
+} from "@/lib/cli.ts";
+import { cmd } from "@/lib/std/cmd.ts";
+import { io } from "@/lib/std/io.ts";
+import { json } from "@/lib/std/json.ts";
+import { runseal } from "@/lib/std/runseal.ts";
 
 type Options = {
   base: string;
@@ -12,109 +22,54 @@ type Options = {
 };
 
 function usage(): void {
-  print("Usage: runseal :pr [options]");
-  print("");
-  print("Create or update, watch, and squash-merge the GitHub PR for the current branch.");
-  print("");
-  print("Options:");
-  print("  --base <branch>       PR base branch (default: main)");
-  print("  --title <title>       title when creating a new PR");
-  print("  --body-file <path>    body file when creating a new PR");
-  print("  --draft              create the PR as draft and require --no-merge");
-  print("  --no-watch           do not watch PR checks");
-  print("  --no-merge           do not squash-merge after checks");
-  print("  --no-push            do not push the current branch first");
-  print("  --dry-run            print planned actions without changing remote state");
+  io.print("Usage: runseal :pr [options]");
+  io.print("");
+  io.print("Create or update, watch, and squash-merge the GitHub PR for the current branch.");
+  io.print("");
+  io.print("Options:");
+  io.print("  --base <branch>       PR base branch (default: main)");
+  io.print("  --title <title>       title when creating a new PR");
+  io.print("  --body-file <path>    body file when creating a new PR");
+  io.print("  --draft              create the PR as draft and require --no-merge");
+  io.print("  --no-watch           do not watch PR checks");
+  io.print("  --no-merge           do not squash-merge after checks");
+  io.print("  --no-push            do not push the current branch first");
+  io.print("  --dry-run            print planned actions without changing remote state");
 }
 
 function parseArgs(args: string[]): Options & { help: boolean } {
-  const options = {
-    base: "main",
-    title: "",
-    bodyFile: "",
-    draft: false,
-    noWatch: false,
-    noMerge: false,
-    noPush: false,
-    dryRun: false,
-    help: false,
+  const parsed = parseCliArgs(args, {
+    string: ["base", "title", "body-file"],
+    boolean: ["draft", "no-watch", "no-merge", "no-push", "dry-run", "help", "h"],
+  });
+  requireNoPositionals(parsed, "pr", { allowHelp: true });
+  return {
+    base: stringOption(parsed, "base", "main"),
+    title: stringOption(parsed, "title"),
+    bodyFile: stringOption(parsed, "body-file"),
+    draft: booleanOption(parsed, "draft"),
+    noWatch: booleanOption(parsed, "no-watch"),
+    noMerge: booleanOption(parsed, "no-merge"),
+    noPush: booleanOption(parsed, "no-push"),
+    dryRun: booleanOption(parsed, "dry-run"),
+    help: helpRequested(parsed),
   };
-  while (args.length > 0) {
-    const arg = args.shift()!;
-    if (arg === "--") {
-      break;
-    }
-    if (arg === "-h" || arg === "--help" || arg === "help") {
-      options.help = true;
-      continue;
-    }
-    if (arg === "--draft") {
-      options.draft = true;
-      continue;
-    }
-    if (arg === "--no-watch") {
-      options.noWatch = true;
-      continue;
-    }
-    if (arg === "--no-merge") {
-      options.noMerge = true;
-      continue;
-    }
-    if (arg === "--no-push") {
-      options.noPush = true;
-      continue;
-    }
-    if (arg === "--dry-run") {
-      options.dryRun = true;
-      continue;
-    }
-    for (
-      const [name, key] of [
-        ["--base", "base"],
-        ["--title", "title"],
-        ["--body-file", "bodyFile"],
-      ] as const
-    ) {
-      if (arg === name) {
-        const value = args.shift();
-        if (value === undefined) {
-          fail(`missing value for ${name}`);
-        }
-        options[key] = value;
-        continue;
-      }
-      const prefix = `${name}=`;
-      if (arg.startsWith(prefix)) {
-        options[key] = arg.slice(prefix.length);
-        continue;
-      }
-    }
-    if (
-      arg === "--base" || arg.startsWith("--base=") ||
-      arg === "--title" || arg.startsWith("--title=") ||
-      arg === "--body-file" || arg.startsWith("--body-file=")
-    ) {
-      continue;
-    }
-    fail(`unknown option: ${arg}`);
-  }
-  return options;
 }
 
 function printDryRun(options: Options, branch: string): void {
-  print(`branch: ${branch}`);
-  print(`base: ${options.base}`);
-  print(`push: ${options.noPush ? "False" : "True"}`);
-  print("pr: create if missing, otherwise reuse existing");
+  io.print(`branch: ${branch}`);
+  io.print(`base: ${options.base}`);
+  io.print(`push: ${options.noPush ? "False" : "True"}`);
+  io.print("pr: create if missing, otherwise reuse existing");
   if (options.draft) {
-    print("draft: True");
-    print("ready: False");
+    io.print("draft: True");
+    io.print("ready: False");
   } else {
-    print("draft: False");
-    print("ready: True");
+    io.print("draft: False");
+    io.print("ready: True");
   }
-  print(`watch: ${options.noWatch ? "False" : "True"}`);
-  print(`squash_merge: ${options.noMerge ? "False" : "True"}`);
+  io.print(`watch: ${options.noWatch ? "False" : "True"}`);
+  io.print(`squash_merge: ${options.noMerge ? "False" : "True"}`);
 }
 
 async function createPr(options: Options, branch: string): Promise<void> {
@@ -131,13 +86,13 @@ async function createPr(options: Options, branch: string): Promise<void> {
   } else {
     args.push("--fill");
   }
-  await run("gh", args);
+  await cmd.run("gh", args);
 }
 
 async function watchChecks(number: string): Promise<void> {
   let checksSeen = false;
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    checksSeen = (await runsealText(["@tool", "github", "pr", "checks", "probe", number])) ===
+    checksSeen = (await runseal.text(["@tool", "github", "pr", "checks", "probe", number])) ===
       "true";
     if (checksSeen) {
       break;
@@ -145,9 +100,9 @@ async function watchChecks(number: string): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 5000));
   }
   if (!checksSeen) {
-    print(`no checks reported on PR #${number}; skipping watch`);
+    io.print(`no checks reported on PR #${number}; skipping watch`);
   } else {
-    await run("gh", ["pr", "checks", number, "--watch", "--interval", "10"]);
+    await cmd.run("gh", ["pr", "checks", number, "--watch", "--interval", "10"]);
   }
 }
 
@@ -157,19 +112,19 @@ if (options.help) {
   Deno.exit(0);
 }
 
-await run("git", ["--version"]);
-await run("gh", ["--version"]);
-await run("gh", ["auth", "status"]);
+await cmd.run("git", ["--version"]);
+await cmd.run("gh", ["--version"]);
+await cmd.run("gh", ["auth", "status"]);
 
-const branch = await runText("git", ["branch", "--show-current"]);
+const branch = await cmd.text("git", ["branch", "--show-current"]);
 if (branch === "") {
-  fail("pr: not on a branch");
+  io.fail("pr: not on a branch");
 }
 if (branch === options.base || branch === "main" || branch === "master") {
-  fail(`pr: refusing to open a PR from base branch: ${branch}`);
+  io.fail(`pr: refusing to open a PR from base branch: ${branch}`);
 }
 if (options.draft && !options.noMerge) {
-  fail("pr: --draft requires --no-merge");
+  io.fail("pr: --draft requires --no-merge");
 }
 
 if (options.dryRun) {
@@ -178,11 +133,11 @@ if (options.dryRun) {
 }
 
 if (!options.noPush) {
-  await run("git", ["push", "-u", "origin", branch]);
+  await cmd.run("git", ["push", "-u", "origin", branch]);
 }
 
 let created = false;
-let prRaw = await runText("gh", [
+let prRaw = await cmd.text("gh", [
   "pr",
   "list",
   "--head",
@@ -190,10 +145,10 @@ let prRaw = await runText("gh", [
   "--json",
   "number,title,state,url,isDraft",
 ]);
-if (await jsonEmpty(prRaw)) {
+if (json.empty(prRaw)) {
   await createPr(options, branch);
   created = true;
-  prRaw = await runText("gh", [
+  prRaw = await cmd.text("gh", [
     "pr",
     "list",
     "--head",
@@ -201,24 +156,24 @@ if (await jsonEmpty(prRaw)) {
     "--json",
     "number,title,state,url,isDraft",
   ]);
-  if (await jsonEmpty(prRaw)) {
-    fail(`pr: created PR for ${branch}, but could not find it afterward`);
+  if (json.empty(prRaw)) {
+    io.fail(`pr: created PR for ${branch}, but could not find it afterward`);
   }
 }
 
-const number = await jsonGet(prRaw, ".[0].number");
-const url = await jsonGet(prRaw, ".[0].url");
-const isDraft = await jsonGet(prRaw, ".[0].isDraft");
+const number = json.get(prRaw, ".[0].number");
+const url = json.get(prRaw, ".[0].url");
+const isDraft = json.get(prRaw, ".[0].isDraft");
 
 if (created) {
-  print(`created PR #${number}: ${url}`);
+  io.print(`created PR #${number}: ${url}`);
 } else {
-  print(`found PR #${number}: ${url}`);
+  io.print(`found PR #${number}: ${url}`);
 }
 
 if (isDraft === "true" && !options.draft) {
-  await run("gh", ["pr", "ready", number]);
-  print(`marked PR #${number} ready`);
+  await cmd.run("gh", ["pr", "ready", number]);
+  io.print(`marked PR #${number} ready`);
 }
 
 if (!options.noWatch) {
@@ -226,6 +181,6 @@ if (!options.noWatch) {
 }
 
 if (!options.noMerge) {
-  await run("gh", ["pr", "merge", number, "--squash", "--delete-branch"]);
-  print(`squash-merged PR #${number}`);
+  await cmd.run("gh", ["pr", "merge", number, "--squash", "--delete-branch"]);
+  io.print(`squash-merged PR #${number}`);
 }

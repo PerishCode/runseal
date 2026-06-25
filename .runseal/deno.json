@@ -1,4 +1,9 @@
 {
+  "imports": {
+    "@/lib/": "./lib/",
+    "@deno.land/": "https://deno.land/",
+    "@std/cli/parse-args": "jsr:@std/cli@1.0.30/parse-args"
+  },
   "compilerOptions": {
     "strict": true
   },

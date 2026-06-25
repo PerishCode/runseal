@@ -38,7 +38,7 @@ Run an external command or a named wrapper inside the profile:
 
 ```bash
 runseal bash -lc 'echo "$APP_SSH_CONFIG"'
-runseal :ssh host --run ./probe.sh
+runseal :deploy --dry-run
 ```
 
 ## Inspect What Runseal Sees
@@ -49,9 +49,8 @@ Runseal inspection commands are read-only and do not run profile injections:
 runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
-runseal @tool json get '{"releaseVersion":"v0.6.0"}' '.releaseVersion'
 runseal @wrappers
-runseal @which :ssh
+runseal @which :deploy
 ```
 
 These commands answer the first debugging questions: which profile was selected,
@@ -236,7 +235,7 @@ If the command token starts with `:`, runseal resolves it as a wrapper
 executable instead of a literal program name:
 
 ```bash
-runseal :ssh host --run ./probe.sh -- arg
+runseal :deploy --dry-run
 ```
 
 Wrapper lookup order is:
@@ -289,10 +288,11 @@ The wrapper still receives `RUNSEAL_WRAPPER_NAME`, `RUNSEAL_WRAPPER_FILE`,
 `RUNSEAL_PROFILE_PATH`, `RUNSEAL_HOME`, `RUNSEAL_PROFILE_HOME`, and
 `RUNSEAL_WRAPPER_PATH`.
 
-Keep reusable domain atoms in `@tool`, such as SSH config inspection, stdin
-script execution, path-list joining, branch slugging, GitHub/Gitee PR API
-calls, Cloudflare helpers, and encrypted local archive round trips. Use the
-wrapper to bind repo-local policy, defaults, and flow around those atoms.
+Keep reusable domain atoms in `@tool` only when they remain product-domain
+operations that are not better expressed in Deno wrapper code. The current
+built-in tool surface is intentionally small: GitHub helpers and Cloudflare
+helpers. Use wrappers to bind repo-local policy, defaults, and flow around those
+atoms.
 
 Prefer visible repo or local artifacts under `.runseal/` or `.local/` for
 multi-line config and payload text. The wrapper should usually validate
@@ -309,7 +309,7 @@ runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
 runseal @wrappers
-runseal @which :ssh
+runseal @which :deploy
 ```
 
 Runseal-owned commands do not run profile injections. Inspection commands are
@@ -321,9 +321,8 @@ read-only; `@tool` is the explicit atomic tool runtime.
 - `@resolve resource://...` prints resolved absolute resource paths, one per
   argument.
 - `@tool <namespace> <command> ...` runs an atomic runseal tool command. Cold
-  start supports JSON, string, regex, integer, process, filesystem, archive,
-  SSH config, GitHub, Gitee, and Cloudflare helpers. Run `runseal @tool --help`
-  for the complete tool index. Tools are reusable atoms: they may read generic
+  start supports GitHub and Cloudflare helpers. Run `runseal @tool --help` for
+  the complete tool index. Tools are reusable atoms: they may read generic
   defaults such as service tokens, but profile-specific paths and env names
   should be supplied by the calling wrapper.
 - `@wrappers` lists the effective wrappers visible to the current profile.
@@ -366,15 +365,15 @@ Initialize local development hooks:
 runseal :init
 ```
 
+Commit-driven validation is the default path:
+
 ```bash
-cargo fmt --check
-cargo test
+git commit
 ```
 
-Repo-local operator commands use runseal itself:
+The generated pre-commit hook runs `runseal :guard`. For explicit manual
+validation before committing or while diagnosing a failure:
 
 ```bash
-runseal :cloudflare manage-inspect
-runseal :pr --dry-run
-runseal :release --channel beta --dry-run
+runseal :guard
 ```

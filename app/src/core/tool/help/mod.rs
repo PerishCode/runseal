@@ -1,9 +1,5 @@
-mod basic;
 mod cloudflare;
 mod github;
-mod hash_version;
-mod json;
-mod ssh;
 
 #[derive(Clone, Copy)]
 pub struct Entry {
@@ -21,47 +17,6 @@ pub struct Section {
 }
 
 const ENTRIES: &[Entry] = &[
-    json::JSON,
-    json::JSON_GET,
-    json::JSON_HAS,
-    json::JSON_EMPTY,
-    json::JSON_LEN,
-    json::JSON_PRETTY,
-    json::JSON_PRETTY_VALUE,
-    json::JSON_PRETTY_STDIN,
-    json::JSON_PRETTY_FILE,
-    json::JSON_FIND,
-    json::JSON_FILTER,
-    hash_version::HASH,
-    hash_version::HASH_TREE,
-    basic::STRING,
-    basic::STRING_TRIM,
-    basic::STRING_JOIN,
-    basic::STRING_SLUG,
-    basic::REGEX,
-    basic::REGEX_CAPTURE,
-    basic::INT,
-    basic::INT_ADD,
-    basic::PROCESS,
-    basic::PROCESS_EXISTS,
-    basic::PROCESS_WRITE,
-    basic::ARCHIVE,
-    basic::ARCHIVE_LOCAL,
-    basic::ARCHIVE_LOCAL_EXPORT,
-    basic::ARCHIVE_LOCAL_IMPORT,
-    basic::FS,
-    basic::FS_LIST,
-    basic::GITEE,
-    basic::GITEE_REPO,
-    basic::GITEE_REPO_PARSE_ORIGIN,
-    basic::GITEE_PR,
-    basic::GITEE_PR_FIND,
-    basic::GITEE_PR_CREATE,
-    basic::GITEE_PR_PASS_GATES,
-    basic::GITEE_PR_MERGE,
-    hash_version::VERSION,
-    hash_version::VERSION_PART,
-    hash_version::VERSION_COMPARE,
     github::GITHUB,
     github::GITHUB_ISSUE,
     github::GITHUB_ISSUE_CREATE,
@@ -69,13 +24,6 @@ const ENTRIES: &[Entry] = &[
     github::GITHUB_ISSUE_COMMENT_CREATE,
     github::GITHUB_ISSUE_BODY,
     github::GITHUB_ISSUE_BODY_UPDATE,
-    ssh::SSH,
-    ssh::SSH_CONFIG,
-    ssh::SSH_CONFIG_HOST,
-    ssh::SSH_CONFIG_IDENTITIES,
-    ssh::SSH_SCRIPT,
-    ssh::SSH_SCRIPT_RUN,
-    ssh::SSH_SCRIPT_CAPTURE,
     cloudflare::CLOUDFLARE,
     cloudflare::CLOUDFLARE_CONFIG,
     cloudflare::CLOUDFLARE_CONFIG_GET,
@@ -109,17 +57,6 @@ Usage: runseal @tool <namespace> <command> [args]
 Run an atomic runseal tool command.
 
 Tools:
-  json ...                               JSON helpers
-  hash ...                               hash helpers
-  string ...                             string helpers
-  regex ...                              regex helpers
-  int ...                                integer helpers
-  process ...                            process helpers
-  archive ...                            archive helpers
-  fs ...                                 filesystem helpers
-  version ...                            version helpers
-  gitee ...                              gitee helpers
-  ssh ...                                ssh helpers
   github ...                             github helpers
   cloudflare ...                         cloudflare helpers
 "
