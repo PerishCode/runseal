@@ -47,7 +47,7 @@ runseal @tool github issue comment create \
 ```bash
 runseal @tool github issue create \
   --repo PerishCode/runseal \
-  --title "Document canonical Seal argv shapes" \
+  --title "Document Deno wrapper policy" \
   --body-file body.md
 ```
 

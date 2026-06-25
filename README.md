@@ -49,7 +49,6 @@ Runseal inspection commands are read-only and do not run profile injections:
 runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
-runseal @transpile --input-lang=seal --output-lang=bash ./operator.seal
 runseal @tool json get '{"releaseVersion":"v0.6.0"}' '.releaseVersion'
 runseal @wrappers
 runseal @which :ssh
@@ -77,13 +76,11 @@ Use `runseal profile` without `@` to run an external command named `profile`.
 
 ## Examples
 
-Repository-owned examples for canonical `.seal` and `@tool` shapes live under
-[docs/examples](./docs/examples/README.md).
+Repository-owned examples for canonical `@tool` and wrapper boundary shapes
+live under [docs/examples](./docs/examples/README.md).
 
-Start here when a wrapper shape feels "obvious in shell" but still needs the
-exact runseal form:
+Start here when an operator flow needs the exact runseal form:
 
-- [Seal `case` / argv parser shapes](./docs/examples/seal/case.md)
 - [GitHub tool examples](./docs/examples/tools/github.md)
 
 ## Fit
@@ -112,6 +109,7 @@ and internal command namespaces:
 - `symlink`: create symlinks for the command lifecycle, then clean them up.
 - `argv`: inject fixed arguments after a matching child command token.
 - `resource://...`: resolve profile-local resource paths inside env values.
+- `[deno]`: declare the repo-level Deno wrapper policy for `.ts` wrappers.
 
 ## Install
 
@@ -243,9 +241,9 @@ runseal :ssh host --run ./probe.sh -- arg
 
 Wrapper lookup order is:
 
-1. `<profile-dir>/.runseal/wrappers/<name>.seal`
+1. `<profile-dir>/.runseal/wrappers/<name>.ts`
 2. `<profile-dir>/.runseal/wrappers/<name>.sh`
-3. `$RUNSEAL_HOME/wrappers/<name>.seal`
+3. `$RUNSEAL_HOME/wrappers/<name>.ts`
 4. `$RUNSEAL_HOME/wrappers/<name>.sh`
 
 The profile directory is the directory containing `RUNSEAL_PROFILE_PATH`.
@@ -255,56 +253,51 @@ The child working directory is not changed. A resolved wrapper receives:
 - `RUNSEAL_WRAPPER_NAME`
 - `RUNSEAL_WRAPPER_FILE`
 
-Seal wrappers use the `.seal` suffix and are interpreted directly by runseal.
-On Unix, shell wrappers use the `.sh` suffix and must be executable.
-Extensionless files in `.runseal/wrappers` are not wrapper entrypoints; migrate
-legacy wrappers to `<name>.seal` or `<name>.sh`. On Windows, runseal also
-checks `.exe`, `.cmd`, and `.bat` when the wrapper name has no extension.
+Deno wrappers use the `.ts` suffix and are executed with `deno run` using the
+selected profile's `[deno]` policy. On Unix, shell wrappers use the `.sh`
+suffix and must be executable. Extensionless files in `.runseal/wrappers` are
+not wrapper entrypoints; migrate legacy wrappers to `<name>.ts` or `<name>.sh`.
+On Windows, runseal also checks `.exe`, `.cmd`, and `.bat` when the wrapper
+name has no extension.
 
-### Seal wrappers
+### Deno wrappers
 
-`.seal` files are bash-runnable wrapper glue. They are meant for
-cross-platform repository operations where the bash/PowerShell shared shape is
-clear. The boundary is syntax shape, not script size:
+Use `.ts` wrappers for structured cross-platform operations: argument parsing,
+JSON handling, HTTP, polling, and small control flow that would otherwise turn
+into an uncontrolled Python or shell dependency stack. Deno fits runseal when it
+is an explicit single-binary prerequisite with a repo-declared permission
+policy.
 
-- ordinary command execution, assignment, functions, `if`, `while`, `case`,
-  `shift`, `"$@"`, command success predicates such as
-  `if git checkout "$branch"; then`, and command-scoped env overlays such as
-  `KUBECONFIG="$kubeconfig" kubectl "$@"`
-- bash `[ ... ]` tests for ordinary predicates
-- explicit `runseal @tool ...` calls for atomic glue where bash and PowerShell
-  do not share a clean expression
+Declare the policy in the selected profile:
 
-Use `.seal` as the profile integration layer: it should pass caller-specific
-paths, env names, and defaults explicitly. Keep reusable domain atoms in
-`@tool`, such as SSH config inspection, stdin script execution, path-list
-joining, branch slugging, Gitee PR API calls, and encrypted local archive
-round trips. For example, a wrapper can expose `:ssh <host> --run <script>`
-while `runseal @tool ssh script run` owns the stdin, argv forwarding, and host
-config details.
-
-For example, a repo-local `:kube` wrapper can stay pure `.seal` by pushing file
-enumeration and path joining into atomic tools:
-
-```bash
-kube_dir=${PERISH_TOP_KUBE_DIR:?kube: missing PERISH_TOP_KUBE_DIR}
-configs=$(runseal @tool fs list "$kube_dir" --glob "*.yaml" --files --require-nonempty)
-kubeconfig=$(runseal @tool string join "$configs" --separator path)
-KUBECONFIG="$kubeconfig" kubectl "$@"
+```toml
+[deno]
+config = ".runseal/deno.json"
+lock = "deno.lock"
+permissions = [
+  "--allow-read=.",
+  "--allow-write=.",
+  "--allow-env",
+  "--allow-net",
+  "--allow-run=git,gh,runseal",
+]
 ```
+
+Runseal adds `--no-prompt`, then the configured `--config`, `--lock`
+`--frozen=true`, and permission flags before the wrapper file and caller args.
+The wrapper still receives `RUNSEAL_WRAPPER_NAME`, `RUNSEAL_WRAPPER_FILE`,
+`RUNSEAL_PROFILE_PATH`, `RUNSEAL_HOME`, `RUNSEAL_PROFILE_HOME`, and
+`RUNSEAL_WRAPPER_PATH`.
+
+Keep reusable domain atoms in `@tool`, such as SSH config inspection, stdin
+script execution, path-list joining, branch slugging, GitHub/Gitee PR API
+calls, Cloudflare helpers, and encrypted local archive round trips. Use the
+wrapper to bind repo-local policy, defaults, and flow around those atoms.
 
 Prefer visible repo or local artifacts under `.runseal/` or `.local/` for
 multi-line config and payload text. The wrapper should usually validate
 preconditions, choose files, assemble arguments, and invoke the operational
-flow, rather than build inline heredoc-style configuration.
-
-Runseal interprets `.seal` wrappers directly when called as `runseal :name`.
-Use `runseal @transpile --input-lang=seal --output-lang=bash <file>` or
-`--output-lang=powershell` to inspect generated targets.
-
-Seal is not intended to become a general scripting language. If a workflow
-wants richer parsing, data structures, or platform-specific behavior, move that
-part to Python, Ruby, JavaScript, etc. and call it from the wrapper.
+flow, rather than build large inline text blobs.
 
 ## Internal Commands
 
@@ -315,7 +308,6 @@ command instead of a literal program name:
 runseal @profile
 runseal @resources
 runseal @resolve resource:// resource://ssh/config
-runseal @transpile --input-lang=seal --output-lang=sealir ./operator.seal
 runseal @wrappers
 runseal @which :ssh
 ```
@@ -328,10 +320,6 @@ read-only; `@tool` is the explicit atomic tool runtime.
 - `@resources` prints the resolved resource root.
 - `@resolve resource://...` prints resolved absolute resource paths, one per
   argument.
-- `@transpile --input-lang=<lang> --output-lang=<lang> <source>` transpiles
-  explicit glue languages and prints the generated output. Cold start supports
-  `bash`, `seal`, `powershell`, and `sealir` inputs and outputs for the
-  currently recognized intersection.
 - `@tool <namespace> <command> ...` runs an atomic runseal tool command. Cold
   start supports JSON, string, regex, integer, process, filesystem, archive,
   SSH config, GitHub, Gitee, and Cloudflare helpers. Run `runseal @tool --help`

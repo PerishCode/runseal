@@ -29,6 +29,10 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Format
         if: runner.os != 'Windows'
         run: |

@@ -7,7 +7,6 @@ use runseal::core::app::AppState;
 use runseal::core::config::{CliInput, RawEnv, RuntimeConfig};
 use runseal::core::internal_help;
 use runseal::core::tool;
-use runseal::core::transpile;
 use runseal::run;
 
 #[derive(Debug, Parser)]
@@ -25,22 +24,19 @@ Runseal commands:
   @profile            print resolved runtime paths
   @resources          print the resolved resource root
   @resolve <uri>...   resolve resource:// paths
-  @transpile          transpile explicit input/output glue languages
   @tool               run an atomic runseal tool command
   @wrappers           list visible wrappers
   @which :<name>      print a wrapper path
 
-Seal wrappers:
-  .seal files are bash-runnable wrapper glue interpreted directly by runseal.
-  Use ordinary commands for shared behavior and runseal @tool for atomic glue
-  where bash and PowerShell do not share a clean expression.
-  Run runseal @transpile --help for Seal code-generation support.
+Deno wrappers:
+  .ts files are run with deno using the repo-level [deno] profile policy.
+  Use TypeScript for structured operations and runseal @tool for atomic glue.
 
 Profile discovery walks from the current directory upward for runseal.toml|yaml|yml|json,
 then falls back to $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json.
 
-Run runseal @profile --help, @resolve --help, @transpile --help, @tool --help,
-@wrappers --help, or @which --help for details.
+Run runseal @profile --help, @resolve --help, @tool --help, @wrappers --help,
+or @which --help for details.
 
 Repository: https://github.com/PerishCode/runseal"
 )]
@@ -90,12 +86,6 @@ fn build_runtime_config(cli: Cli) -> Result<RuntimeConfig> {
 
 fn run_early_internal(command: &[String]) -> Result<bool> {
     match command.first().map(String::as_str) {
-        Some("@transpile") => {
-            let options = transpile::parse_args(&command[1..])?;
-            let output = transpile::transpile_file(&options)?;
-            print!("{output}");
-            Ok(true)
-        }
         Some("@tool") => {
             tool::run(&command[1..])?;
             Ok(true)

@@ -1,7 +1,5 @@
 #[path = "operator/cloudflare.rs"]
 mod cloudflare;
-#[path = "operator/estate.rs"]
-mod estate;
 #[path = "operator/guard.rs"]
 mod guard;
 #[path = "operator/init.rs"]

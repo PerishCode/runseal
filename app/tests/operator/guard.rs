@@ -2,8 +2,11 @@
 
 use std::{
     ffi::OsString,
+    io::{Read, Write},
+    net::TcpListener,
     path::{Path, PathBuf},
     process::Command,
+    thread,
 };
 
 use tempfile::TempDir;
@@ -23,14 +26,37 @@ fn fixture() -> Fixture {
     std::fs::create_dir_all(project.join("app/tests")).expect("app tests dir should be created");
     std::fs::create_dir_all(&bin).expect("bin dir should be created");
 
-    std::fs::write(project.join("runseal.toml"), "injections = []\n")
-        .expect("profile should be written");
     std::fs::write(
-        project.join(".runseal/wrappers/guard.seal"),
-        std::fs::read_to_string(repo_root().join(".runseal/wrappers/guard.seal"))
-            .expect("repo guard seal should be readable"),
+        project.join("runseal.toml"),
+        r#"
+injections = []
+
+[deno]
+config = ".runseal/deno.json"
+permissions = [
+  "--allow-read=.",
+  "--allow-env",
+  "--allow-net=127.0.0.1",
+  "--allow-run=git,cargo,runseal",
+]
+"#,
     )
-    .expect("guard seal should be copied");
+    .expect("profile should be written");
+    std::fs::write(project.join(".runseal/deno.json"), "{}\n")
+        .expect("deno config should be written");
+    std::fs::create_dir_all(project.join(".runseal/lib")).expect("lib dir should be created");
+    std::fs::write(
+        project.join(".runseal/lib/runseal.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/runseal.ts"))
+            .expect("repo deno helper should be readable"),
+    )
+    .expect("deno helper should be copied");
+    std::fs::write(
+        project.join(".runseal/wrappers/guard.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/wrappers/guard.ts"))
+            .expect("repo guard wrapper should be readable"),
+    )
+    .expect("guard wrapper should be copied");
     std::fs::write(project.join("app/tests/sample.txt"), "sample\n")
         .expect("sample test file should be written");
 
@@ -60,42 +86,6 @@ fi
 exit 0
 "#,
     );
-    write_executable(
-        &bin.join("curl"),
-        r#"#!/usr/bin/env sh
-set -eu
-out=""
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    -o)
-      out="$2"
-      shift 2
-      ;;
-    -w)
-      shift 2
-      ;;
-    -s|-S)
-      shift
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-if [ -n "${RUNSEAL_TEST_CURL_BODY:-}" ] && [ -n "$out" ]; then
-  printf '%s' "$RUNSEAL_TEST_CURL_BODY" > "$out"
-fi
-printf '%s' "${RUNSEAL_TEST_CURL_STATUS:-404}"
-"#,
-    );
-    write_executable(
-        &bin.join("cat"),
-        r#"#!/usr/bin/env sh
-set -eu
-/bin/cat "$@"
-"#,
-    );
-
     Fixture {
         _temp: temp,
         project,
@@ -130,6 +120,30 @@ fn prepend_path(first: &Path) -> OsString {
         paths.extend(std::env::split_paths(&existing));
     }
     std::env::join_paths(paths).expect("PATH should be joinable")
+}
+
+fn mock_metadata(status: u16, body: &'static str) -> (String, thread::JoinHandle<()>) {
+    let server = TcpListener::bind("127.0.0.1:0").expect("mock server should bind");
+    let address = server
+        .local_addr()
+        .expect("mock server address should exist");
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = server.accept().expect("mock request should arrive");
+        let mut request = [0_u8; 2048];
+        let read = stream
+            .read(&mut request)
+            .expect("request should be readable");
+        let request = String::from_utf8_lossy(&request[..read]);
+        assert!(request.starts_with("GET /metadata.json?version="));
+        write!(
+            stream,
+            "HTTP/1.1 {status} OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        )
+        .expect("response should be written");
+    });
+    (format!("http://{address}/metadata.json"), handle)
 }
 
 fn run_guard(fx: &Fixture, args: &[&str], envs: &[(&str, &str)]) -> std::process::Output {
@@ -174,13 +188,15 @@ fn version_hash() {
 #[test]
 fn skip_no_stable() {
     let fx = fixture();
+    let (metadata_url, handle) = mock_metadata(404, "");
 
     let output = run_guard(
         &fx,
         &["version-check"],
-        &[("RUNSEAL_TEST_CURL_STATUS", "404")],
+        &[("RUNSEAL_STABLE_METADATA_URL", metadata_url.as_str())],
     );
 
+    handle.join().expect("mock server should finish");
     assert!(
         output.status.success(),
         "stderr: {}",
@@ -195,6 +211,10 @@ fn skip_no_stable() {
 #[test]
 fn reject_hash_change_patch() {
     let fx = fixture();
+    let (metadata_url, handle) = mock_metadata(
+        200,
+        r#"{"stableVersion":"0.6.0","guard":{"version":{"hash":"different"}}}"#,
+    );
 
     let output = run_guard(
         &fx,
@@ -204,14 +224,11 @@ fn reject_hash_change_patch() {
                 "RUNSEAL_TEST_CARGO_METADATA",
                 r#"{"packages":[{"version":"0.6.1"}]}"#,
             ),
-            ("RUNSEAL_TEST_CURL_STATUS", "200"),
-            (
-                "RUNSEAL_TEST_CURL_BODY",
-                r#"{"stableVersion":"0.6.0","guard":{"version":{"hash":"different"}}}"#,
-            ),
+            ("RUNSEAL_STABLE_METADATA_URL", metadata_url.as_str()),
         ],
     );
 
+    handle.join().expect("mock server should finish");
     assert!(!output.status.success());
     assert!(
         String::from_utf8_lossy(&output.stderr)

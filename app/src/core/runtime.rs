@@ -6,8 +6,8 @@ use super::app::AppContext;
 use super::config::RuntimeConfig;
 use super::env_key::is_valid_env_key;
 use super::internal_help;
-use super::profile::InjectionProfile;
-use super::{injections, profile, transpile};
+use super::profile::{DenoProfile, InjectionProfile, Profile};
+use super::{injections, profile};
 
 mod wrapper_paths;
 
@@ -42,15 +42,16 @@ pub fn run(app: &dyn AppContext) -> Result<RunResult> {
     }
 
     let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
-    let command = resolve_command(config, &profile.injections)?;
-    let run_result = injections::with_registered_exports(app, profile.injections, |exports| {
-        let env = to_env_map(exports.to_vec())?;
-        let run_exports: Vec<(String, String)> = env.into_iter().collect();
-        let code = run_command(config, &command, &run_exports)?;
-        Ok(RunResult {
-            exit_code: Some(code),
-        })
-    })?;
+    let command = resolve_command(config, &profile)?;
+    let run_result =
+        injections::with_registered_exports(app, profile.injections.clone(), |exports| {
+            let env = to_env_map(exports.to_vec())?;
+            let run_exports: Vec<(String, String)> = env.into_iter().collect();
+            let code = run_command(config, &profile, &command, &run_exports)?;
+            Ok(RunResult {
+                exit_code: Some(code),
+            })
+        })?;
     Ok(run_result)
 }
 
@@ -64,10 +65,7 @@ fn resolve_internal_dispatch(config: &RuntimeConfig) -> Result<Option<InternalCo
     Ok(Some(resolve_internal_command(&name, &config.command[1..])?))
 }
 
-fn resolve_command(
-    config: &RuntimeConfig,
-    injections: &[InjectionProfile],
-) -> Result<ResolvedCommand> {
+fn resolve_command(config: &RuntimeConfig, profile: &Profile) -> Result<ResolvedCommand> {
     if config.command.is_empty() {
         bail!("command mode requires at least one command token");
     }
@@ -83,7 +81,7 @@ fn resolve_command(
     }
 
     Ok(ResolvedCommand {
-        argv: apply_argv_injections(&config.command, injections)?,
+        argv: apply_argv_injections(&config.command, &profile.injections)?,
         wrapper: None,
     })
 }
@@ -273,6 +271,7 @@ fn to_env_map(exports: Vec<(String, String)>) -> Result<BTreeMap<String, String>
 
 fn run_command(
     config: &RuntimeConfig,
+    profile: &Profile,
     resolved: &ResolvedCommand,
     exports: &[(String, String)],
 ) -> Result<i32> {
@@ -281,10 +280,9 @@ fn run_command(
         bail!("command mode requires at least one command token");
     }
     if let Some(wrapper) = &resolved.wrapper
-        && wrapper_paths::is_seal(&wrapper.file)
+        && wrapper_paths::is_deno(&wrapper.file)
     {
-        let env = run_env(config, resolved, exports)?;
-        return transpile::run_seal_file(&wrapper.file, &resolved.argv[1..], &env);
+        return run_deno_wrapper(config, profile.deno.as_ref(), resolved, exports);
     }
 
     let mut child = child_command(resolved);
@@ -292,6 +290,42 @@ fn run_command(
     child.env_remove("RUNSEAL_WRAPPER_FILE");
     child.envs(run_env(config, resolved, exports)?);
 
+    wait_for_child(child)
+}
+
+fn run_deno_wrapper(
+    config: &RuntimeConfig,
+    deno: Option<&DenoProfile>,
+    resolved: &ResolvedCommand,
+    exports: &[(String, String)],
+) -> Result<i32> {
+    let deno =
+        deno.ok_or_else(|| anyhow::anyhow!("deno wrapper requires a [deno] profile policy"))?;
+    let wrapper = resolved
+        .wrapper
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("deno wrapper execution requires a resolved wrapper"))?;
+    let mut child = Command::new("deno");
+    child.arg("run").arg("--no-prompt");
+    if let Some(config) = &deno.config {
+        child.arg("--config").arg(config);
+    }
+    if let Some(lock) = &deno.lock {
+        child.arg("--lock").arg(lock);
+        child.arg("--frozen=true");
+    }
+    child.args(&deno.permissions);
+    child.arg(&wrapper.file);
+    if resolved.argv.len() > 1 {
+        child.args(&resolved.argv[1..]);
+    }
+    child.env_remove("RUNSEAL_WRAPPER_NAME");
+    child.env_remove("RUNSEAL_WRAPPER_FILE");
+    child.envs(run_env(config, resolved, exports)?);
+    wait_for_child(child).context("failed to execute deno wrapper")
+}
+
+fn wait_for_child(mut child: Command) -> Result<i32> {
     let status = child.status().context("failed to execute child command")?;
     if let Some(code) = status.code() {
         return Ok(code);

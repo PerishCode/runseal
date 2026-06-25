@@ -48,19 +48,29 @@ fn write_required_files(project: &Path) {
         "manage.sh",
         "manage.ps1",
         "runseal.toml",
+        ".runseal/deno.json",
         ".runseal/hooks/pre-commit",
         ".runseal/hooks/commit-msg",
-        ".runseal/wrappers/cloudflare.seal",
-        ".runseal/wrappers/guard.seal",
-        ".runseal/wrappers/init.seal",
-        ".runseal/wrappers/pr.seal",
-        ".runseal/wrappers/release.seal",
+        ".runseal/lib/runseal.ts",
+        ".runseal/wrappers/cloudflare.ts",
+        ".runseal/wrappers/guard.ts",
+        ".runseal/wrappers/init.ts",
+        ".runseal/wrappers/pr.ts",
+        ".runseal/wrappers/release.ts",
         ".github/workflows/guard.yml",
         ".github/workflows/release-beta.yml",
         ".github/workflows/release-stable.yml",
+        ".github/scripts/release/assets/checksums.sh",
         ".github/scripts/release/assets/package.sh",
         ".github/scripts/release/assets/package.ps1",
+        ".github/scripts/release/assets/verify.sh",
+        ".github/scripts/release/github/cleanup-artifacts.sh",
+        ".github/scripts/release/metadata/beta.py",
+        ".github/scripts/release/metadata/stable.py",
+        ".github/scripts/release/r2/check.sh",
         ".github/scripts/release/r2/publish.sh",
+        ".github/scripts/release/r2/summary.sh",
+        ".github/scripts/release/r2/verify.sh",
         ".github/scripts/release/smoke/smoke.sh",
         ".github/scripts/release/smoke/smoke.ps1",
     ] {
@@ -70,17 +80,29 @@ fn write_required_files(project: &Path) {
         std::fs::write(&file, "").expect("required file should be written");
     }
     std::fs::write(
-        project.join(".runseal/wrappers/init.seal"),
-        std::fs::read_to_string(repo_root().join(".runseal/wrappers/init.seal"))
-            .expect("repo init seal should be readable"),
+        project.join(".runseal/wrappers/init.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/wrappers/init.ts"))
+            .expect("repo init wrapper should be readable"),
     )
-    .expect("init seal should be copied");
+    .expect("init wrapper should be copied");
     std::fs::write(
-        project.join(".runseal/wrappers/guard.seal"),
-        std::fs::read_to_string(repo_root().join(".runseal/wrappers/guard.seal"))
-            .expect("repo guard seal should be readable"),
+        project.join(".runseal/wrappers/guard.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/wrappers/guard.ts"))
+            .expect("repo guard wrapper should be readable"),
     )
-    .expect("guard seal should be copied");
+    .expect("guard wrapper should be copied");
+    std::fs::write(
+        project.join(".runseal/lib/runseal.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/runseal.ts"))
+            .expect("repo deno helper should be readable"),
+    )
+    .expect("deno helper should be copied");
+    std::fs::write(
+        project.join(".runseal/deno.json"),
+        std::fs::read_to_string(repo_root().join(".runseal/deno.json"))
+            .expect("repo deno config should be readable"),
+    )
+    .expect("deno config should be copied");
     std::fs::write(
         project.join(".runseal/hooks/pre-commit"),
         std::fs::read_to_string(repo_root().join(".runseal/hooks/pre-commit"))
@@ -93,8 +115,22 @@ fn write_required_files(project: &Path) {
             .expect("repo commit-msg hook should be readable"),
     )
     .expect("commit-msg hook should be copied");
-    std::fs::write(project.join("runseal.toml"), "injections = []\n")
-        .expect("profile should be written");
+    std::fs::write(
+        project.join("runseal.toml"),
+        r#"
+injections = []
+
+[deno]
+config = ".runseal/deno.json"
+permissions = [
+  "--allow-read=.",
+  "--allow-write=.",
+  "--allow-env",
+  "--allow-run=git,deno,python3,cargo,runseal,flavor,sh,bash,sed,grep",
+]
+"#,
+    )
+    .expect("profile should be written");
 }
 
 fn write_stub(path: &Path) {

@@ -1,4 +1,7 @@
+#![cfg(unix)]
+
 use std::{
+    ffi::OsString,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -9,46 +12,39 @@ fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_runseal"))
 }
 
-#[cfg(unix)]
-fn wrapper_file(dir: &Path, name: &str) -> PathBuf {
+fn shell_wrapper_file(dir: &Path, name: &str) -> PathBuf {
     dir.join(format!("{name}.sh"))
 }
 
-#[cfg(windows)]
-fn wrapper_file(dir: &Path, name: &str) -> PathBuf {
-    dir.join(format!("{name}.cmd"))
+fn ts_wrapper_file(dir: &Path, name: &str) -> PathBuf {
+    dir.join(format!("{name}.ts"))
 }
 
-#[cfg(unix)]
-fn make_wrapper(path: &Path, label: &str) {
+fn make_shell_wrapper(path: &Path, label: &str) {
+    write_executable(path, &format!("#!/usr/bin/env sh\nprintf '{}\\n'\n", label));
+}
+
+fn make_ts_wrapper(path: &Path) {
+    std::fs::write(path, "console.log(Deno.args.join('|'));\n")
+        .expect("ts wrapper should be written");
+}
+
+fn write_executable(path: &Path, content: &str) {
     use std::os::unix::fs::PermissionsExt;
 
-    std::fs::write(path, format!("#!/usr/bin/env sh\nprintf '{}'\n", label))
-        .expect("wrapper should be written");
+    std::fs::write(path, content).expect("executable should be written");
     let mut permissions = std::fs::metadata(path)
-        .expect("wrapper metadata should be readable")
+        .expect("executable metadata should be readable")
         .permissions();
     permissions.set_mode(0o755);
-    std::fs::set_permissions(path, permissions).expect("wrapper should be executable");
-}
-
-#[cfg(windows)]
-fn make_wrapper(path: &Path, label: &str) {
-    std::fs::write(
-        path,
-        format!("@echo off\r\n<nul set /p=\"{}\"\r\nexit /b 0\r\n", label),
-    )
-    .expect("wrapper should be written");
-}
-
-fn make_seal_wrapper(path: &Path, source: &str) {
-    std::fs::write(path, source).expect("seal wrapper should be written");
+    std::fs::set_permissions(path, permissions).expect("executable should be executable");
 }
 
 struct Fixture {
     _temp: TempDir,
     project: PathBuf,
     home: PathBuf,
+    bin: PathBuf,
     project_wrappers: PathBuf,
     home_wrappers: PathBuf,
 }
@@ -57,19 +53,35 @@ fn fixture() -> Fixture {
     let temp = TempDir::new().expect("temp dir should be created");
     let project = temp.path().join("project");
     let home = temp.path().join("home");
+    let bin = temp.path().join("bin");
     let project_wrappers = project.join(".runseal").join("wrappers");
     let home_wrappers = home.join("wrappers");
+    std::fs::create_dir_all(project.join(".runseal")).expect("project .runseal should exist");
     std::fs::create_dir_all(&project_wrappers).expect("project wrappers should be created");
     std::fs::create_dir_all(&home_wrappers).expect("home wrappers should be created");
+    std::fs::create_dir_all(&bin).expect("stub bin should be created");
+    std::fs::write(project.join(".runseal/deno.json"), "{}\n")
+        .expect("deno config should be written");
     std::fs::write(
         project.join("runseal.toml"),
-        "injections = []\n[resources]\nroot = \".resource\"\n",
+        r#"
+injections = []
+
+[resources]
+root = ".resource"
+
+[deno]
+config = ".runseal/deno.json"
+lock = "deno.lock"
+permissions = ["--allow-env"]
+"#,
     )
     .expect("profile should be written");
     Fixture {
         _temp: temp,
         project,
         home,
+        bin,
         project_wrappers,
         home_wrappers,
     }
@@ -79,9 +91,18 @@ fn run_in(fx: &Fixture, args: &[&str]) -> std::process::Output {
     bin()
         .current_dir(&fx.project)
         .env("RUNSEAL_HOME", &fx.home)
+        .env("PATH", prepend_path(&fx.bin))
         .args(args)
         .output()
         .expect("runseal should run")
+}
+
+fn prepend_path(first: &Path) -> OsString {
+    let mut paths = vec![first.to_path_buf()];
+    if let Some(existing) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&existing));
+    }
+    std::env::join_paths(paths).expect("PATH should be joinable")
 }
 
 fn path_suffix(path: &Path, count: usize) -> PathBuf {
@@ -103,12 +124,27 @@ fn assert_path_ends_with(actual: &str, expected: &Path) {
     );
 }
 
+fn install_fake_deno(fx: &Fixture) -> PathBuf {
+    let log = fx.project.join("deno.log");
+    write_executable(
+        &fx.bin.join("deno"),
+        r#"#!/usr/bin/env sh
+set -eu
+printf 'deno %s\n' "$*" >> "${RUNSEAL_TEST_DENO_LOG:?}"
+printf 'name=%s\n' "${RUNSEAL_WRAPPER_NAME:-}"
+printf 'file=%s\n' "${RUNSEAL_WRAPPER_FILE:-}"
+printf 'args=%s\n' "$*"
+"#,
+    );
+    log
+}
+
 #[test]
 fn wrappers_show_effective() {
     let fx = fixture();
-    make_wrapper(&wrapper_file(&fx.project_wrappers, "wrap"), "project");
-    make_wrapper(&wrapper_file(&fx.home_wrappers, "wrap"), "home");
-    make_wrapper(&wrapper_file(&fx.home_wrappers, "home-only"), "home");
+    make_ts_wrapper(&ts_wrapper_file(&fx.project_wrappers, "wrap"));
+    make_shell_wrapper(&shell_wrapper_file(&fx.home_wrappers, "wrap"), "home");
+    make_ts_wrapper(&ts_wrapper_file(&fx.home_wrappers, "home-only"));
 
     let output = run_in(&fx, &["@wrappers"]);
 
@@ -128,262 +164,136 @@ fn wrappers_show_effective() {
         .expect("wrap line should include a file");
     assert!(wrap_line.contains("profile"));
     assert!(
-        std::path::Path::new(wrap_file)
-            .ends_with(path_suffix(&wrapper_file(&fx.project_wrappers, "wrap"), 4)),
+        Path::new(wrap_file).ends_with(path_suffix(
+            &ts_wrapper_file(&fx.project_wrappers, "wrap"),
+            4
+        )),
         "expected {wrap_file} to point at the profile wrapper"
     );
 }
 
 #[test]
-fn seal_wrapper_resolves() {
+fn ts_wrapper_resolves() {
     let fx = fixture();
-    let wrapper = fx.project_wrappers.join("seal-tool.seal");
-    make_seal_wrapper(&wrapper, "print seal\n");
+    let wrapper = ts_wrapper_file(&fx.project_wrappers, "tool");
+    make_ts_wrapper(&wrapper);
 
-    let which = run_in(&fx, &["@which", ":seal-tool"]);
+    let which = run_in(&fx, &["@which", ":tool"]);
+
     assert!(which.status.success());
     let stdout = String::from_utf8(which.stdout).expect("stdout should be UTF-8");
     assert_path_ends_with(stdout.trim(), &wrapper);
-
-    let wrappers = run_in(&fx, &["@wrappers"]);
-    assert!(wrappers.status.success());
-    let stdout = String::from_utf8(wrappers.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains(":seal-tool"));
-    assert!(stdout.contains("seal-tool.seal"));
 }
 
 #[test]
-#[cfg(unix)]
 fn extensionless_is_ignored() {
     let fx = fixture();
-    make_wrapper(&fx.project_wrappers.join("legacy"), "legacy");
+    make_shell_wrapper(&fx.project_wrappers.join("legacy"), "legacy");
 
     let output = run_in(&fx, &[":legacy"]);
 
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
     assert!(stderr.contains("wrapper not found: :legacy"));
-    assert!(stderr.contains("legacy.seal"));
+    assert!(stderr.contains("legacy.ts"));
     assert!(stderr.contains("legacy.sh"));
     assert!(!stderr.contains(".runseal/wrappers/legacy\n"));
 }
 
 #[test]
-fn seal_wrapper_runs_directly() {
+fn deno_uses_profile_policy() {
     let fx = fixture();
-    make_seal_wrapper(
-        &fx.project_wrappers.join("seal-tool.seal"),
-        r#"
-__seal_argc=$#
-__seal_help=false
-name=world
-loud=false
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --name)
-      if [ "$#" -lt 2 ]; then fail "missing value for --name"; fi
-      name=$2
-      shift 2
-      ;;
-    --name=*)
-      name=${1#--name=}
-      shift
-      ;;
-    --loud)
-      loud=true
-      shift
-      ;;
-    --)
-      shift
-      break
-      ;;
-    -h|--help|help)
-      __seal_help=true
-      shift
-      ;;
-    *) fail "unknown option: $1" ;;
-  esac
-done
-if [ "$__seal_argc" = 0 ]; then
-  print "hello $name"
-else
-  if [ "$loud" = true ]; then
-    print "HELLO $name from ${RUNSEAL_WRAPPER_NAME}"
-  else
-    print "hello $name"
-  fi
-fi
-"#,
-    );
+    let log = install_fake_deno(&fx);
+    let wrapper = ts_wrapper_file(&fx.project_wrappers, "tool");
+    make_ts_wrapper(&wrapper);
 
-    let output = run_in(&fx, &[":seal-tool", "--name", "seal", "--loud"]);
+    let output = bin()
+        .current_dir(&fx.project)
+        .env("RUNSEAL_HOME", &fx.home)
+        .env("PATH", prepend_path(&fx.bin))
+        .env("RUNSEAL_TEST_DENO_LOG", &log)
+        .args([":tool", "hello", "world"])
+        .output()
+        .expect("runseal should run");
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "HELLO seal from seal-tool\n");
+    assert!(stdout.contains("name=tool"));
+    assert_path_ends_with(
+        stdout
+            .lines()
+            .find_map(|line| line.strip_prefix("file="))
+            .expect("stdout should include wrapper file"),
+        &wrapper,
+    );
+    let log = std::fs::read_to_string(log).expect("deno log should be readable");
+    assert!(log.contains("deno run --no-prompt"));
+    assert!(log.contains("--config"));
+    assert!(log.contains(".runseal/deno.json"));
+    assert!(log.contains("--lock"));
+    assert!(log.contains("deno.lock"));
+    assert!(log.contains("--frozen=true"));
+    assert!(log.contains("--allow-env"));
+    assert!(log.contains("hello world"));
 }
 
 #[test]
-fn seal_captures_local_output() {
+fn deno_requires_profile_policy() {
     let fx = fixture();
-    make_seal_wrapper(
-        &fx.project_wrappers.join("capture-local.seal"),
-        r#"
-helper() {
-  print "hello $1"
+    std::fs::write(
+        fx.project.join("runseal.toml"),
+        "injections = []\n[resources]\nroot = \".resource\"\n",
+    )
+    .expect("profile should be written");
+    make_ts_wrapper(&ts_wrapper_file(&fx.project_wrappers, "tool"));
+
+    let output = run_in(&fx, &[":tool"]);
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("deno wrapper requires a [deno] profile policy"));
 }
 
-value=$(helper seal)
-print "$value"
-"#,
-    );
+#[test]
+fn ts_shadows_shell() {
+    let fx = fixture();
+    let log = install_fake_deno(&fx);
+    make_ts_wrapper(&ts_wrapper_file(&fx.project_wrappers, "tool"));
+    make_shell_wrapper(&shell_wrapper_file(&fx.project_wrappers, "tool"), "shell");
 
-    let output = run_in(&fx, &[":capture-local"]);
+    let output = bin()
+        .current_dir(&fx.project)
+        .env("RUNSEAL_HOME", &fx.home)
+        .env("PATH", prepend_path(&fx.bin))
+        .env("RUNSEAL_TEST_DENO_LOG", &log)
+        .args([":tool"])
+        .output()
+        .expect("runseal should run");
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "hello seal\n");
+    assert!(stdout.contains("name=tool"));
+    assert!(!stdout.contains("shell"));
 }
 
 #[test]
-fn seal_argv_positional() {
+fn shell_runs_without_ts() {
     let fx = fixture();
-    make_seal_wrapper(
-        &fx.project_wrappers.join("argv-positional.seal"),
-        r#"
-print() {
-  printf '%s\n' "$1"
-}
-
-fail() {
-  print "$1"
-  exit 1
-}
-
-__seal_argc=$#
-__seal_help=false
-body=
-message=
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --body)
-      if [ "$#" -lt 2 ]; then fail "missing value for --body"; fi
-      body=$2
-      shift 2
-      ;;
-    --body=*)
-      body=${1#--body=}
-      shift
-      ;;
-    --)
-      shift
-      break
-      ;;
-    -h|--help|help)
-      __seal_help=true
-      shift
-      ;;
-    *)
-      if [ -z "$message" ]; then
-        message=$1
-        shift
-      else
-        fail "unexpected argument: $1"
-      fi
-      ;;
-  esac
-done
-
-print "$body|$message"
-"#,
-    );
-
-    let output = run_in(&fx, &[":argv-positional", "--body=demo", "hello"]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "demo|hello\n");
-}
-
-#[test]
-fn seal_argv_multiline_guard() {
-    let fx = fixture();
-    make_seal_wrapper(
-        &fx.project_wrappers.join("argv-multiline-guard.seal"),
-        r#"
-print() {
-  printf '%s\n' "$1"
-}
-
-fail() {
-  print "$1"
-  exit 1
-}
-
-__seal_argc=$#
-__seal_help=false
-body=
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --body)
-      if [ "$#" -lt 2 ]; then
-        fail "missing value for --body"
-      fi
-      body=$2
-      shift 2
-      ;;
-    *) fail "unknown option: $1" ;;
-  esac
-done
-
-print "$body"
-"#,
-    );
-
-    let output = run_in(&fx, &[":argv-multiline-guard", "--body", "demo"]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "demo\n");
-}
-
-#[test]
-fn seal_wrapper_shadows() {
-    let fx = fixture();
-    make_wrapper(&wrapper_file(&fx.project_wrappers, "tool"), "shell");
-    make_seal_wrapper(&fx.project_wrappers.join("tool.seal"), "print seal\n");
+    make_shell_wrapper(&shell_wrapper_file(&fx.project_wrappers, "tool"), "shell");
 
     let output = run_in(&fx, &[":tool"]);
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_eq!(stdout, "seal\n");
-}
-
-#[test]
-fn seal_env_overlay_fails() {
-    let fx = fixture();
-    make_seal_wrapper(
-        &fx.project_wrappers.join("env-tool.seal"),
-        r#"
-RUNSEAL_MARKER=sealed sh -c 'printf %s "$RUNSEAL_MARKER"'
-"#,
-    );
-
-    let output = run_in(&fx, &[":env-tool"]);
-
-    assert!(!output.status.success());
-    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
-    assert!(stderr.contains("shell-specific construct is not supported in .seal"));
-    assert!(stderr.contains("sh -c"));
+    assert_eq!(stdout, "shell\n");
 }
 
 #[test]
 fn wrappers_hide_shadow() {
     let fx = fixture();
-    let project_wrapper = wrapper_file(&fx.project_wrappers, "wrap");
-    make_wrapper(&project_wrapper, "project");
-    make_wrapper(&wrapper_file(&fx.home_wrappers, "wrap"), "home");
+    let project_wrapper = ts_wrapper_file(&fx.project_wrappers, "wrap");
+    make_ts_wrapper(&project_wrapper);
+    make_shell_wrapper(&shell_wrapper_file(&fx.home_wrappers, "wrap"), "home");
 
     let which = run_in(&fx, &["@which", ":wrap"]);
     assert!(which.status.success());

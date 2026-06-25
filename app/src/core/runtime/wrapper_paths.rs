@@ -74,12 +74,12 @@ pub(super) fn path_env(config: &RuntimeConfig) -> Result<std::ffi::OsString> {
     env::join_paths(search_dirs(config)).context("failed to build RUNSEAL_WRAPPER_PATH")
 }
 
-pub(super) fn is_seal(path: &Path) -> bool {
-    path.extension().and_then(std::ffi::OsStr::to_str) == Some("seal")
+pub(super) fn is_deno(path: &Path) -> bool {
+    path.extension().and_then(std::ffi::OsStr::to_str) == Some("ts")
 }
 
 fn is_runnable(path: &Path) -> bool {
-    if is_seal(path) {
+    if is_deno(path) {
         return path.is_file();
     }
     is_executable(path)
@@ -111,7 +111,7 @@ fn candidates(dir: &Path, name: &str) -> Vec<PathBuf> {
         return vec![dir.join(name)];
     }
     vec![
-        dir.join(format!("{name}.seal")),
+        dir.join(format!("{name}.ts")),
         dir.join(format!("{name}.sh")),
     ]
 }
@@ -125,7 +125,7 @@ fn candidates(dir: &Path, name: &str) -> Vec<PathBuf> {
     [exact]
         .into_iter()
         .chain(
-            ["seal", "exe", "cmd", "bat"]
+            ["ts", "exe", "cmd", "bat"]
                 .into_iter()
                 .map(|ext| dir.join(format!("{name}.{ext}"))),
         )
@@ -151,7 +151,7 @@ fn is_executable(path: &Path) -> bool {
 #[cfg(unix)]
 fn listed_name(path: &Path) -> Option<String> {
     if path.extension().and_then(std::ffi::OsStr::to_str) != Some("sh") {
-        if path.extension().and_then(std::ffi::OsStr::to_str) == Some("seal") {
+        if path.extension().and_then(std::ffi::OsStr::to_str) == Some("ts") {
             let stem = path.file_stem()?.to_str()?;
             validate_symbol_name(stem).ok()?;
             return Some(stem.to_string());
@@ -167,7 +167,7 @@ fn listed_name(path: &Path) -> Option<String> {
 fn listed_name(path: &Path) -> Option<String> {
     let file_name = path.file_name()?.to_str()?;
     if let Some(ext) = path.extension().and_then(std::ffi::OsStr::to_str)
-        && matches_ignore_ascii_case(ext, &["seal", "exe", "cmd", "bat"])
+        && matches_ignore_ascii_case(ext, &["ts", "exe", "cmd", "bat"])
     {
         let stem = path.file_stem()?.to_str()?;
         validate_symbol_name(stem).ok()?;
