@@ -44,6 +44,10 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Validate R2 access
         run: bash .github/scripts/release/r2/check.sh
 
@@ -68,6 +72,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - name: Format
         run: cargo fmt --all --check
@@ -163,6 +171,10 @@ jobs:
         with:
           path: dist/${{ needs.metadata.outputs.release_version }}
           merge-multiple: true
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - name: Resolve guard version hash
         id: guard_hash

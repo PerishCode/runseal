@@ -21,11 +21,21 @@ fn fixture() -> Fixture {
     let project = temp.path().join("project");
     std::fs::create_dir_all(project.join(".runseal/wrappers"))
         .expect("wrapper dir should be created");
+    std::fs::create_dir_all(project.join(".runseal/lib")).expect("lib dir should be created");
     std::fs::write(
         project.join("runseal.toml"),
         r#"
 [resources]
 root = ".local"
+
+[deno]
+config = ".runseal/deno.json"
+permissions = [
+  "--allow-read",
+  "--allow-write",
+  "--allow-env",
+  "--allow-run=runseal",
+]
 
 [[injections]]
 type = "env"
@@ -37,12 +47,20 @@ RUNSEAL_REPO_TMP_DIR = "resource://tmp"
 "#,
     )
     .expect("profile should be written");
+    std::fs::write(project.join(".runseal/deno.json"), "{}\n")
+        .expect("deno config should be written");
     std::fs::write(
-        project.join(".runseal/wrappers/cloudflare.seal"),
-        std::fs::read_to_string(repo_root().join(".runseal/wrappers/cloudflare.seal"))
-            .expect("repo cloudflare seal should be readable"),
+        project.join(".runseal/lib/runseal.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/runseal.ts"))
+            .expect("repo deno helper should be readable"),
     )
-    .expect("cloudflare seal should be copied");
+    .expect("deno helper should be copied");
+    std::fs::write(
+        project.join(".runseal/wrappers/cloudflare.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/wrappers/cloudflare.ts"))
+            .expect("repo cloudflare wrapper should be readable"),
+    )
+    .expect("cloudflare wrapper should be copied");
     Fixture {
         _temp: temp,
         project,

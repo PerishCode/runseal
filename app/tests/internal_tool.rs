@@ -64,13 +64,13 @@ fn tool_runs_without_profile() {
                 "@tool",
                 "string",
                 "slug",
-                "Land Change: ship .seal!",
+                "Land Change: ship deno!",
                 "--max-len",
                 "48",
                 "--fallback",
                 "change",
             ],
-            "land-change-ship-seal\n",
+            "land-change-ship-deno\n",
         ),
         (
             vec![

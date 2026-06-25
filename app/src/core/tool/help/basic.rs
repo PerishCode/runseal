@@ -178,7 +178,7 @@ pub const ARCHIVE_LOCAL_EXPORT: Entry = Entry {
         ],
     }],
     examples: &[
-        "runseal @tool archive local export --source .local --archive backup.seal --password-env ESTATE_LOCAL_PASSWORD",
+        "runseal @tool archive local export --source .local --archive backup.local.archive --password-env ESTATE_LOCAL_PASSWORD",
     ],
 };
 
@@ -203,7 +203,7 @@ pub const ARCHIVE_LOCAL_IMPORT: Entry = Entry {
         ],
     }],
     examples: &[
-        "runseal @tool archive local import --source .local --archive backup.seal --password-env ESTATE_LOCAL_PASSWORD --force",
+        "runseal @tool archive local import --source .local --archive backup.local.archive --password-env ESTATE_LOCAL_PASSWORD --force",
     ],
 };
 

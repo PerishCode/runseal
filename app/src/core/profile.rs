@@ -20,6 +20,8 @@ pub struct Profile {
     #[serde(default)]
     pub resources: Option<ResourcesProfile>,
     #[serde(default)]
+    pub deno: Option<DenoProfile>,
+    #[serde(default)]
     pub injections: Vec<InjectionProfile>,
 }
 
@@ -32,6 +34,16 @@ struct ResourceMetadata {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ResourcesProfile {
     pub root: PathBuf,
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct DenoProfile {
+    #[serde(default)]
+    pub config: Option<PathBuf>,
+    #[serde(default)]
+    pub lock: Option<PathBuf>,
+    #[serde(default)]
+    pub permissions: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -139,6 +151,7 @@ pub fn load(path: &Path) -> Result<Profile> {
             path.display()
         ),
     };
+    normalize_deno_paths(path, &mut profile)?;
     normalize_symlink_paths(path, &mut profile)?;
     let resources = profile.resources.clone();
     normalize_env_resource_values(path, resources.as_ref(), &mut profile)?;
@@ -205,6 +218,20 @@ fn normalize_symlink_paths(profile_path: &Path, profile: &mut Profile) -> Result
             spec.source = normalize_path(&spec.source, base_dir)?;
             spec.target = normalize_path(&spec.target, base_dir)?;
         }
+    }
+    Ok(())
+}
+
+fn normalize_deno_paths(profile_path: &Path, profile: &mut Profile) -> Result<()> {
+    let Some(deno) = &mut profile.deno else {
+        return Ok(());
+    };
+    let base_dir = profile_path.parent().unwrap_or(Path::new("."));
+    if let Some(config) = &mut deno.config {
+        *config = normalize_path(config, base_dir)?;
+    }
+    if let Some(lock) = &mut deno.lock {
+        *lock = normalize_path(lock, base_dir)?;
     }
     Ok(())
 }

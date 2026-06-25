@@ -6,4 +6,3 @@ pub mod internal_help;
 pub mod profile;
 pub mod runtime;
 pub mod tool;
-pub mod transpile;

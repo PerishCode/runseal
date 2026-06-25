@@ -23,20 +23,20 @@ Core product stance:
   external scripts, then keeping those layers explicit.
 - `runseal` exists to reduce environment-dependency complexity in real
   cross-platform operations work: too many environment variables, too many
-  machine-specific assumptions, and too much operational glue falling back to
-  Python or JavaScript even when the underlying workflow is clear and finite.
+  machine-specific assumptions, and too much operational glue falling into
+  uncontrolled Python or shell dependency stacks.
 - Explicit profile. No hidden orchestration.
-- Prefer a stable shared subset of `bash` and PowerShell for `.seal`, plus
-  explicit atomic `@tool` capabilities for needs that do not fit that shared
-  shell surface cleanly.
-- Preserve cross-shell semantic equivalence as the hard constraint. Do not
-  require local syntax symmetry or IR-level elegance when a `.seal` behavior is
-  still clear, finite, and can be translated reliably into a more awkward
-  PowerShell form.
+- Prefer Deno `.ts` wrappers for structured cross-platform operator flows,
+  thin `.sh` wrappers only for Unix bootstrap glue, and explicit atomic `@tool`
+  capabilities for reusable domain operations.
+- Treat Deno as an explicit single-binary runtime prerequisite when the profile
+  declares a `[deno]` policy. Do not hide runtime setup or prompt for missing
+  permissions at wrapper execution time.
 - Keep the Rust core thin and concrete.
 - Support only `env`, `symlink`, fixed-prefix `argv`, explicit `:wrapper`
-  resolution, direct `.seal` execution, and read-only `@internal`
-  introspection unless a new product decision explicitly expands the surface.
+  resolution, Deno `.ts` wrapper execution, platform script wrappers, and
+  read-only `@internal` introspection unless a new product decision explicitly
+  expands the surface.
 - Use `clap` for CLI parsing. Do not hand-roll argument parsing.
 - Preserve command lifecycle semantics: load profile, register symlinks, export
   env, run command, clean up symlinks.
@@ -83,12 +83,11 @@ the repository-owned canonical files directly.
 - `app/src/core/config.rs`: app configuration and profile discovery.
 - `app/src/core/profile.rs`: profile format loading and normalization.
 - `app/src/core/runtime.rs`: command execution lifecycle.
-- `app/src/core/transpile/runner.rs`: direct Seal wrapper runtime.
 - `app/src/core/injections/`: `env` and `symlink` implementations.
 - `app/src/core/tool/`: built-in atomic `@tool` surface.
 - `app/tests/`: integration tests and focused behavioral coverage.
-- `.runseal/wrappers/`: repo-local `:wrapper` entrypoints. Prefer `.seal`
-  wrappers; platform scripts exist only while a wrapper has not migrated.
+- `.runseal/wrappers/`: repo-local `:wrapper` entrypoints. Prefer `.ts`
+  wrappers for structured operations and `.sh` only for thin Unix bootstrap.
 - `runseal.toml`: repo-local operator profile.
 - `manage.sh` and `manage.ps1`: public install and uninstall managers.
 
@@ -160,16 +159,16 @@ Successful profile and wrapper paths are normalized absolute paths.
 ### What defines the CLI surface?
 
 This repository is building explicit runtime glue, not a hidden orchestrator.
-New behavior should be added only when it fits one of two shapes cleanly:
+New behavior should be added only when it fits one of these shapes cleanly:
 
-- shared `bash` and PowerShell semantics that are worth making first-class in
-  `.seal`
+- a Deno `.ts` wrapper for repo-local structured operational flow
 - an explicit atomic `@tool`
+- a thin platform script for bootstrap or platform-specific shell integration
 
 `runseal` should not be treated as a grab-bag operations toolkit where every
 pain point becomes another command. Its value is methodological first:
 
-- decide what should be flow control in `.seal`
+- decide what should be flow control in a `.ts` wrapper
 - decide what should be an atomic `@tool`
 - decide what should be a visible repo or local artifact under `.runseal/` or
   `.local/`
@@ -184,30 +183,23 @@ clear operational workflows should not need to depend on heavyweight language
 runtimes or repository-local script stacks just to survive environment drift,
 cross-platform differences, and routine operator setup friction.
 
-The goal is not "be as small as possible". The goal is to absorb the
-right kind of complexity:
+The goal is not "no runtime dependencies ever". The goal is to absorb the
+right kind of complexity with explicit prerequisites:
 
-- clear, finite, cross-platform operational flow control should fit in
-  `runseal`
-- shell-specific cleverness, open-ended scripting power, and accidental runtime
+- clear, finite, cross-platform operational flow control should fit in Deno
+  wrappers plus runseal profile/context glue
+- reusable domain operations should become `@tool`
+- shell-specific cleverness, open-ended scripting power, and accidental
   dependency sprawl should not
 
-That is why the product boundary is a shared shell subset plus explicit atomic
+That is why the product boundary is Deno-first wrappers plus explicit atomic
 tools, rather than a general scripting platform or a partial shell clone.
 
-The hard promise is behavioral equivalence across `bash` and PowerShell, not
-surface-level symmetry in generated code. Some worthwhile `.seal` semantics may
-compile into elegant `bash` and relatively ugly PowerShell. That tradeoff is
-acceptable when:
+### When should behavior become a Deno wrapper?
 
-- the `.seal` behavior is clear and finite
-- the translation is reliable and testable
-- the result still serves explicit cross-platform operations flow control
-
-### When should behavior become Seal syntax?
-
-Only when bash and PowerShell share an elegant, stable semantic shape that is
-worth making first-class.
+When the logic is repo-local operational flow: argument parsing, policy,
+defaults, validation, polling, JSON/HTTP handling, and sequencing around
+existing CLIs or runseal tools.
 
 ### When should behavior become `@tool`?
 
@@ -216,11 +208,11 @@ the result still fits the explicit atomic-tool model.
 
 ### When should logic stay outside runseal?
 
-When the behavior cannot be described cleanly as shared shell-shape syntax or a
-clear atomic tool, keep it in Python, Ruby, JavaScript, or another external
-script.
+When the behavior cannot be described cleanly as a repo-local Deno flow or a
+clear atomic tool, keep it in Python, Ruby, JavaScript, Zig, shell, or another
+external script.
 
-### Should `.seal` wrappers build multi-line config or payload text inline?
+### Should wrappers build multi-line config or payload text inline?
 
 Usually no.
 
@@ -244,15 +236,14 @@ The wrapper should usually do the smaller, clearer job:
 
 This is an intentional product boundary. `runseal` is meant to reduce
 environment and runtime dependency complexity in operations workflows, not to
-turn `.seal` into a general inline text-construction language. If a multi-line
+turn wrappers into a general inline text-construction language. If a multi-line
 artifact is important enough to exist, prefer making it a visible repo or local
 artifact first.
 
-### Should `.seal` wrappers be treated as first-class runtime entrypoints?
+### Should `.ts` wrappers be treated as first-class runtime entrypoints?
 
-Yes. Treat `.runseal/wrappers/*.seal` as first-class wrappers executed directly
-by runseal. `@transpile` is a debug/export tool, not the normal wrapper
-execution path.
+Yes. Treat `.runseal/wrappers/*.ts` as first-class wrappers executed by runseal
+through the selected profile's `[deno]` policy.
 
 ### What should never be committed?
 

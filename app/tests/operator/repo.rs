@@ -32,7 +32,7 @@ case "${1:-}" in
     ;;
   branch)
     [ "${2:-}" = "--show-current" ] || exit 9
-    printf '%s\n' "${RUNSEAL_TEST_BRANCH:-feat/seal}"
+    printf '%s\n' "${RUNSEAL_TEST_BRANCH:-feat/deno}"
     ;;
   remote)
     [ "${2:-}" = "get-url" ] || exit 9
@@ -99,7 +99,7 @@ case "${1:-}" in
         elif [ "${RUNSEAL_TEST_PR_LIST+x}" ]; then
           printf '%s\n' "$RUNSEAL_TEST_PR_LIST"
         else
-          printf '%s\n' '[{"number":42,"title":"Seal","state":"OPEN","url":"https://example.test/pull/42","isDraft":false}]'
+          printf '%s\n' '[{"number":42,"title":"Deno","state":"OPEN","url":"https://example.test/pull/42","isDraft":false}]'
         fi
         ;;
       create|ready|checks|merge)
@@ -216,7 +216,7 @@ fn pr_dry_run_matches() {
     assert_eq!(
         stdout(&output),
         "\
-branch: feat/seal
+branch: feat/deno
 base: main
 push: True
 pr: create if missing, otherwise reuse existing
@@ -269,7 +269,7 @@ fn pr_reuses_draft() {
         &["--no-push", "--no-watch", "--no-merge"],
         &[(
             "RUNSEAL_TEST_PR_LIST",
-            r#"[{"number":42,"title":"Seal","state":"OPEN","url":"https://example.test/pull/42","isDraft":true}]"#,
+            r#"[{"number":42,"title":"Deno","state":"OPEN","url":"https://example.test/pull/42","isDraft":true}]"#,
         )],
     );
 
@@ -284,7 +284,7 @@ marked PR #42 ready
     assert_eq!(
         command_log(&fx),
         "\
-gh pr list --head feat/seal --json number,title,state,url,isDraft
+gh pr list --head feat/deno --json number,title,state,url,isDraft
 gh pr ready 42
 "
     );
@@ -301,7 +301,7 @@ fn pr_creates_and_merges() {
         "pr",
         &[
             "--title",
-            "Seal migration",
+            "Deno migration",
             "--body-file",
             "body.md",
             "--base",
@@ -311,7 +311,7 @@ fn pr_creates_and_merges() {
             ("RUNSEAL_TEST_PR_LIST_FIRST", "[]"),
             (
                 "RUNSEAL_TEST_PR_LIST_NEXT",
-                r#"[{"number":77,"title":"Seal migration","state":"OPEN","url":"https://example.test/pull/77","isDraft":false}]"#,
+                r#"[{"number":77,"title":"Deno migration","state":"OPEN","url":"https://example.test/pull/77","isDraft":false}]"#,
             ),
         ],
     );
@@ -327,10 +327,10 @@ squash-merged PR #77
     assert_eq!(
         command_log(&fx),
         "\
-git push -u origin feat/seal
-gh pr list --head feat/seal --json number,title,state,url,isDraft
-gh pr create --base develop --head feat/seal --title Seal migration --body-file body.md
-gh pr list --head feat/seal --json number,title,state,url,isDraft
+git push -u origin feat/deno
+gh pr list --head feat/deno --json number,title,state,url,isDraft
+gh pr create --base develop --head feat/deno --title Deno migration --body-file body.md
+gh pr list --head feat/deno --json number,title,state,url,isDraft
 gh pr checks 77 --watch --interval 10
 gh pr merge 77 --squash --delete-branch
 "
