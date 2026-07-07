@@ -272,7 +272,7 @@ Declare the policy in the selected profile:
 ```toml
 [deno]
 config = ".runseal/deno.json"
-lock = "deno.lock"
+lock = ".runseal/deno.lock"
 permissions = [
   "--allow-read=.",
   "--allow-write=.",

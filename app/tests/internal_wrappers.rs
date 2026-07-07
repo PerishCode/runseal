@@ -72,7 +72,7 @@ root = ".resource"
 
 [deno]
 config = ".runseal/deno.json"
-lock = "deno.lock"
+lock = ".runseal/deno.lock"
 permissions = ["--allow-env"]
 "#,
     )
@@ -231,7 +231,7 @@ fn deno_uses_profile_policy() {
     assert!(log.contains("--config"));
     assert!(log.contains(".runseal/deno.json"));
     assert!(log.contains("--lock"));
-    assert!(log.contains("deno.lock"));
+    assert!(log.contains(".runseal/deno.lock"));
     assert!(log.contains("--frozen=true"));
     assert!(log.contains("--allow-env"));
     assert!(log.contains("hello world"));

@@ -3,7 +3,7 @@ root = ".local"
 
 [deno]
 config = ".runseal/deno.json"
-lock = "deno.lock"
+lock = ".runseal/deno.lock"
 permissions = [
   "--allow-read=.",
   "--allow-write=.",

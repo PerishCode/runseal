@@ -153,7 +153,7 @@ await cmd.run("deno", [
   "--config",
   ".runseal/deno.json",
   "--lock",
-  "deno.lock",
+  ".runseal/deno.lock",
   "--frozen=true",
   ".runseal/wrappers/cloudflare.ts",
   ".runseal/wrappers/guard.ts",

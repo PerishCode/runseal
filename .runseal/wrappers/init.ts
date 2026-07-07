@@ -85,12 +85,12 @@ for (
   const path of [
     "Cargo.toml",
     "Cargo.lock",
-    "deno.lock",
     "flavor.toml",
     "manage.sh",
     "manage.ps1",
     "runseal.toml",
     ".runseal/deno.json",
+    ".runseal/deno.lock",
     ".runseal/hooks/pre-commit",
     ".runseal/hooks/commit-msg",
     ".runseal/lib/cli.ts",
