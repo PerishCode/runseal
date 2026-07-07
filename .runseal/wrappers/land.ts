@@ -172,7 +172,10 @@ async function watchChecks(prUrl: string): Promise<void> {
     io.print(`no checks reported on ${prUrl}; skipping watch`);
     return;
   }
-  await cmd.run("gh", ["pr", "checks", prUrl, "--watch", "--interval", "10"]);
+  const code = await cmd.status("gh", ["pr", "checks", prUrl, "--watch", "--interval", "10"]);
+  if (code !== 0) {
+    io.print(`checks watch exited with ${code}; continuing to merge`);
+  }
 }
 
 async function mergePr(prUrl: string, deleteBranch: boolean): Promise<void> {
