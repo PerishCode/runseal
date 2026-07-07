@@ -172,9 +172,16 @@ async function watchChecks(prUrl: string): Promise<void> {
     io.print(`no checks reported on ${prUrl}; skipping watch`);
     return;
   }
-  const code = await cmd.status("gh", ["pr", "checks", prUrl, "--watch", "--interval", "10"]);
-  if (code !== 0) {
-    io.print(`checks watch exited with ${code}; continuing to merge`);
+  let lastCode = 0;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    lastCode = await cmd.status("gh", ["pr", "checks", prUrl, "--watch", "--interval", "10"]);
+    if (lastCode === 0) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+  if (lastCode !== 0) {
+    io.print(`checks watch exited with ${lastCode}; continuing to merge`);
   }
 }
 
