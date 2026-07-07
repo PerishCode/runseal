@@ -128,7 +128,7 @@ Common repo workflow commands:
 ```bash
 runseal :init
 runseal :cloudflare
-runseal :pr
+runseal :land
 runseal :release --channel beta --ref <branch> --watch
 ```
 

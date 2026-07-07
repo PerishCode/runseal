@@ -26,6 +26,7 @@ fn fixture() -> Fixture {
         .output()
         .expect("git init should run");
     write_required_files(&project);
+    write_git_stub(&bin.join("git"));
     write_stub(&bin.join("python3"));
     write_stub(&bin.join("cargo"));
     write_stub(&bin.join("flavor"));
@@ -66,7 +67,7 @@ fn write_required_files(project: &Path) {
         ".runseal/wrappers/cloudflare.ts",
         ".runseal/wrappers/guard.ts",
         ".runseal/wrappers/init.ts",
-        ".runseal/wrappers/pr.ts",
+        ".runseal/wrappers/land.ts",
         ".runseal/wrappers/release.ts",
         ".github/workflows/guard.yml",
         ".github/workflows/release-beta.yml",
@@ -184,10 +185,63 @@ permissions = [
     .expect("profile should be written");
 }
 
+fn write_git_stub(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    std::fs::write(
+        path,
+        r#"#!/usr/bin/env sh
+set -eu
+case "${1:-}" in
+  --version)
+    ;;
+  rev-parse)
+    if [ "${2:-}" = "--show-toplevel" ]; then
+      pwd
+    else
+      exit 9
+    fi
+    ;;
+  config)
+    if [ "${2:-}" = "core.hooksPath" ] && [ "${3:-}" = ".runseal/hooks" ]; then
+      exit 0
+    fi
+    if [ "${2:-}" = "--get" ] && [ "${3:-}" = "core.hooksPath" ]; then
+      printf '%s\n' ".runseal/hooks"
+      exit 0
+    fi
+    exit 9
+    ;;
+  *)
+    exit 9
+    ;;
+esac
+"#,
+    )
+    .expect("git stub should be written");
+    let mut permissions = std::fs::metadata(path)
+        .expect("git stub metadata should be readable")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(path, permissions).expect("git stub should be executable");
+}
+
 fn write_stub(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
 
-    std::fs::write(path, "#!/bin/sh\nexit 0\n").expect("stub should be written");
+    std::fs::write(
+        path,
+        r#"#!/usr/bin/env sh
+set -eu
+if [ "${1:-}" = "config" ] && [ "${2:-}" = "--get" ]; then
+  if [ "${3:-}" = "core.hooksPath" ]; then
+    printf '%s\n' ".runseal/hooks"
+  fi
+fi
+exit 0
+"#,
+    )
+    .expect("stub should be written");
     let mut permissions = std::fs::metadata(path)
         .expect("stub metadata should be readable")
         .permissions();
@@ -226,27 +280,6 @@ fn prepend_path(first: &Path) -> OsString {
 }
 
 #[test]
-fn init_installs_generated_hooks() {
-    let fx = fixture();
-
-    let output = run_init(&fx, &[]);
-
-    assert!(
-        output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let pre_commit = fx.project.join(".git/hooks/pre-commit");
-    let commit_msg = fx.project.join(".git/hooks/commit-msg");
-    let pre_commit_text = std::fs::read_to_string(&pre_commit).expect("pre-commit should exist");
-    let commit_msg_text = std::fs::read_to_string(&commit_msg).expect("commit-msg should exist");
-    assert!(pre_commit_text.contains("runseal init hook"));
-    assert!(pre_commit_text.contains("refusing to commit directly on main"));
-    assert!(pre_commit_text.contains("runseal :guard"));
-    assert!(commit_msg_text.contains("runseal init hook"));
-}
-
-#[test]
 fn init_help_is_readonly() {
     let fx = fixture();
 
@@ -255,31 +288,4 @@ fn init_help_is_readonly() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Usage: runseal :init"));
-    assert!(!fx.project.join(".git/hooks/pre-commit").exists());
-    assert!(!fx.project.join(".git/hooks/commit-msg").exists());
-}
-
-#[test]
-fn force_backs_up_hook() {
-    let fx = fixture();
-    let pre_commit = fx.project.join(".git/hooks/pre-commit");
-    std::fs::write(&pre_commit, "#!/usr/bin/env sh\necho custom\n")
-        .expect("custom hook should be written");
-
-    let rejected = run_init(&fx, &[]);
-
-    assert!(!rejected.status.success());
-    assert!(String::from_utf8_lossy(&rejected.stderr).contains("rerun with --force"));
-
-    let forced = run_init(&fx, &["--force"]);
-
-    assert!(
-        forced.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&forced.stderr)
-    );
-    assert!(fx.project.join(".git/hooks/pre-commit.bak").is_file());
-    let pre_commit_text = std::fs::read_to_string(&pre_commit).expect("pre-commit should exist");
-    assert!(pre_commit_text.contains("runseal init hook"));
-    assert!(pre_commit_text.contains("refusing to commit directly on main"));
 }

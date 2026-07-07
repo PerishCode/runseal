@@ -158,7 +158,7 @@ await cmd.run("deno", [
   ".runseal/wrappers/cloudflare.ts",
   ".runseal/wrappers/guard.ts",
   ".runseal/wrappers/init.ts",
-  ".runseal/wrappers/pr.ts",
+  ".runseal/wrappers/land.ts",
   ".runseal/wrappers/release.ts",
 ]);
 
