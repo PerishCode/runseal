@@ -12,17 +12,14 @@ struct Fixture {
     _temp: TempDir,
     project: PathBuf,
     bin: PathBuf,
-    state: PathBuf,
 }
 
 fn fixture() -> Option<Fixture> {
     let temp = TempDir::new().expect("temp dir should be created");
     let project = temp.path().join("project");
     let bin = temp.path().join("bin");
-    let state = temp.path().join("state");
     std::fs::create_dir_all(&project).expect("project should be created");
     std::fs::create_dir_all(&bin).expect("stub bin dir should be created");
-    std::fs::create_dir_all(&state).expect("stub state dir should be created");
     write_stub(
         &bin.join("git"),
         r#"#!/usr/bin/env sh
@@ -31,8 +28,20 @@ case "${1:-}" in
   --version)
     ;;
   branch)
-    [ "${2:-}" = "--show-current" ] || exit 9
-    printf '%s\n' "${RUNSEAL_TEST_BRANCH:-feat/deno}"
+    if [ "${2:-}" = "--show-current" ]; then
+      printf '%s\n' "${RUNSEAL_TEST_BRANCH:-feat/deno}"
+    elif [ "${2:-}" = "-D" ]; then
+      printf 'git %s\n' "$*" >> "${RUNSEAL_TEST_LOG:?}"
+    else
+      exit 9
+    fi
+    ;;
+  status)
+    if [ "${2:-}" = "--short" ]; then
+      printf '%s\n' "${RUNSEAL_TEST_STATUS:-}"
+    else
+      printf 'git %s\n' "$*" >> "${RUNSEAL_TEST_LOG:?}"
+    fi
     ;;
   remote)
     [ "${2:-}" = "get-url" ] || exit 9
@@ -40,7 +49,20 @@ case "${1:-}" in
     printf '%s\n' "${RUNSEAL_TEST_REMOTE_ORIGIN:-git@github.com:PerishCode/runseal.git}"
     ;;
   rev-parse)
+    if [ "${2:-}" = "--verify" ]; then
+      exit "${RUNSEAL_TEST_REV_PARSE_STATUS:-0}"
+    fi
     printf '%s\n' "${RUNSEAL_TEST_REF_SHA:-abc123}"
+    ;;
+  merge-base)
+    exit "${RUNSEAL_TEST_MERGE_BASE_STATUS:-0}"
+    ;;
+  rev-list)
+    [ "${2:-}" = "--count" ] || exit 9
+    printf '%s\n' "${RUNSEAL_TEST_AHEAD:-1}"
+    ;;
+  log)
+    printf '%s\n' "${RUNSEAL_TEST_LOG_SUBJECTS:-ops: add land wrapper}"
     ;;
   *)
     printf 'git %s\n' "$*" >> "${RUNSEAL_TEST_LOG:?}"
@@ -85,24 +107,16 @@ case "${1:-}" in
     log "$@"
     case "${2:-}" in
       list)
-        count_file="${RUNSEAL_TEST_STATE:?}/pr_list_count"
-        count=0
-        if [ -f "$count_file" ]; then
-          count=$(cat "$count_file")
-        fi
-        next=$((count + 1))
-        printf '%s\n' "$next" > "$count_file"
-        if [ "$count" -eq 0 ] && [ "${RUNSEAL_TEST_PR_LIST_FIRST+x}" ]; then
-          printf '%s\n' "$RUNSEAL_TEST_PR_LIST_FIRST"
-        elif [ "$count" -gt 0 ] && [ "${RUNSEAL_TEST_PR_LIST_NEXT+x}" ]; then
-          printf '%s\n' "$RUNSEAL_TEST_PR_LIST_NEXT"
-        elif [ "${RUNSEAL_TEST_PR_LIST+x}" ]; then
+        if [ "${RUNSEAL_TEST_PR_LIST+x}" ]; then
           printf '%s\n' "$RUNSEAL_TEST_PR_LIST"
         else
-          printf '%s\n' '[{"number":42,"title":"Deno","state":"OPEN","url":"https://example.test/pull/42","isDraft":false}]'
+          printf '%s\n' 'https://example.test/pull/42'
         fi
         ;;
-      create|ready|checks|merge)
+      create)
+        printf '%s\n' "${RUNSEAL_TEST_PR_CREATE:-https://example.test/pull/77}"
+        ;;
+      checks|merge)
         ;;
       *)
         exit 9
@@ -115,11 +129,26 @@ case "${1:-}" in
 esac
 "#,
     );
+    write_stub(
+        &bin.join("runseal"),
+        r#"#!/usr/bin/env sh
+set -eu
+printf 'runseal %s\n' "$*" >> "${RUNSEAL_TEST_LOG:?}"
+if [ "${1:-}" = "@tool" ] &&
+   [ "${2:-}" = "github" ] &&
+   [ "${3:-}" = "pr" ] &&
+   [ "${4:-}" = "checks" ] &&
+   [ "${5:-}" = "probe" ]; then
+  printf '%s\n' "${RUNSEAL_TEST_CHECKS_SEEN:-true}"
+  exit 0
+fi
+exit 9
+"#,
+    );
     Some(Fixture {
         _temp: temp,
         project,
         bin,
-        state,
     })
 }
 
@@ -157,7 +186,6 @@ fn run_wrapper_env(
         .current_dir(&fx.project)
         .env("PATH", path)
         .env("RUNSEAL_TEST_LOG", &log)
-        .env("RUNSEAL_TEST_STATE", &fx.state)
         .arg("-p")
         .arg(repo_root().join("runseal.toml"))
         .arg(format!(":{name}"))
@@ -191,148 +219,152 @@ fn command_log(fx: &Fixture) -> String {
 }
 
 #[test]
-fn pr_help_option() {
+fn land_help_option() {
     let Some(fx) = fixture() else {
         return;
     };
 
-    let output = run_active_wrapper(&fx, "pr", &["--help"]);
+    let output = run_active_wrapper(&fx, "land", &["--help"]);
 
     assert!(output.status.success());
     let stdout = stdout(&output);
-    assert!(stdout.contains("Usage: runseal :pr [options]"));
+    assert!(stdout.contains("Usage: runseal :land [options]"));
     assert!(stdout.contains("--dry-run"));
 }
 
 #[test]
-fn pr_dry_run_matches() {
+fn land_dry_run_matches() {
     let Some(fx) = fixture() else {
         return;
     };
 
-    let output = run_active_wrapper(&fx, "pr", &["--dry-run"]);
+    let output = run_active_wrapper(&fx, "land", &["--dry-run"]);
 
     assert!(output.status.success());
     assert_eq!(
         stdout(&output),
         "\
-branch: feat/deno
-base: main
-push: True
-pr: create if missing, otherwise reuse existing
-draft: False
-ready: True
-watch: True
-squash_merge: True
+[dry-run] would run:
+  git fetch origin main
+  verify feat/deno is clean, not main, contains origin/main, ahead >= 1
+  git push -u origin feat/deno
+  gh pr list --head feat/deno --base main --state open --json url --jq ...
+  gh pr create --base main --head feat/deno --fill  # if missing
+  gh pr checks <url> --watch --interval 10  # if checks exist
+  gh pr merge <url> --squash --delete-branch
+  git checkout main
+  git pull --ff-only origin main
+  git branch -D feat/deno  # if still present locally
 "
     );
 }
 
 #[test]
-fn pr_rejects_draft_merge() {
-    let Some(fx) = fixture() else {
-        return;
-    };
-
-    let output = run_active_wrapper(&fx, "pr", &["--draft", "--dry-run"]);
-
-    assert!(!output.status.success());
-    assert!(stderr(&output).contains("pr: --draft requires --no-merge"));
-}
-
-#[test]
-fn pr_rejects_base_branch() {
+fn land_rejects_dirty_tree() {
     let Some(fx) = fixture() else {
         return;
     };
 
     let output = run_wrapper_env(
         &fx,
-        "pr",
+        "land",
+        &["--dry-run"],
+        &[("RUNSEAL_TEST_STATUS", " M README.md")],
+    );
+
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("land: working tree must be clean"));
+}
+
+#[test]
+fn land_rejects_base_branch() {
+    let Some(fx) = fixture() else {
+        return;
+    };
+
+    let output = run_wrapper_env(
+        &fx,
+        "land",
         &["--dry-run"],
         &[("RUNSEAL_TEST_BRANCH", "main")],
     );
 
     assert!(!output.status.success());
-    assert!(stderr(&output).contains("pr: refusing to open a PR from base branch: main"));
+    assert!(stderr(&output).contains("land: must run on a topic branch, not main"));
 }
 
 #[test]
-fn pr_reuses_draft() {
+fn land_reuses_open_pr() {
     let Some(fx) = fixture() else {
         return;
     };
 
     let output = run_wrapper_env(
         &fx,
-        "pr",
-        &["--no-push", "--no-watch", "--no-merge"],
-        &[(
-            "RUNSEAL_TEST_PR_LIST",
-            r#"[{"number":42,"title":"Deno","state":"OPEN","url":"https://example.test/pull/42","isDraft":true}]"#,
-        )],
+        "land",
+        &["--no-delete"],
+        &[("RUNSEAL_TEST_PR_LIST", "https://example.test/pull/42")],
     );
 
     assert!(output.status.success(), "stderr: {}", stderr(&output));
     assert_eq!(
         stdout(&output),
         "\
-found PR #42: https://example.test/pull/42
-marked PR #42 ready
+https://example.test/pull/42
 "
     );
     assert_eq!(
         command_log(&fx),
         "\
-gh pr list --head feat/deno --json number,title,state,url,isDraft
-gh pr ready 42
-"
-    );
-}
-
-#[test]
-fn pr_creates_and_merges() {
-    let Some(fx) = fixture() else {
-        return;
-    };
-
-    let output = run_wrapper_env(
-        &fx,
-        "pr",
-        &[
-            "--title",
-            "Deno migration",
-            "--body-file",
-            "body.md",
-            "--base",
-            "develop",
-        ],
-        &[
-            ("RUNSEAL_TEST_PR_LIST_FIRST", "[]"),
-            (
-                "RUNSEAL_TEST_PR_LIST_NEXT",
-                r#"[{"number":77,"title":"Deno migration","state":"OPEN","url":"https://example.test/pull/77","isDraft":false}]"#,
-            ),
-        ],
-    );
-
-    assert!(output.status.success(), "stderr: {}", stderr(&output));
-    assert_eq!(
-        stdout(&output),
-        "\
-created PR #77: https://example.test/pull/77
-squash-merged PR #77
-"
-    );
-    assert_eq!(
-        command_log(&fx),
-        "\
+git fetch origin main
 git push -u origin feat/deno
-gh pr list --head feat/deno --json number,title,state,url,isDraft
-gh pr create --base develop --head feat/deno --title Deno migration --body-file body.md
-gh pr list --head feat/deno --json number,title,state,url,isDraft
-gh pr checks 77 --watch --interval 10
-gh pr merge 77 --squash --delete-branch
+gh pr list --head feat/deno --base main --state open --json url --jq .[0].url // \"\"
+runseal @tool github pr checks probe https://example.test/pull/42
+gh pr checks https://example.test/pull/42 --watch --interval 10
+gh pr merge https://example.test/pull/42 --squash
+git checkout main
+git pull --ff-only origin main
+"
+    );
+}
+
+#[test]
+fn land_creates_and_merges() {
+    let Some(fx) = fixture() else {
+        return;
+    };
+
+    let output = run_wrapper_env(
+        &fx,
+        "land",
+        &["--body", "body text", "--base", "develop"],
+        &[
+            ("RUNSEAL_TEST_PR_LIST", ""),
+            ("RUNSEAL_TEST_PR_CREATE", "https://example.test/pull/77"),
+            ("RUNSEAL_TEST_LOG_SUBJECTS", "ops: add land wrapper"),
+        ],
+    );
+
+    assert!(output.status.success(), "stderr: {}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "\
+https://example.test/pull/77
+"
+    );
+    assert_eq!(
+        command_log(&fx),
+        "\
+git fetch origin develop
+git push -u origin feat/deno
+gh pr list --head feat/deno --base develop --state open --json url --jq .[0].url // \"\"
+gh pr create --base develop --head feat/deno --title ops: add land wrapper --body body text
+runseal @tool github pr checks probe https://example.test/pull/77
+gh pr checks https://example.test/pull/77 --watch --interval 10
+gh pr merge https://example.test/pull/77 --squash --delete-branch
+git checkout develop
+git pull --ff-only origin develop
+git branch -D feat/deno
 "
     );
 }

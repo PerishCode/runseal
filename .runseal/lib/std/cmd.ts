@@ -44,6 +44,13 @@ function envOptions(
 }
 
 async function run(command: string, args: string[] = [], options: CommandOptions = {}) {
+  const code = await status(command, args, options);
+  if (code !== 0) {
+    Deno.exit(code);
+  }
+}
+
+async function status(command: string, args: string[] = [], options: CommandOptions = {}) {
   const status = await new Deno.Command(command, {
     args,
     cwd: options.cwd,
@@ -52,9 +59,7 @@ async function run(command: string, args: string[] = [], options: CommandOptions
     stdout: options.stdout ?? "inherit",
     stderr: options.stderr ?? "inherit",
   }).spawn().status;
-  if (!status.success) {
-    Deno.exit(status.code);
-  }
+  return status.code;
 }
 
 async function text(
@@ -120,6 +125,7 @@ async function exists(name: string): Promise<boolean> {
 
 export const cmd = {
   run,
+  status,
   text,
   input,
   exists,
