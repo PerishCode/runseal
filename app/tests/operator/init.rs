@@ -44,12 +44,12 @@ fn write_required_files(project: &Path) {
     for path in [
         "Cargo.toml",
         "Cargo.lock",
-        "deno.lock",
         "flavor.toml",
         "manage.sh",
         "manage.ps1",
         "runseal.toml",
         ".runseal/deno.json",
+        ".runseal/deno.lock",
         ".runseal/hooks/pre-commit",
         ".runseal/hooks/commit-msg",
         ".runseal/lib/cli.ts",
@@ -91,8 +91,8 @@ fn write_required_files(project: &Path) {
         std::fs::write(&file, "").expect("required file should be written");
     }
     std::fs::write(
-        project.join("deno.lock"),
-        std::fs::read_to_string(repo_root().join("deno.lock"))
+        project.join(".runseal/deno.lock"),
+        std::fs::read_to_string(repo_root().join(".runseal/deno.lock"))
             .expect("repo deno lock should be readable"),
     )
     .expect("deno lock should be copied");
